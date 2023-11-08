@@ -1,0 +1,15 @@
+.ipynb_checkpoints/
+__pycache__/
+.mypy_cache
+src/.mypy.ini
+jobs/*.[e,o]*
+notebooks/*
+lightning_logs/*
+_lightning_logs/*
+src/models/*.ipynb
+*.swp
+*~
+thirdparties
+.coverage
+src/MMDC_Downstream.egg-info/
+.projectile
