@@ -2,4 +2,4 @@
 
 hydra:
   run:
-    dir: ${output_dir}/logs/experiments/runs/${name}/${run_id}
+    dir: ${output_dir}/logs/experiments/${name}/${run_id}

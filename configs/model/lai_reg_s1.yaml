@@ -1,0 +1,24 @@
+
+_target_: mmdc_downstream.models.lightning.lai_regression.MMDCDownstreamRegressionLitModule
+lr: 0.0001
+resume_from_checkpoint: null
+
+# To choose from [experts, lat_S1, lat_S2, S2, S1_asc, S2_desc]
+input_data: S1
+
+model:
+  _target_: mmdc_downstream.models.torch.lai_regression.MMDCDownstreamRegressionModule
+  config:
+    _target_: mmdc_downstream.models.datatypes.RegressionConfig
+    reg_model:
+      hidden_sizes: [ 16, 16, 8 ]
+      input_size: 11
+      output_size: 1
+
+model_snap:
+  _target_: mmdc_downstream.snap.lai_snap.BVNET
+  device: cuda
+  ver: "2"
+  variable: lai
+
+model_mmdc: null
