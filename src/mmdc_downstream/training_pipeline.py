@@ -13,15 +13,17 @@ from .utils import finish, get_logger, log_hyperparameters
 
 log = get_logger(__name__)
 
+# torch.set_float32_matmul_precision('high')
+
 
 def setup(
-        config: DictConfig,
+    config: DictConfig,
 ) -> tuple[
-    LightningModule,
-    LightningDataModule,
-    Trainer,
-    list[Callback],
-    list[Logger],
+        LightningModule,
+        LightningDataModule,
+        Trainer,
+        list[Callback],
+        list[Logger],
 ]:
     """Setup the elements of the training pipeline"""
 
@@ -33,22 +35,22 @@ def setup(
     ckpt_path = config.model.get("resume_from_checkpoint")
     if ckpt_path and not os.path.isabs(ckpt_path):
         config.model.resume_from_checkpoint = os.path.join(
-            hydra.utils.get_original_cwd(), ckpt_path
-        )
+            hydra.utils.get_original_cwd(), ckpt_path)
 
     # Init lightning model
     log.info("Instantiating model <%s>", config.model._target_)  # pylint: disable=W0212
     pl_module: LightningModule = hydra.utils.instantiate(config.model)
-    assert hasattr(pl_module.model, "nb_cropped_hw")
-    patch_margin = pl_module.model.nb_cropped_hw
+    # assert hasattr(pl_module.model, "nb_cropped_hw")
+    # patch_margin = pl_module.model.nb_cropped_hw
 
     # Init lightning datamodule
     log.info(
         "Instantiating datamodule <%s>",
         config.datamodule._target_,  # pylint: disable=W0212
     )
-    datamodule: LightningDataModule = hydra.utils.instantiate(config.datamodule)
-    datamodule.hparams.patch_margin = patch_margin  # type: ignore
+    datamodule: LightningDataModule = hydra.utils.instantiate(
+        config.datamodule)
+    # datamodule.hparams.patch_margin = patch_margin  # type: ignore
 
     # Init lightning callbacks
     callbacks: list[Callback] = []
@@ -77,9 +79,10 @@ def setup(
         "Instantiating trainer <%s>",
         config.trainer._target_,  # pylint: disable=W0212
     )
-    trainer: Trainer = hydra.utils.instantiate(
-        config.trainer, callbacks=callbacks, logger=logger, _convert_="partial"
-    )
+    trainer: Trainer = hydra.utils.instantiate(config.trainer,
+                                               callbacks=callbacks,
+                                               logger=logger,
+                                               _convert_="partial")
     # Send some parameters from config to all lightning loggers
     log.info("Logging hyperparameters!")
     log_hyperparameters(
@@ -118,11 +121,9 @@ def train(config: DictConfig) -> torch.Tensor | None:
     # Get metric score for hyperparameter optimization
     optimized_metric = config.get("optimized_metric")
     if optimized_metric and optimized_metric not in trainer.callback_metrics:
-        raise RuntimeError(
-            "Metric for hyperparameter optimization not found! "
-            "Make sure the `optimized_metric` in"
-            "`hparams_search` config is correct!"
-        )
+        raise RuntimeError("Metric for hyperparameter optimization not found! "
+                           "Make sure the `optimized_metric` in"
+                           "`hparams_search` config is correct!")
     score = trainer.callback_metrics.get(optimized_metric)
 
     # Test the model
@@ -131,20 +132,17 @@ def train(config: DictConfig) -> torch.Tensor | None:
         if not config.get("train") or config.trainer.get("fast_dev_run"):
             test_ckpt_path = None
         log.info("Starting testing with model %s", test_ckpt_path)
-        trainer.test(model=model, datamodule=datamodule, ckpt_path=test_ckpt_path)
+        trainer.test(model=model,
+                     datamodule=datamodule,
+                     ckpt_path=test_ckpt_path)
 
     # Make sure everything closed properly
     log.info("Finalizing!")
-    finish(
-        logger=logger
-    )
+    finish(logger=logger)
 
     # Print path to best checkpoint
-    if (
-            ckpt_path is not None
-            and trainer.checkpoint_callback is not None
-            and hasattr(trainer.checkpoint_callback, "best_model_path")
-    ):
+    if (ckpt_path is not None and trainer.checkpoint_callback is not None
+            and hasattr(trainer.checkpoint_callback, "best_model_path")):
         log.info(
             "Best model ckpt at %s",
             trainer.checkpoint_callback.best_model_path,
