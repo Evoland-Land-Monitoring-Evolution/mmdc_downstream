@@ -17,12 +17,10 @@ from mmdc_singledate.datamodules.mmdc_datamodule import destructure_batch
 
 from dataclasses import dataclass
 
-
 # Configure logging
 NUMERIC_LEVEL = getattr(logging, "INFO", None)
-logging.basicConfig(
-    level=NUMERIC_LEVEL, format="%(asctime)-15s %(levelname)s: %(message)s"
-)
+logging.basicConfig(level=NUMERIC_LEVEL,
+                    format="%(asctime)-15s %(levelname)s: %(message)s")
 
 logger = logging.getLogger(__name__)
 
@@ -53,10 +51,10 @@ class MMDCLAICallback(Callback):
         self.value_range = value_range
 
     def save_image_grid(
-            self,
-            sen_data: tuple[torch.Tensor, torch.Tensor],
-            pred: OutputLAI,
-            sample: SampleInfo,
+        self,
+        sen_data: tuple[torch.Tensor, torch.Tensor],
+        pred: OutputLAI,
+        sample: SampleInfo,
     ) -> None:
         """Generate the matplotlib figure and save it to a file"""
 
@@ -78,68 +76,83 @@ class MMDCLAICallback(Callback):
         for samp_idx in range(self.n_samples):
             for col in range(len(labels)):
                 data_to_plot = self.prepare_sample(prepared_data, samp_idx)
-                axes[samp_idx, col].imshow(data_to_plot[col], interpolation="bicubic")
+                axes[samp_idx, col].imshow(data_to_plot[col],
+                                           interpolation="bicubic")
                 axes[samp_idx, col].set_title(labels[col])
 
         del prepared_data
 
         # export name
-        image_basename = (
-            f"LAI_val_ep_{sample.current_epoch:03}_samples_"
-            f"0-{self.n_samples:01}_{sample.batch_idx}"
-        )
+        image_basename = (f"LAI_val_ep_{sample.current_epoch:03}_samples_"
+                          f"0-{self.n_samples:01}_{sample.batch_idx}")
         image_name = Path(f"{self.save_dir}/{image_basename}.png")
         fig.savefig(image_name)
 
-    def prepare_data(self,
-                     sen_data: tuple[torch.Tensor, torch.Tensor],
-                     pred: OutputLAI,
-                     margin: int,
-                     ) -> tuple[torch.Tensor, ...]:
+    def prepare_data(
+        self,
+        sen_data: tuple[torch.Tensor, torch.Tensor],
+        pred: OutputLAI,
+        margin: int,
+    ) -> tuple[torch.Tensor, ...]:
         s1, s2 = sen_data
 
-        s1_asc = s1[:self.n_samples, :3, margin: -margin, margin: -margin]
-        s1_desc = s1[:self.n_samples, 3:, margin: -margin, margin: -margin]
-        s2_rgb = s2[:self.n_samples, [2, 1, 0], margin: -margin, margin: -margin]
-        latent_mu = pred.latent.clone()[:self.n_samples, [0, 1, 2], margin: -margin, margin: -margin]
-        lai_gt = pred.lai_gt.clone()[:self.n_samples, [0, 0, 0], margin: -margin, margin: -margin]
-        lai_pred = pred.lai_pred.clone()[:self.n_samples, [0, 0, 0], margin: -margin, margin: -margin]
+        s1_asc = s1[:self.n_samples, :3, margin:-margin, margin:-margin]
+        s1_desc = s1[:self.n_samples, 3:, margin:-margin, margin:-margin]
+        s2_rgb = s2[:self.n_samples, [2, 1, 0], margin:-margin, margin:-margin]
+        latent_mu = pred.latent.clone()[:self.n_samples, [0, 1, 2],
+                                        margin:-margin, margin:-margin]
+        lai_gt = pred.lai_gt.clone()[:self.n_samples, [0, 0, 0],
+                                     margin:-margin, margin:-margin]
+        lai_pred = pred.lai_pred.clone()[:self.n_samples, [0, 0, 0],
+                                         margin:-margin, margin:-margin]
         return s1_asc, s1_desc, s2_rgb, latent_mu, lai_gt, lai_pred
 
-    def prepare_sample(self,
-                       prepared_data: tuple[torch.Tensor, ...],
-                       samp_idx: int,
-                       ) -> tuple[np.array, ...]:
+    def prepare_sample(
+        self,
+        prepared_data: tuple[torch.Tensor, ...],
+        samp_idx: int,
+    ) -> tuple[np.array, ...]:
         s1_asc, s1_desc, s2_rgb, latent_mu, lai_gt, lai_pred = prepared_data
-        render_s1_asc, _, _ = rgb_render(s1_asc[samp_idx].cpu().detach().numpy())
-        render_s1_desc, _, _ = rgb_render(s1_desc[samp_idx].cpu().detach().numpy())
+        render_s1_asc, _, _ = rgb_render(
+            s1_asc[samp_idx].cpu().detach().numpy())
+        render_s1_desc, _, _ = rgb_render(
+            s1_desc[samp_idx].cpu().detach().numpy())
         render_s2, _, _ = rgb_render(s2_rgb[samp_idx].cpu().detach().numpy())
-        render_lat, _, _ = rgb_render(latent_mu[samp_idx].cpu().detach().numpy())
-        _, min_lai, max_lai = rgb_render(lai_gt[samp_idx].cpu().detach().numpy())
+        render_lat, _, _ = rgb_render(
+            latent_mu[samp_idx].cpu().detach().numpy())
+        _, min_lai, max_lai = rgb_render(
+            lai_gt[samp_idx].cpu().detach().numpy())
         lai_gt = lai_gt.nan_to_num()
-        render_lai_gt, _, _ = rgb_render(lai_gt[samp_idx].cpu().detach().numpy(), dmin=min_lai, dmax=max_lai)
-        render_lai_pred, _, _ = rgb_render(lai_pred[samp_idx].cpu().detach().numpy(), dmin=min_lai, dmax=max_lai)
+        render_lai_gt, _, _ = rgb_render(
+            lai_gt[samp_idx].cpu().detach().numpy(),
+            dmin=min_lai,
+            dmax=max_lai)
+        render_lai_pred, _, _ = rgb_render(
+            lai_pred[samp_idx].cpu().detach().numpy(),
+            dmin=min_lai,
+            dmax=max_lai)
 
         return render_s1_asc, render_s1_desc, render_s2, render_lat, render_lai_gt, render_lai_pred
 
     def lai_gt_pred_scatterplots(
-            self,
-            lai: tuple[torch.Tensor, torch.Tensor],
-            sample: SampleInfo,
+        self,
+        lai: tuple[torch.Tensor, torch.Tensor],
+        sample: SampleInfo,
     ) -> None:
         """Save the PNG image of the scatterplots of the latent space of
         a sample of the batch"""
         (pred, gt) = lai
         image_basename = (
             f"MMDC_val_ep_{sample.current_epoch:03}_scat_pred_gt_"
-            f"0-{self.n_samples:03}_{sample.batch_idx}"
-        )
+            f"0-{self.n_samples:03}_{sample.batch_idx}")
         image_name = Path(f"{self.save_dir}/{image_basename}.png")
 
         plt.close()
-        fig, axes = plt.subplots(
-            nrows=1, ncols=self.n_samples, sharex=False, sharey=False, figsize=((self.n_samples+1) * 3, 8)
-        )
+        fig, axes = plt.subplots(nrows=1,
+                                 ncols=self.n_samples,
+                                 sharex=False,
+                                 sharey=False,
+                                 figsize=((self.n_samples + 1) * 3, 8))
         fig.suptitle(f"LAI {sample.current_epoch = }", fontsize=20)
         for i, axis in enumerate(axes.flatten()):
             axis.set_title(f"LAI")
@@ -150,26 +163,25 @@ class MMDCLAICallback(Callback):
         fig.savefig(image_name)
 
     def plot_scatter(
-            self,
-            axis: plt.axis,
-            label: str,
-            x_data: np.ndarray,
-            y_data: np.ndarray,
+        self,
+        axis: plt.axis,
+        label: str,
+        x_data: np.ndarray,
+        y_data: np.ndarray,
     ) -> None:
         """Scatter plot with regression line and label"""
         axis.set_title(label)
         axis.scatter(x_data, y_data)
         axis.plot(x_data, x_data)
 
-
     def on_validation_batch_end(  # pylint: disable=too-many-arguments
-            self,
-            trainer: pl.trainer.Trainer,
-            pl_module: MMDCDownstreamRegressionLitModule,
-            outputs: Any,
-            batch: torch.Tensor,
-            batch_idx: int,
-            dataloader_idx: int = 0,
+        self,
+        trainer: pl.trainer.Trainer,
+        pl_module: MMDCDownstreamRegressionLitModule,
+        outputs: Any,
+        batch: torch.Tensor,
+        batch_idx: int,
+        dataloader_idx: int = 0,
     ) -> None:
         """Method called from the validation looi"""
         if batch_idx < 2:
@@ -186,11 +198,10 @@ class MMDCLAICallback(Callback):
             self.save_image_grid(
                 (s1_x, s2_x),
                 pred,
-                SampleInfo(batch_idx, batch_size, patch_margin, trainer.current_epoch),
+                SampleInfo(batch_idx, batch_size, patch_margin,
+                           trainer.current_epoch),
             )
             # self.lai_gt_pred_scatterplots(
             #     (pred.lai_pred, pred.lai_gt),
             #     SampleInfo(batch_idx, batch_size, trainer.current_epoch),
             # )
-
-
