@@ -6,7 +6,9 @@ from typing import Literal
 import matplotlib.pyplot as plt
 import torch
 
-from src.mmdc_downstream.snap.lai_snap import BVNET
+from mmdc_singledate.datamodules.components.datamodule_utils import (
+    compute_stats, MMDCTensorStats)
+from mmdc_downstream.snap.lai_snap import BVNET
 
 DatasetPaths = namedtuple("DatasetPaths", ["input_path", "output_path"])
 
@@ -32,61 +34,95 @@ def compute_variables(paths: DatasetPaths,
                     file for file in os.listdir(tile_path) if "s2_set" in file
                 ]
                 for file_s2 in files_s2_set:
-                    output_set = process_file(tile_path, file_s2, model)
+                    output_set, stats = process_file(tile_path, file_s2, model)
                     # torch.save(
                     #     output_set,
                     #     os.path.join(os.path.join(paths.output_path, tile),
-                    #                  file_s2.replace("set", model.variable)))
+                    #                  file_s2.replace("s2_set", model.variable)))
+                    # torch.save(
+                    #     stats,
+                    #     os.path.join(os.path.join(paths.output_path, tile),
+                    #                  file_s2.replace("s2_set", "stats_" + model.variable)))
 
 
-def process_file(tile_path: str, file_s2: str, model: BVNET) -> torch.Tensor:
+def process_file(tile_path: str,
+                 file_s2: str,
+                 model: BVNET,
+                 ) -> tuple[torch.Tensor, MMDCTensorStats]:
     """
     Compute variable for each individual roi file from selected tiles
     """
     s2_set = torch.load(os.path.join(tile_path, file_s2))
     s2_angles = torch.load(
         os.path.join(tile_path, file_s2.replace("set", "angles")))
+    s2_mask = torch.load(
+        os.path.join(tile_path, file_s2.replace("set", "masks"))).to(int)
 
-    input_set = prepare_image(s2_set, s2_angles)
-    output_set = model.forward(input_set)
+    output_set = predict_variable_from_tensors(s2_set, s2_angles, s2_mask,
+                                               model)
+    stats = compute_stats(output_set, mask=s2_mask)
+
+    visualize_lai_gt(output_set.squeeze(1), s2_set, file_s2)
+
+    return output_set, stats
+
+
+def predict_variable_from_tensors(s2_set: torch.Tensor,
+                                  s2_angles: torch.Tensor,
+                                  s2_mask: torch.Tensor,
+                                  model: BVNET) -> torch.Tensor:
+    """
+    Prepare input data (concat S2 bands and angles) ->
+    produce LAI with snap ->
+    reshape output and set masked data to nan
+    """
+    input_set = prepare_s2_image(s2_set / 10000, s2_angles)
+    with torch.no_grad():
+        output_set = model.forward(input_set)
     output_set = process_output(
         output_set,
-        torch.Size([s2_set.size(0),
+        torch.Size([s2_set.size(0), 1,
                     s2_set.size(2),
-                    s2_set.size(3)]))
-
-    # plt.close()
-    # fig = plt.figure(figsize=(20, 10))
-    # ax1 = plt.subplot2grid((1, 2), (0, 0))
-    # ax1.imshow(output_set[0].to(int).detach().numpy(), cmap='gray')
-    # ax2 = plt.subplot2grid((1, 2), (0, 1))
-    # ax2.imshow(s2_set[0, [7, 2, 1]].permute(1, 2, 0).detach().numpy() /
-    #            s2_set[0, [7, 2, 1]].reshape(3, -1).max(1).values)
-    # print(file_s2.split('.')[0])
-    # fig.savefig(file_s2.split('.')[0] + ".png")
-
+                    s2_set.size(3)]), s2_mask)
     return output_set
 
 
-def prepare_image(
+def visualize_lai_gt(output_set: torch.Tensor,
+                     s2_set: torch.Tensor,
+                     file_s2: str,
+                     ) -> None:
+    """Visualize LAI next to S2 image"""
+    plt.close()
+    fig = plt.figure(figsize=(20, 10))
+    ax1 = plt.subplot2grid((1, 2), (0, 0))
+    ax1.imshow(output_set[0].detach().numpy() / 15, cmap='gray')
+    ax2 = plt.subplot2grid((1, 2), (0, 1))
+    ax2.imshow(s2_set[0, [7, 2, 1]].permute(1, 2, 0).detach().numpy() /
+               s2_set[0, [7, 2, 1]].reshape(3, -1).max(1).values)
+    print(file_s2.split('.')[0])
+    fig.savefig(file_s2.split('.')[0] + ".png")
+
+
+def prepare_s2_image(
     s2_set: torch.Tensor,
     s2_angles: torch.Tensor,
+    reshape: bool = True,
 ) -> torch.Tensor:
     """
     Prepare input data for BVNET model
     S2 bands that we select :
     B03, B04, B05, B06, B07, B8A, B11, B12
 
-    S2 bands we have in the image set:
+    S2 bands we initially have in the image set:
     B02, B03, B04, B05, B06, B07, B08, B8A, B11, B12
 
-    S2 angles we select:
+    S2 angles we need to compute LAI:
     cos Z_s2, cos Z_sun, cos(A_sun-A_s2)
 
-    S2 angles we have in the set:
+    S2 angles we initially have in the set:
     cos Z_sun, cos A_sun, sin A_sun, cos Z_s2, cos A_s2, sin A_s2
 
-    We compute cos(A_sun-A_s2) using the formula:
+    Therefore, we compute cos(A_sun-A_s2) using the formula:
     cos(A-B) = cosA*cosB - sinA*sinB
     """
 
@@ -99,14 +135,31 @@ def prepare_image(
 
     input_set = torch.cat((s2_set_sel, s2_angles_sel, cos_diff[:, None, :, :]),
                           1)
+    if not reshape:
+        return input_set
 
     # We transform to get input shape (B, 11)
     return input_set.permute(0, 2, 3, 1).reshape(-1, 11)
 
 
-def process_output(output_set: torch.Tensor,
-                   output_size: torch.Size) -> torch.Tensor:
+def process_output(output_set: torch.Tensor, output_size: torch.Size,
+                   mask: torch.Tensor) -> torch.Tensor:
     """
     Transforms output data from shape (B,) to (B, W, H)
+    and sets masked values to nan
     """
-    return output_set.reshape(output_size)
+    output = output_set.reshape(output_size)
+    output[mask.bool()] = torch.nan
+    return output
+
+
+def stand_lai(value: torch.Tensor, mean: int = 3, std: int = 3,
+              ) -> torch.Tensor:
+    """Standardize LAI"""
+    return (value.clip(0, 15) - mean) / std
+
+
+def unstand_lai(value: torch.Tensor, mean: int = 3, std: int = 3,
+                ) -> torch.Tensor:
+    """Unstandardize LAI"""
+    return value * std + mean
