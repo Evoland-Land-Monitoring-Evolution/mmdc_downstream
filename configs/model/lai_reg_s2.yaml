@@ -22,3 +22,5 @@ model_snap:
   variable: lai
 
 model_mmdc: null
+
+stats_path: /work/scratch/data/kalinie/MMDC/good_checkpoints/test/stats.pt
