@@ -31,8 +31,9 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
             input_data: str = "experts",
             lr: float = 0.001,
             resume_from_checkpoint: str | None = None,
+            stats_path: str = None
     ):
-        super().__init__(model, model_mmdc, lr, resume_from_checkpoint)
+        super().__init__(model, model_mmdc, lr, resume_from_checkpoint, stats_path)
 
         self.model_snap = model_snap
         self.model_snap.set_snap_weights()
