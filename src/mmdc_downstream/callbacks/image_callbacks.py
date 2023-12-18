@@ -201,6 +201,64 @@ class MMDCLAICallback(Callback):
                 SampleInfo(batch_idx, batch_size, patch_margin,
                            trainer.current_epoch),
             )
+            self.lai_gt_pred_scatterplots(
+                (pred.lai_pred, pred.lai_gt),
+                SampleInfo(batch_idx, batch_size, patch_margin, trainer.current_epoch),
+            )
+
+
+class MMDCLAIS2Callback(MMDCLAIExpertsCallback):
+    def __init__(
+            self,
+            save_dir: str,
+            n_samples: int = 5,
+    ):
+        """
+        Image callback for LAI prediction from S2 images
+        """
+        super().__init__(save_dir, n_samples)
+        self.labels = ["S2", "LAI GT", "LAI Pred"]
+
+    def prepare_data(
+        self,
+        sen_data: tuple[torch.Tensor, torch.Tensor],
+        pred: OutputLAI,
+        margin: int,
+    ) -> tuple[torch.Tensor, ...]:
+        """
+        We select bands from images.
+        """
+        s1, s2 = sen_data
+
+        s2_rgb = s2[:self.n_samples, [2, 1, 0], :, :]
+        lai_gt = pred.lai_gt.clone()[:self.n_samples, [0, 0, 0], :, :]
+        lai_pred = pred.lai_pred.clone()[:self.n_samples, [0, 0, 0], :, :]
+        return s2_rgb, lai_gt, lai_pred
+
+    def prepare_sample(
+        self,
+        prepared_data: tuple[torch.Tensor, ...],
+        samp_idx: int,
+    ) -> tuple[np.array, ...]:
+        """
+        Sample rendering for matplotlib
+        """
+        s2_rgb, lai_gt, lai_pred = prepared_data
+        render_s2, _, _ = rgb_render(s2_rgb[samp_idx].cpu().detach().numpy())
+        _, min_lai, max_lai = rgb_render(
+            lai_gt[samp_idx].cpu().detach().numpy())
+        lai_gt = lai_gt.nan_to_num()
+        render_lai_gt, _, _ = rgb_render(
+            lai_gt[samp_idx].cpu().detach().numpy(),
+            dmin=min_lai,
+            dmax=max_lai)
+        render_lai_pred, _, _ = rgb_render(
+            lai_pred[samp_idx].cpu().detach().numpy(),
+            dmin=min_lai,
+            dmax=max_lai)
+
+        return render_s2, render_lai_gt, render_lai_pred
+
             # self.lai_gt_pred_scatterplots(
             #     (pred.lai_pred, pred.lai_gt),
             #     SampleInfo(batch_idx, batch_size, trainer.current_epoch),
