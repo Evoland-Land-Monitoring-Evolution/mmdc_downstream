@@ -35,20 +35,19 @@ class SampleInfo:
     current_epoch: int
 
 
-class MMDCLAICallback(Callback):
+class MMDCLAIExpertsCallback(Callback):
     """
-    Callback to inspect the reconstruction image
+    Callback to inspect the LAI image predicted from Latent Experts
     """
 
     def __init__(
             self,
             save_dir: str,
             n_samples: int = 5,
-            value_range: tuple[float, float] = (-1.0, 1.0),
     ):
         self.save_dir = save_dir
         self.n_samples = n_samples
-        self.value_range = value_range
+        self.labels = ["S1 Asc", "S2 Desc", "S2", "Lat", "LAI GT", "LAI Pred"]
 
     def save_image_grid(
         self,
@@ -56,29 +55,30 @@ class MMDCLAICallback(Callback):
         pred: OutputLAI,
         sample: SampleInfo,
     ) -> None:
-        """Generate the matplotlib figure and save it to a file"""
+        """
+        Generate the matplotlib figure and save it to a file.
+        We save one sample per line.
+        """
 
         prepared_data = self.prepare_data(sen_data, pred, sample.patch_margin)
-
-        labels = ["S1 Asc", "S2 Desc", "S2", "Lat", "LAI GT", "LAI Pred"]
 
         plt.close()
 
         fig, axes = plt.subplots(
             nrows=self.n_samples,
-            ncols=len(labels),
+            ncols=len(self.labels),
             sharex=True,
             sharey=True,
-            figsize=((len(labels) + 1) * 2.5, (self.n_samples + 1) * 2.5),
+            figsize=((len(self.labels) + 1) * 2.5, (self.n_samples + 1) * 2.5),
         )
         fig.suptitle("Prediction Inspection", fontsize=20)
 
-        for samp_idx in range(self.n_samples):
-            for col in range(len(labels)):
-                data_to_plot = self.prepare_sample(prepared_data, samp_idx)
+        for samp_idx in range(self.n_samples):  # We iterate through samples to plot
+            data_to_plot = self.prepare_sample(prepared_data, samp_idx)
+            for col in range(len(self.labels)):     # We plot each image of the sample
                 axes[samp_idx, col].imshow(data_to_plot[col],
                                            interpolation="bicubic")
-                axes[samp_idx, col].set_title(labels[col])
+                axes[samp_idx, col].set_title(self.labels[col])
 
         del prepared_data
 
@@ -94,6 +94,9 @@ class MMDCLAICallback(Callback):
         pred: OutputLAI,
         margin: int,
     ) -> tuple[torch.Tensor, ...]:
+        """
+        We clip and select bands from images
+        """
         s1, s2 = sen_data
 
         s1_asc = s1[:self.n_samples, :3, margin:-margin, margin:-margin]
@@ -112,6 +115,9 @@ class MMDCLAICallback(Callback):
         prepared_data: tuple[torch.Tensor, ...],
         samp_idx: int,
     ) -> tuple[np.array, ...]:
+        """
+        Sample rendering for matplotlib
+        """
         s1_asc, s1_desc, s2_rgb, latent_mu, lai_gt, lai_pred = prepared_data
         render_s1_asc, _, _ = rgb_render(
             s1_asc[samp_idx].cpu().detach().numpy())
@@ -146,7 +152,7 @@ class MMDCLAICallback(Callback):
             f"MMDC_val_ep_{sample.current_epoch:03}_scat_pred_gt_"
             f"0-{self.n_samples:03}_{sample.batch_idx}")
         image_name = Path(f"{self.save_dir}/{image_basename}.png")
-
+        gt = gt.nan_to_num()
         plt.close()
         fig, axes = plt.subplots(nrows=1,
                                  ncols=self.n_samples,
@@ -158,21 +164,11 @@ class MMDCLAICallback(Callback):
             axis.set_title(f"LAI")
             axis.set_xlabel("Pred")
             axis.set_ylabel("GT")
-            axis.scatter(pred[i], gt[i])
-            axis.plot(pred[i], gt[i])
+            axis.scatter(pred[i].detach().cpu().numpy().flatten(),
+                         gt[i].detach().cpu().numpy().flatten())
+            axis.plot(gt[i].detach().cpu().numpy().flatten(),
+                      gt[i].detach().cpu().numpy().flatten())
         fig.savefig(image_name)
-
-    def plot_scatter(
-        self,
-        axis: plt.axis,
-        label: str,
-        x_data: np.ndarray,
-        y_data: np.ndarray,
-    ) -> None:
-        """Scatter plot with regression line and label"""
-        axis.set_title(label)
-        axis.scatter(x_data, y_data)
-        axis.plot(x_data, x_data)
 
     def on_validation_batch_end(  # pylint: disable=too-many-arguments
         self,
@@ -183,11 +179,11 @@ class MMDCLAICallback(Callback):
         batch_idx: int,
         dataloader_idx: int = 0,
     ) -> None:
-        """Method called from the validation looi"""
+        """Method called from the validation loop"""
         if batch_idx < 2:
             debatch = destructure_batch(batch)[:self.n_samples]
 
-            patch_margin = pl_module.model_mmdc.model_mmdc.nb_cropped_hw
+            patch_margin = pl_module.margin
             assert isinstance(patch_margin, int)
 
             pred = pl_module.predict(debatch)
