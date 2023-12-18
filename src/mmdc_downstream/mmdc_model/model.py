@@ -9,7 +9,7 @@ from typing import Any
 import torch
 from hydra import utils as hydra_utils
 from mmdc_singledate.models.lightning.full_experts import \
-    MMDCFullExpertsLitModule
+    MMDCFullExpertsLitModule, MMDCFullLitModule
 from mmdc_singledate.models.torch.full_experts import AuxData
 from omegaconf import OmegaConf
 
@@ -23,11 +23,14 @@ class PretrainedMMDC:
             self,
             pretrained_path: str | Path,
             model_name: str,
+            model_type: str,
     ):
         self.lightning_module = None
         self.pretrained_path = os.path.abspath(pretrained_path)
         self.model_name = model_name
-        self.device = "cuda"
+        self.model_type = model_type
+        self.device = torch.device(
+            "cuda" if torch.cuda.is_available() else "cpu")
 
         self.model_mmdc = self.init_mmdc_model()
         self.set_mmdc_stats()
@@ -37,7 +40,7 @@ class PretrainedMMDC:
         self.model_mmdc.nb_enc_cropped_hw, self.model_mmdc.nb_cropped_hw = \
             self.model_mmdc.compute_cropping()
 
-    def init_mmdc_model(self) -> Any:
+    def init_mmdc_model(self) -> MMDCFullExpertsLitModule | MMDCFullLitModule:
         """Load pretrained MMDC model from checkpoint"""
         if self.pretrained_path is not None:
             ckpt_path = os.path.join(self.pretrained_path,
@@ -45,8 +48,12 @@ class PretrainedMMDC:
             cfg = OmegaConf.load(
                 os.path.join(self.pretrained_path, "config.yaml"))
             model = hydra_utils.instantiate(cfg.model.model)
-            self.lightning_module = MMDCFullExpertsLitModule.load_from_checkpoint(
-                ckpt_path, model=model, map_location=self.device)
+            if self.model_type == "baseline":
+                self.lightning_module = MMDCFullLitModule.load_from_checkpoint(
+                    ckpt_path, model=model, map_location=self.device)
+            else:   # experts
+                self.lightning_module = MMDCFullExpertsLitModule.load_from_checkpoint(
+                    ckpt_path, model=model, map_location=self.device)
             return self.lightning_module.model.to(self.device)
 
     def set_mmdc_stats(self):
@@ -68,6 +75,10 @@ class PretrainedMMDC:
             embs = self.model_mmdc.compute_aux_embeddings(
                 AuxData(data.s1_a, data.s2_a, meteo_x, dem_x))
             latents = self.model_mmdc.generate_latents(s1_x, s2_x, embs)
-            latent_experts = self.model_mmdc.generate_latent_experts(latents)
-        return LatentPred(latent_experts.mean, latents.sen1.mean,
-                          latents.sen2.mean)
+            if self.model_type == "baseline":
+                return LatentPred(latents.sen1.mean,
+                                  latents.sen2.mean)
+            else:
+                latent_experts = self.model_mmdc.generate_latent_experts(latents)
+                return LatentPred(latents.sen1.mean,
+                                  latents.sen2.mean, latent_experts.mean)
