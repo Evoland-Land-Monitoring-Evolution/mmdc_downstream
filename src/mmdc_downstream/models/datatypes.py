@@ -58,6 +58,6 @@ class OutputLAI:
 
 @dataclass
 class LatentPred:
-    latent_experts_mu: torch.Tensor
     latent_S1_mu: torch.Tensor
     latent_S2_mu: torch.Tensor
+    latent_experts_mu: torch.Tensor | None = None
