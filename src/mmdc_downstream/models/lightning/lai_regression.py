@@ -38,6 +38,9 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
         self.model_snap.set_snap_weights()
         self.input_data = input_data
 
+        self.margin = self.model_mmdc.model_mmdc.nb_cropped_hw if self.model_mmdc is not None else 0
+
+
     def get_regression_input(self, batch: MMDCBatch) -> torch.Tensor:
         """
         Prepare input for downstream model.
@@ -80,9 +83,10 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
         lai_gt = self.compute_gt(batch)
         reg_input = self.get_regression_input(batch)
         lai_pred = self.forward(reg_input)
-        loss_mse = mmdc_mse(lai_pred[:, :, margin:-margin, margin:-margin],
-                            lai_gt[:, :, margin:-margin, margin:-margin],
-                            batch.s2_m[:, :, margin:-margin, margin:-margin])
+        H, W = lai_pred.shape[-2:]
+        loss_mse = mmdc_mse(lai_pred[:, :, self.margin:H-self.margin, self.margin:W-self.margin],
+                            lai_gt[:, :, self.margin:H-self.margin, self.margin:W-self.margin],
+                            batch.s2_m[:, :, self.margin:H-self.margin, self.margin:W-self.margin])
         return loss_mse
 
     def training_step(  # pylint: disable=arguments-differ
