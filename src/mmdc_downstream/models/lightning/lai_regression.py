@@ -1,3 +1,7 @@
+#!/usr/bin/env python3
+# Copyright: (c) 2022 CESBIO / Centre National d'Etudes Spatiales
+""" Lightning module for lai regression prediction """
+
 from typing import Any
 
 import torch
@@ -10,7 +14,8 @@ from .base import MMDCDownstreamBaseLitModule
 from ..components.losses import mmdc_mse
 from ..datatypes import OutputLAI
 from ..torch.lai_regression import MMDCDownstreamRegressionModule
-from ...snap.components.compute_bio_var import predict_variable_from_tensors, stand_lai, unstand_lai, prepare_s2_image
+from ...snap.components.compute_bio_var import \
+    predict_variable_from_tensors, stand_lai, unstand_lai, prepare_s2_image
 from ...snap.lai_snap import BVNET
 
 
@@ -48,14 +53,14 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
         It can be normalized S1/S2 data or one of latent representations
         produced by MMDC model.
         """
-        # [experts, lat_S1, lat_S2, S2, S1_asc, S1_desc]
+        # [experts, lat_S1, lat_S2, S2, S1, S1_asc, S1_desc]
         if self.input_data == "experts":
             return self.model_mmdc.get_latent_mmdc(batch).latent_experts_mu
-        elif self.input_data == "lat_S1":
+        if self.input_data == "lat_S1":
             return self.model_mmdc.get_latent_mmdc(batch).latent_S1_mu
-        elif self.input_data == "lat_S2":
+        if self.input_data == "lat_S2":
             return self.model_mmdc.get_latent_mmdc(batch).latent_S2_mu
-        elif self.input_data == "S2":
+        if self.input_data == "S2":
             s2_x = standardize_data(
                 batch.s2_x,
                 shift=self.stats.sen2.shift.type_as(
@@ -64,23 +69,27 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
                     batch.s2_x),
             )
             return prepare_s2_image(s2_x, batch.s2_a, reshape=False)
-        else:
-            s1_x = standardize_data(
-                batch.s1_x,
-                shift=self.stats.sen1.shift.type_as(
-                    batch.s1_x),
-                scale=self.self.stats.sen1.shift.type_as(
-                    batch.s1_x),
-            )
-            if self.input_data == "S1_asc":
-                return s1_x[:, :3]
-            else:  # "S1_desc":
-                return s1_x[:, 3:]
+        # if self.input_data == "S1":
+        s1_x = standardize_data(
+            batch.s1_x,
+            shift=self.stats.sen1.shift.type_as(
+                batch.s1_x),
+            scale=self.self.stats.sen1.shift.type_as(
+                batch.s1_x),
+        )
+        if self.input_data == "S1":
+            return torch.cat((s1_x, batch.s1_a), 1)
+        if self.input_data == "S1_asc":     # TODO: add angles
+            return s1_x[:, :3]
+        return s1_x[:, 3:]
 
     def step(self, batch: Any) -> Any:
-        """One step"""
+        """
+        One step.
+        We produce GT LAI with SNAP.
+        We generate regression input depending on the task.
+        """
         batch: MMDCBatch = destructure_batch(batch)
-        margin = self.model_mmdc.model_mmdc.nb_cropped_hw
         lai_gt = self.compute_gt(batch)
         reg_input = self.get_regression_input(batch)
         lai_pred = self.forward(reg_input)
@@ -140,6 +149,7 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
         return self.model.forward(data)
 
     def predict(self, batch: MMDCBatch) -> OutputLAI:
+        """Predict LAI"""
         self.model.eval()
         lai_gt = self.compute_gt(batch)
         reg_input = self.get_regression_input(batch)
@@ -159,8 +169,8 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
         optimizer = torch.optim.Adam(params=self.model.parameters(),
                                      lr=self.learning_rate)
 
-        training_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-            optimizer, T_0=4, T_mult=2, eta_min=0, last_epoch=-1)
+        # training_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+        #     optimizer, T_0=4, T_mult=2, eta_min=0, last_epoch=-1)
         # scheduler = {
         #     "scheduler": training_scheduler,
         #     "interval": "epoch",
