@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=lai_reg_lat_s1
+#SBATCH --job-name=lai_reg_lat_s2
 #SBATCH --output=outputfile-%j.out
 #SBATCH --error=errorfile-%j.err
 #SBATCH -N 1                       # number of nodes ( or --nodes=1)
@@ -21,4 +21,4 @@ export WORKING_DIR=${SCRATCH}/MMDC/jobs
 cd ${WORKING_DIR}
 source ${MMDC_INIT}
 
-HYDRA_FULL_ERROR=1 python   ${SRCDIR}/train.py experiment=lai_reg_latent_s1 >> output_$SLURM_JOBID.log
+HYDRA_FULL_ERROR=1 python   ${SRCDIR}/train.py experiment=lai_reg_latent_s2 >> output_$SLURM_JOBID.log

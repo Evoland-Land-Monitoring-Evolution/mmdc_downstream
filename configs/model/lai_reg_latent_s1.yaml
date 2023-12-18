@@ -11,7 +11,7 @@ model:
   config:
     _target_: mmdc_downstream.models.datatypes.RegressionConfig
     reg_model:
-      hidden_sizes: [ 16, 16, 8 ]
+      hidden_sizes: [ 16, 32, 32, 16]
       input_size: 6
       output_size: 1
 
@@ -23,5 +23,8 @@ model_snap:
 
 model_mmdc:
   _target_: mmdc_downstream.mmdc_model.model.PretrainedMMDC
-  pretrained_path: /work/scratch/data/kalinie/MMDC/good_checkpoints/test/
-  model_name: last
+  pretrained_path: "/work/scratch/data/kalinie/MMDC/results/latent/checkpoints/mmdc_full/2023-12-13_22-07-03/"
+  model_name: epoch_056
+  model_type: baseline   # to choose from ["baseline", "experts"]
+
+stats_path: /work/scratch/data/kalinie/MMDC/good_checkpoints/test/stats.pt

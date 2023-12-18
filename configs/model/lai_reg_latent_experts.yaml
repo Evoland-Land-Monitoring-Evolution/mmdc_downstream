@@ -25,3 +25,7 @@ model_mmdc:
   _target_: mmdc_downstream.mmdc_model.model.PretrainedMMDC
   pretrained_path: /work/scratch/data/kalinie/MMDC/good_checkpoints/test/
   model_name: last
+  model_type: experts   # to choose from ["baseline", "experts"]
+
+
+stats_path: /work/scratch/data/kalinie/MMDC/good_checkpoints/test/stats.pt

@@ -4,15 +4,15 @@ lr: 0.0001
 resume_from_checkpoint: null
 
 # To choose from [experts, lat_S1, lat_S2, S2, S1_asc, S2_desc]
-input_data: S2
+input_data: lat_S2
 
 model:
   _target_: mmdc_downstream.models.torch.lai_regression.MMDCDownstreamRegressionModule
   config:
     _target_: mmdc_downstream.models.datatypes.RegressionConfig
     reg_model:
-      hidden_sizes: [ 5 ]
-      input_size: 11
+      hidden_sizes: [ 16, 16, 8]
+      input_size: 6
       output_size: 1
 
 model_snap:
@@ -21,6 +21,10 @@ model_snap:
   ver: "2"
   variable: lai
 
-model_mmdc: null
+model_mmdc:
+  _target_: mmdc_downstream.mmdc_model.model.PretrainedMMDC
+  pretrained_path: "/work/scratch/data/kalinie/MMDC/results/latent/checkpoints/mmdc_full/2023-12-13_22-07-03/"
+  model_name: epoch_056
+  model_type: baseline   # to choose from ["baseline", "experts"]
 
 stats_path: /work/scratch/data/kalinie/MMDC/good_checkpoints/test/stats.pt
