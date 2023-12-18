@@ -1,4 +1,4 @@
-""" MMDC Training pipeline to be called by hydra experiments"""
+""" MMDC Training pipeline to be called by hydra experiment"""
 
 import os
 
