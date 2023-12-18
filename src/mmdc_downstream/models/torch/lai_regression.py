@@ -19,19 +19,19 @@ logger = logging.getLogger(__name__)
 
 
 class MMDCDownstreamRegressionModule(MMDCDownstreamBaseModule):
-
+    """Downstream task regression module"""
     def __init__(self, config: RegressionConfig):
         """Constructor"""
         super().__init__(config)
-        self.regression_model = self.build_regression_model()
+        self.regression_model = self.build_regression_model()   # pylint: disable=E1102
         self.config: RegressionConfig = config
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, data: torch.Tensor) -> torch.Tensor:
         """Forward pass"""
-        return self.regression_model(x)
+        return self.regression_model(data)
 
     def build_regression_model(self) -> nn.Sequential:
-
+        """Build regression model"""
         input_size = self.config.reg_model.input_size
         output_size = self.config.reg_model.output_size
         hidden_sizes = self.config.reg_model.hidden_sizes
