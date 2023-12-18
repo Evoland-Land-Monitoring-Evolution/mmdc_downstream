@@ -60,6 +60,12 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
             return self.model_mmdc.get_latent_mmdc(batch).latent_S1_mu
         if self.input_data == "lat_S2":
             return self.model_mmdc.get_latent_mmdc(batch).latent_S2_mu
+        if self.input_data == "lat_S1_mulogvar":
+            latent = self.model_mmdc.get_latent_mmdc(batch)
+            return torch.cat((latent.latent_S1_mu, latent.latent_S1_logvar), 1)
+        if self.input_data == "lat_S2_mulogvar":
+            latent = self.model_mmdc.get_latent_mmdc(batch)
+            return torch.cat((latent.latent_S2_mu, latent.latent_S2_logvar), 1)
         if self.input_data == "S2":
             s2_x = standardize_data(
                 batch.s2_x,
@@ -79,7 +85,7 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
         )
         if self.input_data == "S1":
             return torch.cat((s1_x, batch.s1_a), 1)
-        if self.input_data == "S1_asc":     # TODO: add angles
+        if self.input_data == "S1_asc":     #TODO: add angles
             return s1_x[:, :3]
         return s1_x[:, 3:]
 

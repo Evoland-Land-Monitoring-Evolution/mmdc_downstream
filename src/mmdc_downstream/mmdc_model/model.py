@@ -76,9 +76,10 @@ class PretrainedMMDC:
                 AuxData(data.s1_a, data.s2_a, meteo_x, dem_x))
             latents = self.model_mmdc.generate_latents(s1_x, s2_x, embs)
             if self.model_type == "baseline":
-                return LatentPred(latents.sen1.mean,
-                                  latents.sen2.mean)
+                return LatentPred(latents.sen1.mean, latents.sen1.logvar,
+                                  latents.sen2.mean, latents.sen2.logvar)
             else:
                 latent_experts = self.model_mmdc.generate_latent_experts(latents)
-                return LatentPred(latents.sen1.mean,
-                                  latents.sen2.mean, latent_experts.mean)
+                return LatentPred(latents.sen1.mean, latents.sen1.logvar,
+                                  latents.sen2.mean, latents.sen2.logvar,
+                                  latent_experts.latent_experts.mean, latent_experts.latent_experts.logvar)

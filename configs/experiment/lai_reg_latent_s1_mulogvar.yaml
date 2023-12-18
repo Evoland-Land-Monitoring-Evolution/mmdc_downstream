@@ -1,0 +1,18 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=mmdc_full
+
+defaults:
+  - override /datamodule: mmdc_reg_datamodule
+  - override /model: lai_reg_latent_s1_mulogvar.yaml
+  - override /callbacks: lai_reg_latent_experts.yaml
+  - override /trainer: default.yaml
+
+# all parameters bellow will be merged with parameters from default configurations set above
+# this allows you overwrite only specified parameters
+
+tags: ["lai_lat_s1_mulogvar"]
+
+
+name: "lai_lat_S1_mulogvar"

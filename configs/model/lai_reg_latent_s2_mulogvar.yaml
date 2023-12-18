@@ -4,7 +4,7 @@ lr: 0.0001
 resume_from_checkpoint: null
 
 # To choose from [experts, lat_S1, lat_S2, S2, S1_asc, S2_desc]
-input_data: lat_S1
+input_data: lat_S2
 
 model:
   _target_: mmdc_downstream.models.torch.lai_regression.MMDCDownstreamRegressionModule
@@ -12,7 +12,7 @@ model:
     _target_: mmdc_downstream.models.datatypes.RegressionConfig
     reg_model:
       hidden_sizes: [5]
-      input_size: 6
+      input_size: 12
       output_size: 1
 
 model_snap:
