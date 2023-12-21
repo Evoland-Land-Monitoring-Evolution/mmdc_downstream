@@ -17,7 +17,7 @@ from ..datatypes import OutputLAI
 from ..torch.lai_regression import MMDCDownstreamRegressionModule
 from ...snap.components.compute_bio_var import \
     predict_variable_from_tensors, stand_lai, unstand_lai, prepare_s2_image
-from ...snap.lai_snap import BVNET
+from ...snap.lai_snap import BVNET, normalize, denormalize
 
 
 class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
@@ -46,7 +46,6 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
         self.input_data = input_data
 
         self.margin = self.model_mmdc.model_mmdc.nb_cropped_hw if self.model_mmdc is not None else 0
-
 
     def get_regression_input(self, batch: MMDCBatch) -> torch.Tensor:
         """
@@ -105,7 +104,11 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
                             lai_gt[:, :, self.margin:H - self.margin, self.margin:W - self.margin],
                             batch.s2_m[:, :, self.margin:H - self.margin, self.margin:W - self.margin])
         if stage != "train":
-            metrics = compute_val_metrics(lai_pred, lai_gt, batch.s2_m, self.margin)
+            metrics = compute_val_metrics(
+                denormalize(lai_pred, self.model_snap.variable_min, self.model_snap.variable_max),
+                denormalize(lai_gt, self.model_snap.variable_min, self.model_snap.variable_max),
+                batch.s2_m,
+                self.margin)
             return loss_mse, metrics
 
         return loss_mse
@@ -170,17 +173,21 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
     def predict(self, batch: MMDCBatch) -> OutputLAI:
         """Predict LAI"""
         self.model.eval()
-        lai_gt = self.compute_gt(batch)
+        lai_gt = self.compute_gt(batch, stand=False)
         reg_input = self.get_regression_input(batch)
-        lai_pred = unstand_lai(self.forward(reg_input))
-        return OutputLAI(lai_pred, reg_input, unstand_lai(lai_gt))
+        # lai_pred = unstand_lai(self.forward(reg_input))
+        # return OutputLAI(lai_pred, reg_input, unstand_lai(lai_gt))
+        lai_pred = denormalize(self.forward(reg_input), self.model_snap.variable_min,
+                               self.model_snap.variable_max)
+        return OutputLAI(lai_pred, reg_input, lai_gt)
 
     def compute_gt(self, batch: MMDCBatch, stand: bool = True) -> torch.Tensor:
         """Compute LAI GT data wiht standardisation or not"""
         gt = predict_variable_from_tensors(batch.s2_x, batch.s2_a, batch.s2_m,
                                            self.model_snap)
         if stand:
-            return stand_lai(gt)
+            # return stand_lai(gt)
+            return normalize(gt, self.model_snap.variable_min, self.model_snap.variable_max)
         return gt
 
     def configure_optimizers(self) -> dict[str, Any]:
