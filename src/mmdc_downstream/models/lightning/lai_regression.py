@@ -11,7 +11,8 @@ from mmdc_singledate.utils.train_utils import standardize_data
 
 from mmdc_downstream.mmdc_model.model import PretrainedMMDC
 from .base import MMDCDownstreamBaseLitModule
-from ..components.losses import mmdc_mse
+from mmdc_singledate.models.components.losses import mmdc_mse
+from ..components.metrics import compute_val_metrics
 from ..datatypes import OutputLAI
 from ..torch.lai_regression import MMDCDownstreamRegressionModule
 from ...snap.components.compute_bio_var import \
@@ -85,11 +86,11 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
         )
         if self.input_data == "S1":
             return torch.cat((s1_x, batch.s1_a), 1)
-        if self.input_data == "S1_asc":     #TODO: add angles
+        if self.input_data == "S1_asc":  # TODO: add angles
             return s1_x[:, :3]
         return s1_x[:, 3:]
 
-    def step(self, batch: Any) -> Any:
+    def step(self, batch: Any, stage: str = "train") -> Any:
         """
         One step.
         We produce GT LAI with SNAP.
@@ -100,9 +101,13 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
         reg_input = self.get_regression_input(batch)
         lai_pred = self.forward(reg_input)
         H, W = lai_pred.shape[-2:]
-        loss_mse = mmdc_mse(lai_pred[:, :, self.margin:H-self.margin, self.margin:W-self.margin],
-                            lai_gt[:, :, self.margin:H-self.margin, self.margin:W-self.margin],
-                            batch.s2_m[:, :, self.margin:H-self.margin, self.margin:W-self.margin])
+        loss_mse = mmdc_mse(lai_pred[:, :, self.margin:H - self.margin, self.margin:W - self.margin],
+                            lai_gt[:, :, self.margin:H - self.margin, self.margin:W - self.margin],
+                            batch.s2_m[:, :, self.margin:H - self.margin, self.margin:W - self.margin])
+        if stage != "train":
+            metrics = compute_val_metrics(lai_pred, lai_gt, batch.s2_m, self.margin)
+            return loss_mse, metrics
+
         return loss_mse
 
     def training_step(  # pylint: disable=arguments-differ
@@ -130,7 +135,7 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
             prefix: str = "val",
     ) -> dict[str, Any]:
         """Validation step. Step and return loss."""
-        reg_loss = self.step(batch)
+        reg_loss, metrics = self.step(batch, stage=prefix)
 
         self.log(
             f"{prefix}/loss",
@@ -140,6 +145,14 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
             prog_bar=False,
         )
 
+        for metric_name, metric_value in metrics.items():
+            self.log(
+                f"{prefix}/{metric_name}",
+                metric_value,
+                on_step=True,
+                on_epoch=True,
+                prog_bar=False,
+            )
         return {"loss": reg_loss}
 
     def test_step(  # pylint: disable=arguments-differ
