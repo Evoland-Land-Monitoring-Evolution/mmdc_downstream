@@ -3,7 +3,7 @@ _target_: mmdc_singledate.datamodules.mmdc_datamodule.MMDCDataModule
 dl_config:
   _target_: mmdc_singledate.datamodules.mmdc_datamodule.MMDCDataLoaderConfig
   max_open_files : 2
-  batch_size: 150
+  batch_size: 50
   num_workers: 2
   pin_memory: False
 
