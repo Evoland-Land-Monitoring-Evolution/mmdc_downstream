@@ -213,7 +213,7 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
     def configure_optimizers(self) -> dict[str, Any]:
         """A single optimizer with a LR scheduler"""
         optimizer = torch.optim.Adam(params=self.model.parameters(),
-                                     lr=self.learning_rate)
+                                     lr=self.learning_rate, weight_decay=0.01)
 
         # training_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
         #     optimizer, T_0=4, T_mult=2, eta_min=0, last_epoch=-1)
