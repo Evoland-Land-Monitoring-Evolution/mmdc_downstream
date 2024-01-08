@@ -11,7 +11,7 @@ from mmdc_singledate.utils.train_utils import standardize_data
 
 from mmdc_downstream.mmdc_model.model import PretrainedMMDC
 from .base import MMDCDownstreamBaseLitModule
-from mmdc_singledate.models.components.losses import mmdc_mse
+from ..components.losses import compute_losses
 from ..components.metrics import compute_val_metrics
 from ..datatypes import OutputLAI
 from ..torch.lai_regression import MMDCDownstreamRegressionModule
@@ -33,6 +33,8 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
             self,
             model: MMDCDownstreamRegressionModule,
             model_snap: BVNET,
+            metrics_list: list[str] = ["RSE", "R2", "MAE", "MAPE"],
+            losses_list: list[str] = ["MSE"],
             model_mmdc: PretrainedMMDC | None = None,
             input_data: str = "experts",
             lr: float = 0.001,
@@ -44,6 +46,9 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
         self.model_snap = model_snap
         self.model_snap.set_snap_weights()
         self.input_data = input_data
+
+        self.losses_list = losses_list
+        self.metrics_list = metrics_list
 
         self.margin = self.model_mmdc.model_mmdc.nb_cropped_hw if self.model_mmdc is not None else 0
 
@@ -99,19 +104,25 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
         lai_gt = self.compute_gt(batch)
         reg_input = self.get_regression_input(batch)
         lai_pred = self.forward(reg_input)
-        H, W = lai_pred.shape[-2:]
-        loss_mse = mmdc_mse(lai_pred[:, :, self.margin:H - self.margin, self.margin:W - self.margin],
-                            lai_gt[:, :, self.margin:H - self.margin, self.margin:W - self.margin],
-                            batch.s2_m[:, :, self.margin:H - self.margin, self.margin:W - self.margin])
+        losses = compute_losses(
+            preds=lai_pred,
+            target=lai_gt,
+            mask=batch.s2_m,
+            margin=self.margin,
+            losses_list=self.losses_list)
+
         if stage != "train":
             metrics = compute_val_metrics(
-                denormalize(lai_pred, self.model_snap.variable_min, self.model_snap.variable_max),
-                denormalize(lai_gt, self.model_snap.variable_min, self.model_snap.variable_max),
-                batch.s2_m,
-                self.margin)
-            return loss_mse, metrics
+                preds=denormalize(lai_pred, self.model_snap.variable_min, self.model_snap.variable_max),
+                target=denormalize(lai_gt, self.model_snap.variable_min, self.model_snap.variable_max),
+                # unstand_lai(lai_pred),
+                # unstand_lai(lai_gt),
+                mask=batch.s2_m,
+                margin=self.margin,
+                metrics_list=self.metrics_list)
+            return losses, metrics
 
-        return loss_mse
+        return losses
 
     def training_step(  # pylint: disable=arguments-differ
             self,
@@ -120,16 +131,17 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
     ) -> dict[str, Any]:
         """Training step. Step and return loss."""
         torch.autograd.set_detect_anomaly(True)
-        reg_loss = self.step(batch)
-        self.log(
-            "train/loss",
-            reg_loss,
-            on_step=True,
-            on_epoch=True,
-            prog_bar=False,
-        )
+        losses = self.step(batch)
+        for loss_name, loss_value in losses.items():
+            self.log(
+                f"train/{loss_name}",
+                loss_value,
+                on_step=True,
+                on_epoch=True,
+                prog_bar=False,
+            )
 
-        return {"loss": reg_loss}
+        return {"loss": sum(losses.values())}
 
     def validation_step(  # pylint: disable=arguments-differ
             self,
@@ -138,15 +150,16 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
             prefix: str = "val",
     ) -> dict[str, Any]:
         """Validation step. Step and return loss."""
-        reg_loss, metrics = self.step(batch, stage=prefix)
+        losses, metrics = self.step(batch, stage=prefix)
 
-        self.log(
-            f"{prefix}/loss",
-            reg_loss,
-            on_step=True,
-            on_epoch=True,
-            prog_bar=False,
-        )
+        for loss_name, loss_value in losses.items():
+            self.log(
+                f"{prefix}/{loss_name}",
+                loss_value,
+                on_step=True,
+                on_epoch=True,
+                prog_bar=False,
+            )
 
         for metric_name, metric_value in metrics.items():
             self.log(
@@ -156,7 +169,7 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
                 on_epoch=True,
                 prog_bar=False,
             )
-        return {"loss": reg_loss}
+        return {"loss": sum(losses.values())}
 
     def test_step(  # pylint: disable=arguments-differ
             self,
