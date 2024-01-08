@@ -217,13 +217,20 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
 
         # training_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
         #     optimizer, T_0=4, T_mult=2, eta_min=0, last_epoch=-1)
-        # scheduler = {
-        #     "scheduler": training_scheduler,
-        #     "interval": "epoch",
-        #     "monitor": "val/mse_loss",
-        #     "frequency": 1,
-        # }
+        training_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,
+                                                                        mode='min',
+                                                                        factor=0.9,
+                                                                        patience=200,
+                                                                        threshold=0.01)
+
+        scheduler = {
+            "scheduler": training_scheduler,
+            "interval": "step",
+            "monitor": f"val/{self.losses_list[0]}",
+            "frequency": 1,
+            "strict": False
+        }
         return {
             "optimizer": optimizer,
-            # "lr_scheduler": scheduler,
+            "lr_scheduler": scheduler,
         }
