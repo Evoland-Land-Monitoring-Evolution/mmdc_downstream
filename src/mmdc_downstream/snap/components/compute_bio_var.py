@@ -143,13 +143,14 @@ def prepare_s2_image(
 
 
 def process_output(output_set: torch.Tensor, output_size: torch.Size,
-                   mask: torch.Tensor) -> torch.Tensor:
+                   mask: torch.Tensor = None) -> torch.Tensor:
     """
     Transforms output data from shape (B,) to (B, W, H)
     and sets masked values to nan
     """
     output = output_set.reshape(output_size)
-    output[mask.bool()] = torch.nan
+    if mask is not None:
+        output[mask.bool()] = torch.nan
     return output
 
 
