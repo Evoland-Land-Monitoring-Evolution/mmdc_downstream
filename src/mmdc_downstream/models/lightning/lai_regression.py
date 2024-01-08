@@ -16,7 +16,7 @@ from ..components.metrics import compute_val_metrics
 from ..datatypes import OutputLAI
 from ..torch.lai_regression import MMDCDownstreamRegressionModule
 from ...snap.components.compute_bio_var import \
-    predict_variable_from_tensors, stand_lai, unstand_lai, prepare_s2_image
+    predict_variable_from_tensors, stand_lai, unstand_lai, prepare_s2_image, process_output
 from ...snap.lai_snap import BVNET, normalize, denormalize
 
 
@@ -72,27 +72,31 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
             latent = self.model_mmdc.get_latent_mmdc(batch)
             return torch.cat((latent.latent_S2_mu, latent.latent_S2_logvar), 1)
         if self.input_data == "S2":
-            s2_x = standardize_data(
-                batch.s2_x,
-                shift=self.stats.sen2.shift.type_as(
-                    batch.s2_x),
-                scale=self.stats.sen2.shift.type_as(
-                    batch.s2_x),
+            data = prepare_s2_image(batch.s2_x/10000, batch.s2_a, reshape=False).nan_to_num()
+            return normalize(data,
+                             self.model_snap.input_min.reshape(1, data.shape[1], 1, 1),
+                             self.model_snap.input_max.reshape(1, data.shape[1], 1, 1)
+                             )
+            # s2_x = standardize_data(
+            #     batch.s2_x,
+            #     shift=self.stats.sen2.shift.type_as(
+            #         batch.s2_x),
+            #     scale=self.stats.sen2.shift.type_as(
+            #         batch.s2_x),
+            # )
+        if "S1" in self.input_data:
+            s1_x = standardize_data(
+                batch.s1_x,
+                shift=self.stats.sen1.shift.type_as(
+                    batch.s1_x),
+                scale=self.self.stats.sen1.shift.type_as(
+                    batch.s1_x),
             )
-            return prepare_s2_image(s2_x, batch.s2_a, reshape=False)
-        # if self.input_data == "S1":
-        s1_x = standardize_data(
-            batch.s1_x,
-            shift=self.stats.sen1.shift.type_as(
-                batch.s1_x),
-            scale=self.self.stats.sen1.shift.type_as(
-                batch.s1_x),
-        )
-        if self.input_data == "S1":
-            return torch.cat((s1_x, batch.s1_a), 1)
-        if self.input_data == "S1_asc":  # TODO: add angles
-            return s1_x[:, :3]
-        return s1_x[:, 3:]
+            if self.input_data == "S1":
+                return torch.cat((s1_x, batch.s1_a), 1)
+            if self.input_data == "S1_asc":  # TODO: add angles
+                return s1_x[:, :3]
+            return s1_x[:, 3:]
 
     def step(self, batch: Any, stage: str = "train") -> Any:
         """
@@ -193,7 +197,6 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
         lai_gt = self.compute_gt(batch, stand=False)
         reg_input = self.get_regression_input(batch)
         # lai_pred = unstand_lai(self.forward(reg_input))
-        # return OutputLAI(lai_pred, reg_input, unstand_lai(lai_gt))
         lai_pred = denormalize(self.forward(reg_input), self.model_snap.variable_min,
                                self.model_snap.variable_max)
         return OutputLAI(lai_pred, reg_input, lai_gt)
