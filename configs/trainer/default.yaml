@@ -12,9 +12,8 @@ num_sanity_val_steps: 1
 # fastdev
 fast_dev_run: False
 
-log_every_n_steps: 3
-
-val_check_interval: 50
+log_every_n_steps: 100
+#
+#val_check_interval: 0.5
 
 precision: bf16
-

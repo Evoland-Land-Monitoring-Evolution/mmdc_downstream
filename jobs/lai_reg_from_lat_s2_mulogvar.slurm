@@ -5,6 +5,8 @@
 #SBATCH -N 1                       # number of nodes ( or --nodes=1)
 #SBATCH --ntasks-per-node=8                       # number of tasks ( or --tesks=8)
 #SBATCH --gres=gpu:1               # number of gpus
+#SBATCH --partition=gpu_a100        # partition
+#SBATCH --qos=gpu_all               # QoS
 #SBATCH --time=24:00:00            # Walltime
 #SBATCH --mem-per-cpu=24G          # memory per core
 #SBATCH --account=cesbio           # MANDATORY : account (launch myaccounts to list your accounts)
