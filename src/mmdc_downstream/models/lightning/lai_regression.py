@@ -181,7 +181,11 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
 
     def forward(self, data: torch.Tensor) -> torch.Tensor:
         """Forward step"""
-        return self.model.forward(data)
+        data_prep = data.permute(0, 2, 3, 1).reshape(-1, data.size(1))
+        return process_output(self.model.forward(data_prep),
+                              torch.Size([data.size(0), 1,
+                                          data.size(2),
+                                          data.size(3)]))
 
     def predict(self, batch: MMDCBatch) -> OutputLAI:
         """Predict LAI"""
