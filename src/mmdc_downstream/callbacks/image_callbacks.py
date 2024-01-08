@@ -143,6 +143,7 @@ class MMDCLAIExpertsCallback(Callback):
     def lai_gt_pred_scatterplots(
         self,
         lai: tuple[torch.Tensor, torch.Tensor],
+        mask: torch.Tensor,
         sample: SampleInfo,
     ) -> None:
         """Save the PNG image of the scatterplots of the latent space of
@@ -164,8 +165,8 @@ class MMDCLAIExpertsCallback(Callback):
             axis.set_title(f"LAI")
             axis.set_xlabel("Pred")
             axis.set_ylabel("GT")
-            axis.scatter(pred[i].detach().cpu().numpy().flatten(),
-                         gt[i].detach().cpu().numpy().flatten())
+            axis.scatter(pred[i][~mask[i].bool()].detach().cpu().numpy().flatten(),
+                         gt[i][~mask[i].bool()].detach().cpu().numpy().flatten())
             axis.plot(gt[i].detach().cpu().numpy().flatten(),
                       gt[i].detach().cpu().numpy().flatten())
         fig.savefig(image_name)
@@ -199,6 +200,7 @@ class MMDCLAIExpertsCallback(Callback):
             )
             self.lai_gt_pred_scatterplots(
                 (pred.lai_pred, pred.lai_gt),
+                debatch.s2_m,
                 SampleInfo(batch_idx, batch_size, patch_margin, trainer.current_epoch),
             )
 
@@ -254,8 +256,3 @@ class MMDCLAIS2Callback(MMDCLAIExpertsCallback):
             dmax=max_lai)
 
         return render_s2, render_lai_gt, render_lai_pred
-
-            # self.lai_gt_pred_scatterplots(
-            #     (pred.lai_pred, pred.lai_gt),
-            #     SampleInfo(batch_idx, batch_size, trainer.current_epoch),
-            # )
