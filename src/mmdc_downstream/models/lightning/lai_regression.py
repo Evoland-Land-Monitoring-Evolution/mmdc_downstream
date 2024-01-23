@@ -16,7 +16,7 @@ from ..components.metrics import compute_val_metrics
 from ..datatypes import OutputLAI
 from ..torch.lai_regression import MMDCDownstreamRegressionModule
 from ...snap.components.compute_bio_var import \
-    predict_variable_from_tensors, stand_lai, unstand_lai, prepare_s2_image, process_output
+    predict_variable_from_tensors, prepare_s2_image, process_output
 from ...snap.lai_snap import BVNET, normalize, denormalize
 
 
@@ -39,6 +39,7 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
             input_data: str = "experts",
             lr: float = 0.001,
             resume_from_checkpoint: str | None = None,
+            histogram_path: str | None = None,
             stats_path: str = None
     ):
         super().__init__(model, model_mmdc, lr, resume_from_checkpoint, stats_path)
@@ -51,6 +52,20 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
         self.metrics_list = metrics_list
 
         self.margin = self.model_mmdc.model_mmdc.nb_cropped_hw if self.model_mmdc is not None else 0
+
+        self.bin_weights = self.compute_bin_weights(histogram_path)
+
+
+    @staticmethod
+    def compute_bin_weights(histogram_path):
+        if histogram_path is None:
+            return None
+        hist_bins = torch.load(histogram_path)
+        hist_bins_norm = hist_bins / hist_bins.sum()
+        a = -10
+        weight = torch.exp((hist_bins_norm ** 0.5) * a)
+        weights_norm = weight / weight.sum()
+        return weights_norm.to(torch.float16)
 
     def get_regression_input(self, batch: MMDCBatch) -> torch.Tensor:
         """
@@ -72,24 +87,18 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
             latent = self.model_mmdc.get_latent_mmdc(batch)
             return torch.cat((latent.latent_S2_mu, latent.latent_S2_logvar), 1)
         if self.input_data == "S2":
-            data = prepare_s2_image(batch.s2_x/10000, batch.s2_a, reshape=False).nan_to_num()
+            data = prepare_s2_image(batch.s2_x / 10000, batch.s2_a, reshape=False).nan_to_num()
             return normalize(data,
                              self.model_snap.input_min.reshape(1, data.shape[1], 1, 1),
                              self.model_snap.input_max.reshape(1, data.shape[1], 1, 1)
                              )
-            # s2_x = standardize_data(
-            #     batch.s2_x,
-            #     shift=self.stats.sen2.shift.type_as(
-            #         batch.s2_x),
-            #     scale=self.stats.sen2.shift.type_as(
-            #         batch.s2_x),
-            # )
+
         if "S1" in self.input_data:
             s1_x = standardize_data(
                 batch.s1_x,
                 shift=self.stats.sen1.shift.type_as(
                     batch.s1_x),
-                scale=self.self.stats.sen1.shift.type_as(
+                scale=self.stats.sen1.shift.type_as(
                     batch.s1_x),
             )
             if self.input_data == "S1":
@@ -113,14 +122,15 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
             target=lai_gt,
             mask=batch.s2_m,
             margin=self.margin,
-            losses_list=self.losses_list)
+            losses_list=self.losses_list,
+            bin_weights=self.bin_weights,
+            denorm_min_max=(self.model_snap.variable_min, self.model_snap.variable_max)
+        )
 
         if stage != "train":
             metrics = compute_val_metrics(
                 preds=denormalize(lai_pred, self.model_snap.variable_min, self.model_snap.variable_max),
                 target=denormalize(lai_gt, self.model_snap.variable_min, self.model_snap.variable_max),
-                # unstand_lai(lai_pred),
-                # unstand_lai(lai_gt),
                 mask=batch.s2_m,
                 margin=self.margin,
                 metrics_list=self.metrics_list)
@@ -140,7 +150,7 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
             self.log(
                 f"train/{loss_name}",
                 loss_value,
-                on_step=True,
+                on_step=False,
                 on_epoch=True,
                 prog_bar=False,
             )
@@ -160,7 +170,7 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
             self.log(
                 f"{prefix}/{loss_name}",
                 loss_value,
-                on_step=True,
+                on_step=False,
                 on_epoch=True,
                 prog_bar=False,
             )
@@ -169,7 +179,7 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
             self.log(
                 f"{prefix}/{metric_name}",
                 metric_value,
-                on_step=True,
+                on_step=False,
                 on_epoch=True,
                 prog_bar=False,
             )
@@ -196,7 +206,6 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
         self.model.eval()
         lai_gt = self.compute_gt(batch, stand=False)
         reg_input = self.get_regression_input(batch)
-        # lai_pred = unstand_lai(self.forward(reg_input))
         lai_pred = denormalize(self.forward(reg_input), self.model_snap.variable_min,
                                self.model_snap.variable_max)
         return OutputLAI(lai_pred, reg_input, lai_gt)
@@ -206,7 +215,6 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
         gt = predict_variable_from_tensors(batch.s2_x, batch.s2_a, batch.s2_m,
                                            self.model_snap)
         if stand:
-            # return stand_lai(gt)
             return normalize(gt, self.model_snap.variable_min, self.model_snap.variable_max)
         return gt
 
@@ -224,7 +232,7 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
                                                                         threshold=0.01)
 
         scheduler = {
-            "scheduler": training_scheduler,
+            # "scheduler": training_scheduler,
             "interval": "step",
             "monitor": f"val/{self.losses_list[0]}",
             "frequency": 1,
@@ -232,5 +240,5 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
         }
         return {
             "optimizer": optimizer,
-            "lr_scheduler": scheduler,
+            # "lr_scheduler": scheduler,
         }
