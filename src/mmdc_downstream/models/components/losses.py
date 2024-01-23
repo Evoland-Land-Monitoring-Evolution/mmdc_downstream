@@ -30,7 +30,11 @@ def compute_losses(preds: torch.Tensor,
         losses_dict["RMSE"] = rmse(preds, target)
 
     if "L1" in losses_list or "MAE" in losses_list or "mae" in losses_list:
-        mean_absolute_error = MeanAbsoluteError().to(preds.device)
-        losses_dict["MAE"] = mean_absolute_error(preds, target)
+        mae = MeanAbsoluteError().to(preds.device)
+        losses_dict["MAE"] = mae(preds, target)
+
+    if "Huber" in losses_list:
+        huber = torch.nn.HuberLoss().to(preds.device)
+        losses_dict["Huber"] = huber(preds, target)
 
     return losses_dict
