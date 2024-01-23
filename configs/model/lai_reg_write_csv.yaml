@@ -1,0 +1,38 @@
+
+_target_: mmdc_downstream.models.test_baselines.write_csv.MMDCDownstreamRegressionLitModule
+lr: 0.0001
+resume_from_checkpoint: null
+
+# To choose from [experts, lat_S1, lat_S2, S2, S1_asc, S2_desc]
+input_data: S2
+
+model:
+  _target_: mmdc_downstream.models.torch.lai_regression.MMDCDownstreamRegressionModule
+  config:
+    _target_: mmdc_downstream.models.datatypes.RegressionConfig
+    reg_model:
+      hidden_sizes: [ 5 ]
+      input_size: 11
+      output_size: 1
+
+model_snap:
+  _target_: mmdc_downstream.snap.lai_snap.BVNET
+  device: cuda
+  ver: "2"
+  variable: lai
+
+# To choose from ["RSE", "R2", "MAE", "MAPE"]
+metrics_list : ["RSE", "R2", "MAE", "MAPE"]
+
+# To choose from ["RMSE", "MSE", "MAE"]
+losses_list : ["MSE"]
+
+model_mmdc:
+  _target_: mmdc_downstream.mmdc_model.model.PretrainedMMDC
+  pretrained_path: "/work/scratch/data/kalinie/MMDC/results/latent/checkpoints/mmdc_poe_mask/2024-01-10_16-19-03/"
+  model_name: epoch_079
+  model_type: experts   # to choose from ["baseline", "experts"]
+
+stats_path: /work/scratch/data/kalinie/MMDC/good_checkpoints/test/stats.pt
+
+#histogram_path: /work/scratch/data/kalinie/src/MMDC/mmdc-downstream/src/mmdc_downstream/models/components/hist_bins.pt
