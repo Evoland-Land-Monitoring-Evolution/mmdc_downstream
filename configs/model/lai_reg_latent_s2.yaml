@@ -1,6 +1,6 @@
 
 _target_: mmdc_downstream.models.lightning.lai_regression.MMDCDownstreamRegressionLitModule
-lr: 0.0001
+lr: 0.001
 resume_from_checkpoint: null
 
 # To choose from [experts, lat_S1, lat_S2, S2, S1_asc, S2_desc]
@@ -25,7 +25,7 @@ model_snap:
 metrics_list : ["RSE", "R2", "MAE", "MAPE"]
 
 # To choose from ["RMSE", "MSE", "MAE"]
-losses_list : ["RMSE"]
+losses_list : ["MSE"]
 
 model_mmdc:
   _target_: mmdc_downstream.mmdc_model.model.PretrainedMMDC
