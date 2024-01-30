@@ -84,7 +84,7 @@ def predict_variable_from_tensors(s2_set: torch.Tensor,
         torch.Size([s2_set.size(0), 1,
                     s2_set.size(2),
                     s2_set.size(3)]), s2_mask)
-    return output_set
+    return output_set.clip(0, 15)
 
 
 def visualize_lai_gt(output_set: torch.Tensor,
