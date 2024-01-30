@@ -93,12 +93,15 @@ def visualize_lai_gt(output_set: torch.Tensor,
                      ) -> None:
     """Visualize LAI next to S2 image"""
     plt.close()
-    fig = plt.figure(figsize=(20, 10))
-    ax1 = plt.subplot2grid((1, 2), (0, 0))
+    fig = plt.figure(figsize=(20, 20))
+    ax1 = plt.subplot2grid((2, 2), (0, 0))
     ax1.imshow(output_set[0].detach().numpy() / 15, cmap='gray')
-    ax2 = plt.subplot2grid((1, 2), (0, 1))
+    ax2 = plt.subplot2grid((2, 2), (0, 1))
     ax2.imshow(s2_set[0, [7, 2, 1]].permute(1, 2, 0).detach().numpy() /
                s2_set[0, [7, 2, 1]].reshape(3, -1).max(1).values)
+    ax3 = plt.subplot2grid((2, 2), (1, 0), colspan=2)
+
+    ax3.hist(output_set[0].detach().numpy(), bins=20)
     print(file_s2.split('.')[0])
     fig.savefig(file_s2.split('.')[0] + ".png")
 
