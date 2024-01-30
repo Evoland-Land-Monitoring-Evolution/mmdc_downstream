@@ -21,7 +21,7 @@ class MMDCDownstreamBaseModule(nn.Module):
     Base MMDC Single Date Module
     """
 
-    def __init__(self, config) -> None:
+    def __init__(self, config: Any) -> None:
         """
         Constructor
         """

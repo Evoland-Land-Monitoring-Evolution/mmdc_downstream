@@ -1,14 +1,20 @@
-# https://src.koda.cnrs.fr/yoel.zerah.1/prosailvae/-/blob/pvae/bvnet_regression/bvnet.py?ref_type=heads
+#!/usr/bin/env python3
+"""
+Code to produce LAI GT with SNAP model.
+This code is taken from
+https://src.koda.cnrs.fr/yoel.zerah.1/prosailvae/-/blob/pvae/bvnet_regression/bvnet.py?ref_type=heads
+"""
+
+# pylint: skip-file
+#  type: ignore
 
 import os
 from collections import OrderedDict
 from dataclasses import dataclass
 
-import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
-from tqdm import trange
 
 SNAP_WEIGHTS_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                                  "weights")

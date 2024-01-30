@@ -11,6 +11,8 @@ from hydra import utils as hydra_utils
 from mmdc_singledate.models.lightning.full_experts import \
     MMDCFullExpertsLitModule, MMDCFullLitModule
 from mmdc_singledate.models.torch.full_experts import AuxData
+from mmdc_singledate.models.torch.full_experts import \
+    MMDCFullModule, MMDCFullExpertsModule
 from omegaconf import OmegaConf
 
 from ..models.datatypes import LatentPred
@@ -25,36 +27,39 @@ class PretrainedMMDC:
             model_name: str,
             model_type: str,
     ):
-        self.lightning_module = None
-        self.pretrained_path = os.path.abspath(pretrained_path)
-        self.model_name = model_name
-        self.model_type = model_type
-        self.device = torch.device(
-            "cuda" if torch.cuda.is_available() else "cpu")
+        if pretrained_path is not None:
+            self.lightning_module:  MMDCFullExpertsLitModule | MMDCFullLitModule
+            self.pretrained_path = os.path.abspath(pretrained_path)
+            self.model_name = model_name
+            self.model_type = model_type
+            self.device = torch.device(
+                "cuda" if torch.cuda.is_available() else "cpu")
 
-        self.model_mmdc = self.init_mmdc_model()
-        self.set_mmdc_stats()
+            self.model_mmdc: MMDCFullModule | MMDCFullExpertsModule = self.init_mmdc_model()
+            self.set_mmdc_stats()
 
-        self.lightning_module.freeze()
+            assert self.lightning_module is not None
+            self.lightning_module.freeze()
 
-        self.model_mmdc.nb_enc_cropped_hw, self.model_mmdc.nb_cropped_hw = \
-            self.model_mmdc.compute_cropping()
+            self.model_mmdc.nb_enc_cropped_hw, self.model_mmdc.nb_cropped_hw = \
+                self.model_mmdc.compute_cropping()
+        else:
+            self.model_mmdc = None
 
-    def init_mmdc_model(self) -> MMDCFullExpertsLitModule | MMDCFullLitModule:
+    def init_mmdc_model(self) -> MMDCFullModule | MMDCFullExpertsModule:
         """Load pretrained MMDC model from checkpoint"""
-        if self.pretrained_path is not None:
-            ckpt_path = os.path.join(self.pretrained_path,
-                                     self.model_name + ".ckpt")
-            cfg = OmegaConf.load(
-                os.path.join(self.pretrained_path, "config.yaml"))
-            model = hydra_utils.instantiate(cfg.model.model)
-            if self.model_type == "baseline":
-                self.lightning_module = MMDCFullLitModule.load_from_checkpoint(
-                    ckpt_path, model=model, map_location=self.device)
-            else:   # experts
-                self.lightning_module = MMDCFullExpertsLitModule.load_from_checkpoint(
-                    ckpt_path, model=model, map_location=self.device)
-            return self.lightning_module.model.to(self.device)
+        ckpt_path = os.path.join(self.pretrained_path,
+                                 self.model_name + ".ckpt")
+        cfg = OmegaConf.load(
+            os.path.join(self.pretrained_path, "config.yaml"))
+        model = hydra_utils.instantiate(cfg.model.model)
+        if self.model_type == "baseline":
+            self.lightning_module = MMDCFullLitModule.load_from_checkpoint(
+                ckpt_path, model=model, map_location=self.device)
+        else:   # experts
+            self.lightning_module = MMDCFullExpertsLitModule.load_from_checkpoint(
+                ckpt_path, model=model, map_location=self.device)
+        return self.lightning_module.model.to(self.device)
 
     def set_mmdc_stats(self):
         """Set stats from file associated with checkpoint"""
@@ -78,8 +83,8 @@ class PretrainedMMDC:
             if self.model_type == "baseline":
                 return LatentPred(latents.sen1.mean, latents.sen1.logvar,
                                   latents.sen2.mean, latents.sen2.logvar)
-            else:
-                latent_experts = self.model_mmdc.generate_latent_experts(latents)
-                return LatentPred(latents.sen1.mean, latents.sen1.logvar,
-                                  latents.sen2.mean, latents.sen2.logvar,
-                                  latent_experts.latent_experts.mean, latent_experts.latent_experts.logvar)
+            latent_experts = self.model_mmdc.generate_latent_experts(latents)
+            return LatentPred(latents.sen1.mean, latents.sen1.logvar,
+                              latents.sen2.mean, latents.sen2.logvar,
+                              latent_experts.latent_experts.mean,
+                              latent_experts.latent_experts.logvar)

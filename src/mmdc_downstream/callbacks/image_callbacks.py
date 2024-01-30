@@ -2,6 +2,7 @@
 # Copyright: (c) 2022 CESBIO / Centre National d'Etudes Spatiales
 """ Lightning image callbacks """
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -9,13 +10,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytorch_lightning as pl
 import torch
+from mmdc_singledate.datamodules.mmdc_datamodule import destructure_batch
 from pytorch_lightning.callbacks import Callback
 from sensorsio.utils import rgb_render
 
 from ..models.lightning.lai_regression import MMDCDownstreamRegressionLitModule, OutputLAI
-from mmdc_singledate.datamodules.mmdc_datamodule import destructure_batch
-
-from dataclasses import dataclass
 
 # Configure logging
 NUMERIC_LEVEL = getattr(logging, "INFO", None)
@@ -75,10 +74,10 @@ class MMDCLAIExpertsCallback(Callback):
 
         for samp_idx in range(self.n_samples):  # We iterate through samples to plot
             data_to_plot = self.prepare_sample(prepared_data, samp_idx)
-            for col in range(len(self.labels)):     # We plot each image of the sample
+            for col, label in enumerate(self.labels):     # We plot each image of the sample
                 axes[samp_idx, col].imshow(data_to_plot[col],
                                            interpolation="bicubic")
-                axes[samp_idx, col].set_title(self.labels[col])
+                axes[samp_idx, col].set_title(label)
 
         del prepared_data
 
@@ -97,7 +96,7 @@ class MMDCLAIExpertsCallback(Callback):
         """
         We clip and select bands from images
         """
-        s1, s2 = sen_data
+        s1, s2 = sen_data   # pylint: disable=C0103
 
         s1_asc = s1[:self.n_samples, :3, margin:-margin, margin:-margin]
         s1_desc = s1[:self.n_samples, 3:, margin:-margin, margin:-margin]
@@ -148,12 +147,12 @@ class MMDCLAIExpertsCallback(Callback):
     ) -> None:
         """Save the PNG image of the scatterplots of the latent space of
         a sample of the batch"""
-        (pred, gt) = lai
+        (pred, gt) = lai    # pylint: disable=C0103
         image_basename = (
             f"MMDC_val_ep_{sample.current_epoch:03}_scat_pred_gt_"
             f"0-{self.n_samples:03}_{sample.batch_idx}")
         image_name = Path(f"{self.save_dir}/{image_basename}.png")
-        gt = gt.nan_to_num()
+        gt = gt.nan_to_num()    # pylint: : disable=C0103
         plt.close()
         fig, axes = plt.subplots(nrows=1,
                                  ncols=self.n_samples,
@@ -162,7 +161,7 @@ class MMDCLAIExpertsCallback(Callback):
                                  figsize=((self.n_samples + 1) * 3, 8))
         fig.suptitle(f"LAI {sample.current_epoch = }", fontsize=20)
         for i, axis in enumerate(axes.flatten()):
-            axis.set_title(f"LAI")
+            axis.set_title("LAI")
             axis.set_xlabel("Pred")
             axis.set_ylabel("GT")
             axis.scatter(pred[i][~mask[i].bool()].detach().cpu().numpy().flatten(),
@@ -206,14 +205,14 @@ class MMDCLAIExpertsCallback(Callback):
 
 
 class MMDCLAIS2Callback(MMDCLAIExpertsCallback):
+    """
+    Image callback for LAI prediction from S2 images
+    """
     def __init__(
             self,
             save_dir: str,
             n_samples: int = 5,
     ):
-        """
-        Image callback for LAI prediction from S2 images
-        """
         super().__init__(save_dir, n_samples)
         self.labels = ["S2", "LAI GT", "LAI Pred"]
 
@@ -226,7 +225,7 @@ class MMDCLAIS2Callback(MMDCLAIExpertsCallback):
         """
         We select bands from images.
         """
-        s1, s2 = sen_data
+        _, s2 = sen_data   # pylint: disable=C0103
 
         s2_rgb = s2[:self.n_samples, [2, 1, 0], :, :]
         lai_gt = pred.lai_gt.clone()[:self.n_samples, [0, 0, 0], :, :]

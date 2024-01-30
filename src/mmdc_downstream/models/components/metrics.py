@@ -1,6 +1,12 @@
+"""Script to compute LAI metrics"""
 import torch
 from mmdc_singledate.models.components.losses import mask_and_flatten
-from torchmetrics.regression import RelativeSquaredError, R2Score, MeanAbsoluteError, MeanAbsolutePercentageError
+from torchmetrics.regression import (
+    RelativeSquaredError,
+    R2Score,
+    MeanAbsoluteError,
+    MeanAbsolutePercentageError,
+)
 
 
 def compute_val_metrics(preds: torch.Tensor,
@@ -9,7 +15,7 @@ def compute_val_metrics(preds: torch.Tensor,
                         metrics_list: list[str],
                         margin: int = 0,) -> dict[str, torch.Tensor]:
     """Computes regression metrics"""
-    H, W = preds.shape[-2:]
+    H, W = preds.shape[-2:]     # pylint: disable=C0103
 
     mask = mask[:, :, margin:H - margin, margin:W - margin]
 
@@ -19,18 +25,18 @@ def compute_val_metrics(preds: torch.Tensor,
     metrics_dict = {}
     if "RSE" in metrics_list or "rse" in metrics_list:
         relative_squared_error = RelativeSquaredError().to(preds.device)
-        metrics_dict["RSE"] = relative_squared_error(preds, target)
+        metrics_dict["RSE"] = relative_squared_error(preds, target)     # pylint: disable=E1102
 
     if "R2" in metrics_list or "r2" in metrics_list:
         r2score = R2Score().to(preds.device)
-        metrics_dict["R2"] = r2score(preds, target)
+        metrics_dict["R2"] = r2score(preds, target)     # pylint: disable=E1102
 
     if "MAE" in metrics_list or "mae" in metrics_list:
         mean_absolute_error = MeanAbsoluteError().to(preds.device)
-        metrics_dict["MAE"] = mean_absolute_error(preds, target)
+        metrics_dict["MAE"] = mean_absolute_error(preds, target)    # pylint: disable=E1102
 
     if "MAPE" in metrics_list or "mape" in metrics_list:
         mean_abs_percentage_error = MeanAbsolutePercentageError().to(preds.device)
-        metrics_dict["MAPE"] = mean_abs_percentage_error(preds, target)
+        metrics_dict["MAPE"] = mean_abs_percentage_error(preds, target)     # pylint: disable=E1102
 
     return metrics_dict
