@@ -1,20 +1,17 @@
-import pandas as pd
-import matplotlib.pyplot as plt
-
 import os
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import torch
-import tqdm
-
-from mmdc_downstream.snap.lai_snap import normalize, denormalize
-from sklearn.model_selection import train_test_split
 import torch.nn as nn
 import torch.optim as optim
-
+import tqdm
+from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, TensorDataset
 
+from mmdc_downstream.snap.lai_snap import denormalize
 
 
 class MLP(nn.Module):

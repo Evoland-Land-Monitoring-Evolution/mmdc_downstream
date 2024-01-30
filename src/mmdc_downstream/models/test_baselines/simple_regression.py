@@ -1,14 +1,10 @@
-import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
-from torch import nn
-
-from mmdc_downstream.snap.lai_snap import normalize, denormalize
-from sklearn.tree import DecisionTreeRegressor
-from sklearn.model_selection import train_test_split
-from sklearn import linear_model
+import numpy as np
+import pandas as pd
 import torch
-
+from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeRegressor
+from torch import nn
 
 lai_min = 0.000319182538301
 lai_max = 14.4675094548

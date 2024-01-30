@@ -1,12 +1,12 @@
-import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
-from torch import nn
+import numpy as np
+import pandas as pd
 import torch
+from sklearn import neural_network
+from sklearn.model_selection import train_test_split
+from torch import nn
 
 from mmdc_downstream.snap.lai_snap import normalize, denormalize
-from sklearn.model_selection import train_test_split
-from sklearn import neural_network
 
 lai_min = 0.000319182538301
 lai_max = 14.4675094548

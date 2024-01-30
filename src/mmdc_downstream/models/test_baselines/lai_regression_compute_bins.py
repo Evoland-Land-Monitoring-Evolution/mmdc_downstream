@@ -10,13 +10,13 @@ from mmdc_singledate.datamodules.mmdc_datamodule import destructure_batch
 from mmdc_singledate.utils.train_utils import standardize_data
 
 from mmdc_downstream.mmdc_model.model import PretrainedMMDC
-from .base import MMDCDownstreamBaseLitModule
+from mmdc_downstream.models.lightning.base import MMDCDownstreamBaseLitModule
 from ..components.losses import compute_losses
 from ..components.metrics import compute_val_metrics
 from ..datatypes import OutputLAI
 from ..torch.lai_regression import MMDCDownstreamRegressionModule
 from ...snap.components.compute_bio_var import \
-    predict_variable_from_tensors, stand_lai, unstand_lai, prepare_s2_image, process_output
+    predict_variable_from_tensors, prepare_s2_image, process_output
 from ...snap.lai_snap import BVNET, normalize, denormalize
 
 
@@ -78,15 +78,15 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
         if self.input_data == "experts":
             return self.model_mmdc.get_latent_mmdc(batch).latent_experts_mu
         if self.input_data == "lat_S1":
-            return self.model_mmdc.get_latent_mmdc(batch).latent_S1_mu
+            return self.model_mmdc.get_latent_mmdc(batch).latent_s1_mu
         if self.input_data == "lat_S2":
-            return self.model_mmdc.get_latent_mmdc(batch).latent_S2_mu
+            return self.model_mmdc.get_latent_mmdc(batch).latent_s2_mu
         if self.input_data == "lat_S1_mulogvar":
             latent = self.model_mmdc.get_latent_mmdc(batch)
-            return torch.cat((latent.latent_S1_mu, latent.latent_S1_logvar), 1)
+            return torch.cat((latent.latent_s1_mu, latent.latent_s1_logvar), 1)
         if self.input_data == "lat_S2_mulogvar":
             latent = self.model_mmdc.get_latent_mmdc(batch)
-            return torch.cat((latent.latent_S2_mu, latent.latent_S2_logvar), 1)
+            return torch.cat((latent.latent_s2_mu, latent.latent_s2_logvar), 1)
         if self.input_data == "S2":
             data = prepare_s2_image(batch.s2_x / 10000, batch.s2_a, reshape=False).nan_to_num()
             return normalize(data,
