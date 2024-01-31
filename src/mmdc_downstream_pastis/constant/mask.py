@@ -1,0 +1,1 @@
+TOKEN_MASK_VALUE = -0.5
