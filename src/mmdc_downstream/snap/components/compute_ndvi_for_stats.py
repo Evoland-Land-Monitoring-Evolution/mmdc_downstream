@@ -1,24 +1,16 @@
 """Script to compute NDVI per ROI to select tiles for LAI model training"""
 import os
 from collections import namedtuple
-from typing import Literal
-
-from einops import rearrange
 
 import matplotlib.pyplot as plt
-import torch
-
 import pandas as pd
-
-from mmdc_singledate.datamodules.components.datamodule_utils import (
-    compute_stats, MMDCTensorStats)
-from mmdc_downstream.snap.lai_snap import BVNET
+import torch
+from einops import rearrange
 
 DatasetPaths = namedtuple("DatasetPaths", ["input_path", "output_path"])
 
 
-def compute_variables(paths: DatasetPaths,
-                      tiles: list[str]) -> None:
+def compute_variables(paths: DatasetPaths, tiles: list[str]) -> None:
     """
     General function to compute NDVI stats
     """
@@ -43,15 +35,69 @@ def compute_variables(paths: DatasetPaths,
 
     print(df_all)
 
-    df_all_roi = df_all.groupby(['tile', 'roi']).mean().drop(columns=['patch']).reset_index()
+    df_all_roi = df_all.groupby(
+        ['tile', 'roi']).mean().drop(columns=['patch']).reset_index()
 
     df_all.to_csv(os.path.join(paths.input_path, "NDVI_stats_patch.csv"))
     df_all_roi.to_csv(os.path.join(paths.input_path, "NDVI_stats_roi.csv"))
 
 
-def process_file(tile_path: str,
-                 file_s2: str,
-                 ) -> pd.DataFrame:
+def process_temporal_pixels(temp_dict, patch_dict):
+    """Compute statistics over statistics on temporal ndvi pixel values"""
+    for k, v in temp_dict.items():  # pylint: : disable=C0103
+
+        min_patch, median_patch, max_patch = v.quantile(
+            torch.Tensor([0.05, 0.5, 0.95]))
+
+        patch_dict[k + "_min"] = min_patch.item()
+        patch_dict[k + "_median"] = median_patch.item()
+        patch_dict[k + "_max"] = max_patch.item()
+    return patch_dict
+
+def process_patch(patch: str | int,
+                  global_df: pd.DataFrame,
+                  roi_df: pd.DataFrame,
+                  ndvi_set: torch.Tensor) -> pd.DataFrame:
+    """Compute temporal NDVI stats for one patch"""
+    idx = roi_df.index[roi_df["patch_id"] == patch].to_list()
+
+    ndvi_patch = ndvi_set[idx]
+
+    # Per pixel
+    # temp stands for temporal
+    ndvi_patch_temp = rearrange(ndvi_patch, 't h w -> t (h w)')
+
+    # Compute temporal stats per pixel
+    min_temp, median_temp, max_temp = ndvi_patch_temp.nanquantile(
+        torch.Tensor([0.05, 0.5, 0.95]), dim=0)
+
+    temp_dict = {
+        "min_temp": min_temp,
+        "median_temp": median_temp,
+        "max_temp": max_temp
+    }
+
+    patch_dict = {'patch': patch}
+    patch_dict = process_temporal_pixels(temp_dict, patch_dict)
+
+    if len(global_df) == 0:
+        global_df = pd.DataFrame(patch_dict, index=[0])
+    else:
+        global_df = pd.concat(
+            [global_df, pd.DataFrame(patch_dict, index=[0])],
+            ignore_index=True)
+
+    # mean_temp = ndvi_patch_temp.nanmean(0)
+    # median_temp = ndvi_patch_temp.nanmedian(0).values
+    # max_temp = ndvi_patch_temp.nan_to_num(-10).max(0).values
+    # min_temp = ndvi_patch_temp.nan_to_num(10).min(0).values
+    return global_df
+
+
+def process_file(
+    tile_path: str,
+    file_s2: str,
+) -> pd.DataFrame:
     """
     Compute variable for each individual roi file from selected tiles
     """
@@ -62,68 +108,36 @@ def process_file(tile_path: str,
 
     ndvi_set = compute_ndvi(s2_set, s2_mask)
 
-    df = pd.read_csv(os.path.join(tile_path, file_s2.replace("s2_set", "dataset").replace("pth", "csv")), sep='\t')
-
-    patches = df["patch_id"].unique()
+    roi_df = pd.read_csv(os.path.join(  # pylint: : disable=C0103
+        tile_path,
+        file_s2.replace("s2_set", "dataset").replace("pth", "csv")),
+                     sep='\t')
 
     global_df = {}
 
-    for patch in patches:
-        idx = df.index[df["patch_id"] == patch].to_list()
+    for patch in roi_df["patch_id"].unique():
+        global_df = process_patch(patch, global_df, roi_df, ndvi_set)
 
-        ndvi_patch = ndvi_set[idx]
-
-        # Per pixel
-        ndvi_patch_temp = rearrange(ndvi_patch, 't h w -> t (h w)')
-
-        min_temp, median_temp, max_temp = ndvi_patch_temp.nanquantile(torch.Tensor([0.05, 0.5, 0.95]), dim=0)
-
-        temp_dict = {"min_temp": min_temp, "median_temp": median_temp, "max_temp": max_temp}
-
-        patch_dict = {'patch': patch}
-
-        for k, v in temp_dict.items():
-            min_patch, median_patch, max_patch = v.quantile(torch.Tensor([0.05, 0.5, 0.95]))
-
-            patch_dict[k + "_min"] = min_patch.item()
-            patch_dict[k + "_median"] = median_patch.item()
-            patch_dict[k + "_max"] = max_patch.item()
-
-        if len(global_df) == 0:
-            global_df = pd.DataFrame(patch_dict, index=[0])
-        else:
-            global_df = pd.concat([global_df, pd.DataFrame(patch_dict, index=[0])], ignore_index=True)
-
-
-        # mean_temp = ndvi_patch_temp.nanmean(0)
-        # median_temp = ndvi_patch_temp.nanmedian(0).values
-        # max_temp = ndvi_patch_temp.nan_to_num(-10).max(0).values
-        # min_temp = ndvi_patch_temp.nan_to_num(10).min(0).values
-
-    # stats = compute_stats(output_set, mask=s2_mask)
-    #
-    # visualize_lai_gt(output_set.squeeze(1), s2_set, file_s2)
-    #
     return global_df
 
 
-def compute_ndvi(s2_set: torch.Tensor,
-                 s2_mask: torch.Tensor) -> torch.Tensor:
+def compute_ndvi(s2_set: torch.Tensor, s2_mask: torch.Tensor) -> torch.Tensor:
     """
     Prepare input data (concat S2 bands and angles) ->
     produce LAI with snap ->
     reshape output and set masked data to nan
     """
-    ndvi = (s2_set[:, 6] - s2_set[:, 2])/(s2_set[:, 6] + s2_set[:, 2])
+    ndvi = (s2_set[:, 6] - s2_set[:, 2]) / (s2_set[:, 6] + s2_set[:, 2])
     ndvi[s2_mask.squeeze(1).bool()] = torch.nan
 
     return ndvi
 
 
-def visualize_lai_gt(output_set: torch.Tensor,
-                     s2_set: torch.Tensor,
-                     file_s2: str,
-                     ) -> None:
+def visualize_lai_gt(
+    output_set: torch.Tensor,
+    s2_set: torch.Tensor,
+    file_s2: str,
+) -> None:
     """Visualize LAI next to S2 image"""
     plt.close()
     fig = plt.figure(figsize=(20, 20))
