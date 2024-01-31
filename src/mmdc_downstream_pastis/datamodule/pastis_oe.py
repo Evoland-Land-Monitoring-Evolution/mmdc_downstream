@@ -21,6 +21,30 @@ from .utils import OutClassifItem, apply_padding, MMDCDataStruct
 
 my_logger = logging.getLogger(__name__)
 
+@dataclass
+class PASTISOptions:
+    """
+    folder (str): Path to the dataset
+    folds (list, optional): List of ints specifying which of the 5 official
+        folds to load. By default (when None is specified) all folds are loaded.
+    norm (bool): If true, images are standardised using pre-computed
+        channel-wise means and standard deviations.
+    cache (bool): If True, the loaded samples stay in RAM, default False.
+    mem16 (bool): Additional argument for cache. If True, the image time
+        series tensors are stored in half precision in RAM for efficiency.
+        They are cast back to float32 when returned by __getitem__.
+    """
+
+    # task: PASTISTask
+    target: Literal["semantic"] = "semantic",
+    dataset_path_oe: str
+    dataset_path_pastis: str
+    # folder: str
+    folds: list[int] | None = None
+    norm: bool = True
+    cache: bool = False
+    mem16: bool = False
+
 
 class PASTIS_Dataset_OE(TemplateDataset):
     def __init__(
@@ -43,7 +67,7 @@ class PASTIS_Dataset_OE(TemplateDataset):
             path_subdataset=None,
             crop_type: Literal["Center", "Random"] = "Random",
             transform: nn.Module | None = None,
-            dataset_type: Literal["train", "val", "test"] = "test",
+            # dataset_type: Literal["train", "val", "test"] = "test",
             max_len: int = 60,
             allow_padd: bool = True,
             extract_true_doy=False,
@@ -186,6 +210,16 @@ class PASTIS_Dataset_OE(TemplateDataset):
         return self.date_range[
             np.where(self.date_tables[sat][id_patch] == 1)[0]
         ]
+
+    def get_metadata(self) -> gpd.GeoDataFrame:
+        """Return a GeoDatFrame with the patch metadata"""
+
+    def read_data_from_disk(
+        self,
+        item: int,
+        id_patch: int,
+    ) -> tuple[dict[SatId, torch.Tensor], torch.Tensor]:
+        """Get id_patch from disk and cache it as item in the dataset"""
 
     def __getitem__(self, item) -> OutClassifItem:
         id_patch = self.id_patches[item]
@@ -343,3 +377,218 @@ def prepare_dates(date_dict, reference_date):
         ).days
     )
     return d.values
+
+
+
+@dataclass
+class PastisDataSets:
+    """Struct for the train, val and test datasets"""
+
+    train: tdata.Dataset
+    val: tdata.Dataset
+    test: tdata.Dataset | None = None
+
+
+class PastisDataModule(LightningDataModule):
+    """
+    A DataModule implements 4 key methods:
+        - setup (things to do on every accelerator in distributed mode)
+        - train_dataloader (the training dataloader)
+        - val_dataloader (the validation dataloader(s))
+        - test_dataloader (the test dataloader(s))
+
+    This allows you to share a full dataset without explaining how to download,
+    split, transform and process the data.
+    """
+
+    def __init__(
+        self,
+        data_dir,
+        batch_size,
+        config_dataset,
+        dict_classes=None,
+        crop_size=64,
+        num_workers: int = 1,
+        path_dir_csv: str | None = None,
+        s2_band: list | None = None,
+        max_len: int = 60,
+        data_folder: str,
+        folds: PastisFolds,
+        task: PASTISTask,
+        batch_size: int = 2,
+    ):
+        super().__init__()
+
+        # this line allows to access init params with 'self.hparams' attribute
+        self.save_hyperparameters(logger=False)
+
+        # init different variables
+        self.data_folder = data_folder
+        self.folds = folds
+        self.batch_size = batch_size
+        self.task = task
+
+        self.data: PastisDataSets | None = None
+
+    def setup(self, stage: str | None = None) -> None:
+        """Load data. Set variables:
+        `self.data.train`, `self.data.val`, `self.data.test`.
+
+        This method is called by lightning when
+        doing `trainer.fit()` and `trainer.test()`,
+        so be careful not to execute the random split twice!
+        The `stage` can be used to differentiate whether
+        it's called before trainer.fit()` or `trainer.test()`.
+        """
+
+        if stage == "fit":
+            self.data = PastisDataSets(
+                PASTISDataset(
+                    self.config_dataset.train,
+                    dict_classes=self.dict_classes,
+                    transform=None,
+                    s2_band=self.s2_band,
+                    dataset_path=path_dataset_final,
+                    dataset_type="train",
+                    require_weights=False,
+                    crop_size=self.crop_size,
+                    max_len=self.max_len,
+),
+                PASTISDataset(
+                    PASTISOptions(task=self.task,
+                                  folds=self.folds.val,
+                                  folder=self.data_folder)),
+            )
+
+        if stage == "test":
+            assert self.data
+            self.data = PastisDataSets(
+                self.data.train,
+                self.data.val,
+                PASTISDataset(
+                    PASTISOptions(task=self.task,
+                                  folds=self.folds.test,
+                                  folder=self.data_folder)),
+            )
+
+    def train_dataloader(self) -> DataLoader:
+        """Train dataloader"""
+        assert self.data is not None
+        assert self.data.train is not None
+        return self.instanciate_data_loader(self.data.train, shuffle=True)
+
+    def val_dataloader(self) -> DataLoader:
+        """Validation dataloader"""
+        assert self.data is not None
+        assert self.data.val is not None
+        return self.instanciate_data_loader(self.data.val, shuffle=False)
+
+    def test_dataloader(self) -> DataLoader:
+        """Test dataloader"""
+        assert self.data is not None
+        assert self.data.test is not None
+        return self.instanciate_data_loader(self.data.test, shuffle=False)
+
+    def predict_dataloader(self) -> DataLoader:
+        """Predict dataloader"""
+        return self.test_dataloader()
+
+    def instanciate_data_loader(
+        self,
+        dataset: tdata.Dataset,
+        shuffle: bool = False,
+    ) -> DataLoader:
+        """Return a data loader with the PASTIS data set"""
+
+        return DataLoader(
+            dataset=dataset,
+            batch_size=self.batch_size,
+            shuffle=shuffle,
+            drop_last=True,
+            collate_fn=lambda x: pad_collate(x, pad_value=2),
+        )
+
+class PASTISDataModule(LightningDataModule):
+    def __init__(
+        self,
+        data_dir,
+        batch_size,
+        config_dataset,
+        dict_classes=None,
+        crop_size=64,
+        num_workers: int = 1,
+        path_dir_csv: str | None = None,
+        s2_band: list | None = None,
+        max_len: int = 60,
+    ):
+        self.max_len = max_len
+        if dict_classes is None:
+            dict_classes = LABEL_PASTIS
+        super().__init__(
+            data_dir,
+            batch_size,
+            config_dataset,
+            dict_classes,
+            crop_size=crop_size,
+            num_workers=num_workers,
+            path_dir_csv=path_dir_csv,
+            s2_band=s2_band,
+            max_len=max_len,
+        )
+
+        self.dataset_path = os.path.join(
+            self.data_dir, self.config_dataset.train.dataset_path
+        )
+
+        self.num_channels = PASTIS_BAND
+
+    def setup(
+        self, stage: str | None = None
+    ) -> None:  # operations you might want to perform on every GPU.
+        if stage == "fit" or stage is None:
+            path_dataset_final = os.path.join(
+                self.data_dir, self.config_dataset.train.dataset_path
+            )
+            my_logger.info("load train ... ")
+
+            self.data_train: PASTIS_Dataset = instantiate(
+                self.config_dataset.train,
+                dict_classes=self.dict_classes,
+                transform=None,
+                s2_band=self.s2_band,
+                dataset_path=path_dataset_final,
+                # dataset_type="train",
+                require_weights=False,
+                crop_size=self.crop_size,
+                max_len=self.max_len,
+            )
+            my_logger.info("train loaded")
+            self.data_val: PASTIS_Dataset = instantiate(
+                self.config_dataset.val,
+                dict_classes=self.dict_classes,
+                transform=None,
+                s2_band=self.s2_band,
+                dataset_path=os.path.join(
+                    self.data_dir, self.config_dataset.val.dataset_path
+                ),
+                # dataset_type="val",
+                require_weights=False,
+                crop_size=self.crop_size,
+                max_len=self.max_len,
+            )  # maybe unecessary
+            my_logger.info("val loaded")
+        if stage == "test":
+            self.data_test: PASTIS_Dataset = instantiate(
+                self.config_dataset.test,
+                dict_classes=self.dict_classes,
+                transform=None,
+                s2_band=self.s2_band,
+                dataset_path=os.path.join(
+                    self.data_dir, self.config_dataset.test.dataset_path
+                ),
+                # dataset_type="test",
+                require_weights=False,
+                crop_size=self.crop_size,
+                max_len=self.max_len,
+            )
+            my_logger.info("test loaded")
