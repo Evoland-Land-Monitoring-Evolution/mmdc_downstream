@@ -28,8 +28,8 @@ my_logger = logging.getLogger(__name__)
 class MMDCData:
     """Dataclass holding the tensors for image and auxiliary data in MMDC"""
 
-    data: torch.Tensor | None
-    masks: torch.Tensor | None
+    img: torch.Tensor | None
+    mask: torch.Tensor | None
     angles: torch.Tensor | None
 
 
@@ -69,6 +69,7 @@ class MMDCDataStruct:
                 torch.cat([getattr(self.meteo, field.name).unsqueeze(-3)
                            for field in fields(self.meteo)], -3)
                 )
+        return self
 
     def casting(self, dtype: torch.dtype):
         """Convert all values to defined datatype, except masks that remain int"""
@@ -80,12 +81,18 @@ class MMDCDataStruct:
 
     def crop(self, x, y, cs):
         setattr(self, "meteo", getattr(self, "meteo")[:, :, :, y: y + cs, x: x + cs])
-        setattr(self, "dem", getattr(self, "dem")[:, :, y: y + cs, x: x + cs])
+        setattr(self, "dem", getattr(self, "dem")[:, y: y + cs, x: x + cs])
         for field in fields(self.data):
             setattr(self.data, field.name, getattr(self.data, field.name)[:, :, y: y + cs, x: x + cs])
+        return self
 
-    # def padding(self):
-    #     #TODO
+    def padding(self, padd_tensor):
+        setattr(self, "meteo", F.pad(getattr(self, "meteo"), (0, 0) + padd_tensor))
+        # setattr(self, "dem", F.pad(getattr(self, "dem"), padd_tensor))
+        for field in fields(self.data):
+            setattr(self.data, field.name, F.pad(getattr(self.data, field.name), padd_tensor))
+        return self
+
 
 def randomcropindex(
     img_h: int, img_w: int, cropped_h: int, cropped_w: int
@@ -432,7 +439,7 @@ def apply_padding(allow_padd, max_len, t, sits, doy):
         padd_tensor = (0, 0, 0, 0, 0, 0, 0, max_len - t)
         padd_doy = (0, max_len - t)
         # padd_label = (0, 0, 0, 0, 0, self.max_len - t)
-        sits = F.pad(sits, padd_tensor)
+        sits = sits.padding(padd_tensor)
         doy = F.pad(doy, padd_doy)
         padd_index = torch.zeros(max_len)
         padd_index[t:] = 1
