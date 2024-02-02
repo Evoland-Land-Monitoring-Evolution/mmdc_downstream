@@ -1,9 +1,14 @@
-# Taken from https://github.com/VSainteuf/utae-paps/blob/3d83dc50e67e7ae204559e819cfbb432b1b21e10/src/dataset.py#L85 , some adaptations were made
-import json
+# Taken from https://github.com/VSainteuf/utae-paps/blob/3d83dc50e67e7ae204559e819cfbb432b1b21e10/src/dataset.py#L85
+# some adaptations were made
 import logging
 import os
 from datetime import datetime
 from typing import Literal
+
+from dataclasses import dataclass
+
+import torch.utils.data as tdata
+from collections.abc import Iterable
 
 import geopandas as gpd
 import numpy as np
@@ -13,64 +18,35 @@ from einops import rearrange
 from torch import nn
 from torch.nn import functional as F
 
+from datatypes import *
 
-from ..constant.dataset import S2_BAND # TODO change
-from ..constant.pastis import LABEL_PASTIS
-from .template_dataset import TemplateDataset
-from .utils import OutClassifItem, apply_padding, MMDCDataStruct
+from mmdc_downstream_pastis.constant.dataset import S2_BAND  # TODO change
+from mmdc_downstream_pastis.constant.pastis import LABEL_PASTIS
+from pytorch_lightning import LightningDataModule
+from mmdc_downstream_pastis.datamodule.utils import OutClassifItem, apply_padding, MMDCDataStruct, randomcropindex
 
-my_logger = logging.getLogger(__name__)
-
-@dataclass
-class PASTISOptions:
-    """
-    folder (str): Path to the dataset
-    folds (list, optional): List of ints specifying which of the 5 official
-        folds to load. By default (when None is specified) all folds are loaded.
-    norm (bool): If true, images are standardised using pre-computed
-        channel-wise means and standard deviations.
-    cache (bool): If True, the loaded samples stay in RAM, default False.
-    mem16 (bool): Additional argument for cache. If True, the image time
-        series tensors are stored in half precision in RAM for efficiency.
-        They are cast back to float32 when returned by __getitem__.
-    """
-
-    # task: PASTISTask
-    target: Literal["semantic"] = "semantic",
-    dataset_path_oe: str
-    dataset_path_pastis: str
-    # folder: str
-    folds: list[int] | None = None
-    norm: bool = True
-    cache: bool = False
-    mem16: bool = False
+# Configure logging
+NUMERIC_LEVEL = getattr(logging, "INFO", None)
+logging.basicConfig(level=NUMERIC_LEVEL,
+                    format="%(asctime)-15s %(levelname)s: %(message)s")
+logger = logging.getLogger(__name__)
 
 
-class PASTIS_Dataset_OE(TemplateDataset):
+class PASTISDataset(tdata.Dataset):
+
     def __init__(
-            self,
-            dataset_path_oe: str,
-            dataset_path_pastis: str,
-            norm: bool = False,
-            target: Literal["semantic"] = "semantic",
-            cache: bool = False,
-            mem16: bool = False,
-            folds: None | list = None,
-            reference_date: str = "2014-03-03",
-            class_mapping=None,
-            mono_date=None,
-            sats=None,
-            crop_size=64,
-            s2_band=None,
-            dict_classes=None,
-            require_weights=False,
-            path_subdataset=None,
-            crop_type: Literal["Center", "Random"] = "Random",
-            transform: nn.Module | None = None,
-            # dataset_type: Literal["train", "val", "test"] = "test",
-            max_len: int = 60,
-            allow_padd: bool = True,
-            extract_true_doy=False,
+        self,
+        options: PASTISOptions,
+        reference_date: str = "2018-10-01",
+        sats=["S2"],
+        crop_size=64,
+        # s2_band=None,
+        # dict_classes=None,
+        crop_type: Literal["Center", "Random"] = "Random",
+        transform: nn.Module | None = None,
+        max_len: int = 60,
+        allow_padd: bool = True,
+        extract_true_doy=False,
     ):
         """
         Pytorch Dataset class to load samples from the PASTIS dataset, for semantic and
@@ -109,8 +85,7 @@ class PASTIS_Dataset_OE(TemplateDataset):
                 They are cast back to float32 when returned by __getitem__.
             folds (list, optional): List of ints specifying which of the 5 official
                 folds to load. By default (when None is specified) all folds are loaded.
-            class_mapping (dict, optional): Dictionary to define a mapping between the
-                default 18 class nomenclature and another class grouping, optional.
+
             mono_date (int or str, optional): If provided only one date of the
                 available time series is loaded. If argument is an int it defines the
                 position of the date that is loaded. If it is a string, it should be
@@ -120,66 +95,48 @@ class PASTIS_Dataset_OE(TemplateDataset):
         path_subdataset (None or str). if not None indicates a path to a csv which contains a column id_patch. All the patches from get_item will be from this subset
         """
 
-        super().__init__(crop_size, crop_type, transform, dataset_type)
+        super().__init__()
 
         self.extract_true_doy = extract_true_doy
         self.allow_pad = allow_padd
         if sats is None:
             sats = ["S2"]
-        if s2_band is None:
-            self.s2_band = S2_BAND
-        else:
-            self.s2_band = s2_band
+        # if s2_band is None:
+        #     self.s2_band = S2_BAND
+        # else:
+        #     self.s2_band = s2_band
 
-        self.folder = dataset_path_oe
-        self.folder_orig = dataset_path_pastis
-        self.norm = norm
+        self.s2_band = S2_BAND
+
+        self.crop_size = crop_size
+        self.crop_type = crop_type
+
         self.reference_date = datetime(*map(int, reference_date.split("-")))
-        self.cache = cache
-        self.mem16 = mem16
-        self.mono_date = None
+
+        self.options = options
+
         self.memory = {}
         self.memory_dates = {}
-        self.class_mapping = (
-            np.vectorize(lambda x: class_mapping[x])
-            if class_mapping is not None
-            else class_mapping
-        )
+
         self.max_len = max_len
-        self.target = target
         self.sats = sats
-        print("before metadata")
+
         # Get metadata
-        print("Reading patch metadata . . .")
-        self.meta_patch = gpd.read_file(
-            os.path.join(dataset_path_pastis, "metadata.geojson")
-        )
-        self.meta_patch.index = self.meta_patch["ID_PATCH"].astype(int)
-        self.meta_patch.sort_index(inplace=True)
+        meta_patch = self.get_metadata()
+        self.id_patches = meta_patch.index
+        self.len = len(self.id_patches)
 
         self.date_tables = {s: None for s in sats}
         self.date_range = np.array(range(-200, 5000))
-        if dict_classes is None:
-            dict_classes = LABEL_PASTIS
-        self.dict_classes = dict_classes
+
+        # self.dict_classes = dict_classes if dict_classes is not None else LABEL_PASTIS
+        self.dict_classes = LABEL_PASTIS
+
         self.labels = list(self.dict_classes.values())
 
-        print("Done.")
+        logger.info("Done.")
 
-        # Select Fold samples
-        if folds is not None:
-            self.meta_patch = pd.concat(
-                [self.meta_patch[self.meta_patch["Fold"] == f] for f in folds]
-            )
-
-        #        self.len = self.meta_patch.shape[0]
-        if path_subdataset is not None:
-            df_selected_patch = pd.read_csv(path_subdataset)
-            self.id_patches = df_selected_patch["id_patch"].astype("int")
-        else:
-            self.id_patches = self.meta_patch.index
-        self.fold = folds
-        self.len = len(self.id_patches)
+        # TODO change norm
         # # Get normalisation values
         # if norm:
         #     self.norm = {}
@@ -203,108 +160,154 @@ class PASTIS_Dataset_OE(TemplateDataset):
 
         print("Dataset ready.")
 
+    # TODO adapt for three sensors
+    def patches_to_keep(self) -> np.array:
+        """
+        We make lists of all available patches for a satellite and corresponding meteo and dem data.
+        And we choose only patches presents for all modalities.
+        In case we use several satellites, we choose patches present for all of them.
+        """
+        path = self.options.dataset_path_oe
+        valid_patches = []
+        for satellite in self.sats:
+            sat_patches = [
+                int(file[:-3].split("_")[-1])
+                for file in os.listdir(os.path.join(path, satellite))]
+
+            meteo_patches = [int(file[:-3].split("_")[-1])
+                             for file in os.listdir(
+                                 os.path.join(path, f"{satellite}_METEO"))]
+
+            dem_patches = [int(file[:-3].split("_")[-1])
+                           for file in os.listdir(os.path.join(path, "DEM"))]
+
+            valid = np.intersect1d(np.intersect1d(sat_patches, meteo_patches, assume_unique=True),
+                                   dem_patches, assume_unique=True)
+            if len(self.sats) == 1:
+                return valid
+
+            valid_patches.append(valid)
+
+        return np.intersect1d(valid_patches[0], valid_patches[1], assume_unique=True)
+
+    def get_metadata(self) -> gpd.GeoDataFrame:
+        """Return a GeoDatFrame with the patch metadata"""
+        logger.info("Reading patch metadata . . .")
+        meta_patch = gpd.read_file(
+            os.path.join(self.options.dataset_path_pastis, "metadata.geojson"))
+        meta_patch.index = meta_patch["ID_PATCH"].astype(int)
+        meta_patch.sort_index(inplace=True)
+
+        # Select Fold samples
+        if self.options.folds is not None:
+            meta_patch = pd.concat([
+                meta_patch[meta_patch["Fold"] == f] for f in self.options.folds
+            ])
+
+        # We only keep patches with all modalities available
+        meta_patch = meta_patch[meta_patch.ID_PATCH.isin(self.patches_to_keep())]
+        return meta_patch
+
     def __len__(self):
         return self.len
 
     def get_dates(self, id_patch, sat):
-        return self.date_range[
-            np.where(self.date_tables[sat][id_patch] == 1)[0]
-        ]
-
-    def get_metadata(self) -> gpd.GeoDataFrame:
-        """Return a GeoDatFrame with the patch metadata"""
+        return self.date_range[np.where(
+            self.date_tables[sat][id_patch] == 1)[0]]
 
     def read_data_from_disk(
         self,
         item: int,
         id_patch: int,
-    ) -> tuple[dict[SatId, torch.Tensor], torch.Tensor]:
+    ) -> tuple[dict[str, MMDCDataStruct], torch.Tensor, dict[
+            str, torch.Tensor], dict[str, torch.Tensor]]:
         """Get id_patch from disk and cache it as item in the dataset"""
+        data_pastis = {
+            satellite:
+            torch.load(
+                os.path.join(
+                    self.options.dataset_path_oe,
+                    satellite,
+                    f"{satellite}_{id_patch}.pt",
+                ))
+            for satellite in self.sats
+        }  # pastis_eo.dataclass.PASTISItem
+        data: dict[str, MMDCDataStruct] = {}
+        for satellite in self.sats:
+            data_all = data_pastis[satellite]
+            dem = torch.load(
+                os.path.join(
+                    self.options.dataset_path_oe,
+                    "DEM",
+                    f"DEM_{id_patch}.pt",
+                ))
+            data_one_sat = {
+                "img": data_all.sits,
+                "mask": data_all.mask,
+                "angles": data_all.angles.nan_to_num(),
+                "dem": dem.nan_to_num()
+            }
+
+            data_one_sat.update({
+                f"meteo_{k}":
+                torch.load(
+                    os.path.join(
+                        self.options.dataset_path_oe,
+                        f"{satellite}_METEO",
+                        f"{satellite}_{k}_{id_patch}.pt",
+                    ))
+                for k in METEO_BANDS
+            })
+
+            data[satellite] = MMDCDataStruct.init_empty().fill_empty_from_dict(
+                data_one_sat).concat_meteo()
+
+        # Retrieve date sequences
+        dates = {s: a.doy for s, a in data_pastis.items()}
+        true_doys = {s: a.true_doy for s, a in data_pastis.items()}
+        if self.options.task == "semantic":
+            target = np.load(
+                os.path.join(
+                    self.options.dataset_path_pastis,
+                    "ANNOTATIONS",
+                    f"TARGET_{id_patch}.npy",
+                ))
+            target = torch.from_numpy(target[0].astype(int))
+        else:
+            raise NotImplementedError
+        if self.options.cache:  # Not sure it works
+            if self.options.mem16:
+                self.memory[item] = [
+                    {
+                        k: v.casting(torch.float32)
+                        for k, v in data.items()
+                    },
+                    target,
+                    {
+                        k: d
+                        for k, d in dates.items()
+                    },
+                    {
+                        k: d
+                        for k, d in true_doys.items()
+                    },
+                ]
+            else:
+                self.memory[item] = [data, target, dates, true_doys]
+
+        return data, target, dates, true_doys
 
     def __getitem__(self, item) -> OutClassifItem:
         id_patch = self.id_patches[item]
 
         # Retrieve and prepare satellite data
-        if not self.cache or item not in self.memory.keys():
-            data_pastis = {
-                satellite:
-                    torch.load(
-                        os.path.join(
-                            self.folder,
-                            f"{satellite}_{id_patch}.pt",
-                        )
-                    )
-                for satellite in self.sats
-            }  # pastis_eo.dataclass.PASTISItem
-            data: dict[str, MMDCDataStruct] = {}
-            for satellite in self.sats:
-                data_all = data_pastis[satellite]
-                dem = torch.load(
-                    os.path.join(
-                        self.folder,
-                        f"DEM_{id_patch}.pt",
-                    )
-                )
-                data_one_sat = {"data": data_all.sits,
-                                "mask": data_all.mask,
-                                "angles": data_all.angles.nan_to_num(),
-                                "dem": dem.nan_to_num()}
-
-                METEO_BANDS = {
-                    "dew_temp": "dewpoint-temperature",
-                    "prec": "precipitation-flux",
-                    "sol_rad": "solar-radiation-flux",
-                    "temp_max": "temperature-max",
-                    "temp_mean": "temperature-mean",
-                    "temp_min": "temperature-min",
-                    "vap_press": "vapour-pressure",
-                    "wind_speed": "wind-speed",
-                }
-
-                data_one_sat.update({
-                    f"meteo_{k}": torch.load(
-                        os.path.join(
-                            self.folder,
-                            f"{satellite}_{k}_{id_patch}.pt",
-                        )
-                    )
-                    for k in METEO_BANDS
-                })
-
-                data[satellite] = MMDCDataStruct.init_empty().fill_empty_from_dict(data_one_sat).concat_meteo()
-
-            # Retrieve date sequences
-            dates = {s: a.doy for s, a in data_pastis.items()}
-            true_doys = {s: a.true_doy for s, a in data_pastis.items()}
-            if self.target == "semantic":
-                target = np.load(
-                    os.path.join(
-                        self.folder_orig,
-                        "ANNOTATIONS",
-                        f"TARGET_{id_patch}.npy",
-                    )
-                )
-                target = torch.from_numpy(target[0].astype(int))
-
-                if self.class_mapping is not None:
-                    target = self.class_mapping(target)
-
-            else:
-                raise NotImplementedError
-            if self.cache:  # Not sure it works
-                if self.mem16:
-                    self.memory[item] = [
-                        {k: v.casting(torch.float32) for k, v in data.items()},
-                        target,
-                        {k: d for k, d in dates.items()},
-                        {k: d for k, d in true_doys.items()},
-                    ]
-                else:
-                    self.memory[item] = [data, target, dates, true_doys]
+        if not self.options.cache or item not in self.memory.keys():
+            data, target, dates, true_doys = self.read_data_from_disk(
+                item, id_patch)
 
         else:
             data, target, dates, true_doys = self.memory[item]
-            if self.mem16:
+            if self.options.mem16:
                 data = {k: v.casting(torch.float32) for k, v in data.items()}
 
         if len(self.sats) == 1:  # TODO change that for multimodal
@@ -314,44 +317,50 @@ class PASTIS_Dataset_OE(TemplateDataset):
                 true_doy = true_doys[self.sats[0]]
             else:
                 true_doy = None
-            t, c, h, w = sits.data.data.shape
+            t, c, h, w = sits.data.img.shape
             y, x = self.get_crop_idx(
-                rows=sits.data.data.shape[2], cols=sits.data.data.shape[3]
+                rows=sits.data.img.shape[2], cols=sits.data.img.shape[3]
             )  # so that same crop for all the bands of a sits
 
-
-            #TODO: crop
-            # sits = sits[:, :, y: y + self.crop_size, x: x + self.crop_size]
-            # target = target[y: y + self.crop_size, x: x + self.crop_size]
+            sits = sits.crop(x, y, self.crop_size)
+            target = target[y:y + self.crop_size, x:x + self.crop_size]
             target[target == 19] = 0  # merge background and void class
             # if self.transform is not None:
             #     my_logger.debug("Apply transform per SITS")
             #     sits = rearrange(sits, "t c h w -> c t h w")
             #     sits = self.transform(sits)
             #     sits = rearrange(sits, "c t h w -> t c h w")
-            # TODO: padding
-            sits, doy, padd_index = apply_padding(
-                self.allow_pad, self.max_len, t, sits, doy
-            )
+            sits, doy, padd_index = apply_padding(self.allow_pad, self.max_len,
+                                                  t, sits, doy)
             if true_doy is not None:
                 padd_true_doy = F.pad(true_doy, (0, self.max_len - t))
             else:
                 padd_true_doy = None
             return OutClassifItem(
                 sits=sits,
-                doy=doy.to(sits),
+                input_doy=doy.to(sits.data.img.device),
                 padd_index=padd_index.bool(),
                 target=target,
                 padd_val=torch.tensor(self.max_len - t),
                 item=item,
-                mask_loss=(target != 0) & (target != 19),
-                s2_path=os.path.join(
-                    self.folder,
-                    f"DATA_{self.sats[0]}",
-                    f"{self.sats[0]}_{id_patch}.pt",
-                ),
+                mask=(target != 0) & (target != 19),
                 true_doy=padd_true_doy,
             )
+
+    def get_crop_idx(self, rows, cols) -> tuple[int, int]:
+        """return the coordinate, width and height of the window loaded
+        by the SITS depending od the value of the attribute
+        self.crop_type
+
+        Args:
+            rows: int
+            cols: int
+        """
+        if self.crop_type == "Random":
+            return randomcropindex(rows, cols, self.crop_size, self.crop_size)
+
+        return int(rows // 2 - self.crop_size // 2), int(cols // 2 -
+                                                         self.crop_size // 2)
 
     def extract_class_count(self, workers):
         M = self.len
@@ -370,23 +379,41 @@ class PASTIS_Dataset_OE(TemplateDataset):
 
 def prepare_dates(date_dict, reference_date):
     d = pd.DataFrame().from_dict(date_dict, orient="index")
-    d = d[0].apply(
-        lambda x: (
-                datetime(int(str(x)[:4]), int(str(x)[4:6]), int(str(x)[6:]))
-                - reference_date
-        ).days
-    )
+    d = d[0].apply(lambda x: (datetime(int(str(x)[:4]), int(str(x)[4:6]),
+                                       int(str(x)[6:])) - reference_date).days)
     return d.values
 
 
+def custom_collate_classif(batch: Iterable[OutClassifItem]) -> ClassifBInput:
+    dict_collate = {}
+    # TODO add padding here
+    for key in batch[0].__dict__:
+        if type(getattr(batch[0], key)) is MMDCDataStruct:
+            to_collate = [getattr(b, key) for b in batch]
+            sits_col = {}
+            for k in to_collate[0].__dict__:
+                if type(getattr(to_collate[0], k)) is torch.Tensor:
+                    sits_col[k] = torch.stack(
+                        [getattr(c, k) for c in to_collate])
+                else:
+                    #type is MMDCData
+                    to_collate2 = [getattr(c, k) for c in to_collate]
+                    # sits_col[k] = {k2: torch.stack([getattr(c, k2) for c in to_collate2])
+                    #                for k2 in to_collate2[0].__dict__}
+                    sits_col.update({
+                        k2:
+                        torch.stack([getattr(c, k2) for c in to_collate2])
+                        for k2 in to_collate2[0].__dict__
+                    })
+            dict_collate[key] = MMDCDataStruct.init_empty_concat_meteo(
+            ).fill_empty_from_dict(sits_col)
+        elif type(getattr(batch[0], key)) is torch.Tensor:
+            dict_collate[key] = torch.stack([getattr(b, key) for b in batch])
 
-@dataclass
-class PastisDataSets:
-    """Struct for the train, val and test datasets"""
+        elif getattr(batch[0], key) is None:
+            dict_collate[key] = None
 
-    train: tdata.Dataset
-    val: tdata.Dataset
-    test: tdata.Dataset | None = None
+    return ClassifBInput.init_empty().fill_empty_from_dict(dict_collate)
 
 
 class PastisDataModule(LightningDataModule):
@@ -403,19 +430,18 @@ class PastisDataModule(LightningDataModule):
 
     def __init__(
         self,
-        data_dir,
-        batch_size,
-        config_dataset,
-        dict_classes=None,
-        crop_size=64,
-        num_workers: int = 1,
-        path_dir_csv: str | None = None,
-        s2_band: list | None = None,
-        max_len: int = 60,
-        data_folder: str,
+        dataset_path_oe: str,
+        dataset_path_pastis: str,
         folds: PastisFolds,
-        task: PASTISTask,
+        sats: list[str] = ["S2"],
+        reference_date: str = "2018-10-01",
+        task: Literal["semantic"] = "semantic",
         batch_size: int = 2,
+        crop_size=64,
+        crop_type: Literal["Center", "Random"] = "Random",
+        num_workers: int = 1,
+        # path_dir_csv: str | None = None,
+        max_len: int = 60,
     ):
         super().__init__()
 
@@ -423,10 +449,22 @@ class PastisDataModule(LightningDataModule):
         self.save_hyperparameters(logger=False)
 
         # init different variables
-        self.data_folder = data_folder
+        self.dataset_path_oe = dataset_path_oe
+        self.dataset_path_pastis = dataset_path_pastis
+
+        self.crop_size = crop_size
+        self.crop_type = crop_type
+
+        self.reference_date = reference_date
+
         self.folds = folds
         self.batch_size = batch_size
         self.task = task
+
+        self.sats = sats
+
+        self.num_workers = num_workers
+        self.max_len = max_len
 
         self.data: PastisDataSets | None = None
 
@@ -443,53 +481,66 @@ class PastisDataModule(LightningDataModule):
 
         if stage == "fit":
             self.data = PastisDataSets(
-                PASTISDataset(
-                    self.config_dataset.train,
-                    dict_classes=self.dict_classes,
-                    transform=None,
-                    s2_band=self.s2_band,
-                    dataset_path=path_dataset_final,
-                    dataset_type="train",
-                    require_weights=False,
-                    crop_size=self.crop_size,
-                    max_len=self.max_len,
-),
-                PASTISDataset(
-                    PASTISOptions(task=self.task,
-                                  folds=self.folds.val,
-                                  folder=self.data_folder)),
+                PASTISDataset(PASTISOptions(
+                    task=self.task,
+                    folds=self.folds.train,
+                    dataset_path_oe=self.dataset_path_oe,
+                    dataset_path_pastis=self.dataset_path_pastis,
+                ),
+                              sats=self.sats,
+                              reference_date=self.reference_date,
+                              crop_size=self.crop_size,
+                              crop_type=self.crop_type,
+                              max_len=self.max_len),
+                PASTISDataset(PASTISOptions(
+                    task=self.task,
+                    folds=self.folds.val,
+                    dataset_path_oe=self.dataset_path_oe,
+                    dataset_path_pastis=self.dataset_path_pastis,
+                ),
+                              sats=self.sats,
+                              reference_date=self.reference_date,
+                              crop_size=self.crop_size,
+                              crop_type=self.crop_type,
+                              max_len=self.max_len),
             )
-
         if stage == "test":
             assert self.data
             self.data = PastisDataSets(
                 self.data.train,
                 self.data.val,
-                PASTISDataset(
-                    PASTISOptions(task=self.task,
-                                  folds=self.folds.test,
-                                  folder=self.data_folder)),
+                PASTISDataset(PASTISOptions(
+                    task=self.task,
+                    folds=self.folds.test,
+                    dataset_path_oe=self.dataset_path_oe,
+                    dataset_path_pastis=self.dataset_path_pastis,
+                ),
+                              sats=self.sats,
+                              reference_date=self.reference_date,
+                              crop_size=self.crop_size,
+                              crop_type=self.crop_type,
+                              max_len=self.max_len),
             )
 
-    def train_dataloader(self) -> DataLoader:
+    def train_dataloader(self) -> tdata.DataLoader:
         """Train dataloader"""
         assert self.data is not None
         assert self.data.train is not None
         return self.instanciate_data_loader(self.data.train, shuffle=True)
 
-    def val_dataloader(self) -> DataLoader:
+    def val_dataloader(self) -> tdata.DataLoader:
         """Validation dataloader"""
         assert self.data is not None
         assert self.data.val is not None
         return self.instanciate_data_loader(self.data.val, shuffle=False)
 
-    def test_dataloader(self) -> DataLoader:
+    def test_dataloader(self) -> tdata.DataLoader:
         """Test dataloader"""
         assert self.data is not None
         assert self.data.test is not None
         return self.instanciate_data_loader(self.data.test, shuffle=False)
 
-    def predict_dataloader(self) -> DataLoader:
+    def predict_dataloader(self) -> tdata.DataLoader:
         """Predict dataloader"""
         return self.test_dataloader()
 
@@ -497,98 +548,56 @@ class PastisDataModule(LightningDataModule):
         self,
         dataset: tdata.Dataset,
         shuffle: bool = False,
-    ) -> DataLoader:
+    ) -> tdata.DataLoader:
         """Return a data loader with the PASTIS data set"""
 
-        return DataLoader(
+        return tdata.DataLoader(
             dataset=dataset,
             batch_size=self.batch_size,
             shuffle=shuffle,
             drop_last=True,
-            collate_fn=lambda x: pad_collate(x, pad_value=2),
+            collate_fn=lambda x: custom_collate_classif(x),
         )
 
-class PASTISDataModule(LightningDataModule):
-    def __init__(
-        self,
-        data_dir,
-        batch_size,
-        config_dataset,
-        dict_classes=None,
-        crop_size=64,
-        num_workers: int = 1,
-        path_dir_csv: str | None = None,
-        s2_band: list | None = None,
-        max_len: int = 60,
-    ):
-        self.max_len = max_len
-        if dict_classes is None:
-            dict_classes = LABEL_PASTIS
-        super().__init__(
-            data_dir,
-            batch_size,
-            config_dataset,
-            dict_classes,
-            crop_size=crop_size,
-            num_workers=num_workers,
-            path_dir_csv=path_dir_csv,
-            s2_band=s2_band,
-            max_len=max_len,
-        )
-
-        self.dataset_path = os.path.join(
-            self.data_dir, self.config_dataset.train.dataset_path
-        )
-
-        self.num_channels = PASTIS_BAND
-
-    def setup(
-        self, stage: str | None = None
-    ) -> None:  # operations you might want to perform on every GPU.
-        if stage == "fit" or stage is None:
-            path_dataset_final = os.path.join(
-                self.data_dir, self.config_dataset.train.dataset_path
-            )
-            my_logger.info("load train ... ")
-
-            self.data_train: PASTIS_Dataset = instantiate(
-                self.config_dataset.train,
-                dict_classes=self.dict_classes,
-                transform=None,
-                s2_band=self.s2_band,
-                dataset_path=path_dataset_final,
-                # dataset_type="train",
-                require_weights=False,
-                crop_size=self.crop_size,
-                max_len=self.max_len,
-            )
-            my_logger.info("train loaded")
-            self.data_val: PASTIS_Dataset = instantiate(
-                self.config_dataset.val,
-                dict_classes=self.dict_classes,
-                transform=None,
-                s2_band=self.s2_band,
-                dataset_path=os.path.join(
-                    self.data_dir, self.config_dataset.val.dataset_path
-                ),
-                # dataset_type="val",
-                require_weights=False,
-                crop_size=self.crop_size,
-                max_len=self.max_len,
-            )  # maybe unecessary
-            my_logger.info("val loaded")
-        if stage == "test":
-            self.data_test: PASTIS_Dataset = instantiate(
-                self.config_dataset.test,
-                dict_classes=self.dict_classes,
-                transform=None,
-                s2_band=self.s2_band,
-                dataset_path=os.path.join(
-                    self.data_dir, self.config_dataset.test.dataset_path
-                ),
-                # dataset_type="test",
-                require_weights=False,
-                crop_size=self.crop_size,
-                max_len=self.max_len,
-            )
-            my_logger.info("test loaded")
+#
+# def build_dm(sats) -> PastisDataModule:
+#     """Builds datamodule"""
+#     return PastisDataModule(dataset_path_oe=dataset_path_oe,
+#                             dataset_path_pastis=dataset_path_pastis,
+#                             folds=PastisFolds([1, 2, 3], [4], [5]),
+#                             sats=sats,
+#                             task="semantic",
+#                             batch_size=1)
+#
+#
+# dataset_path_oe = "/work/CESBIO/projects/DeepChange/Ekaterina/Pastis_OE"
+# dataset_path_pastis = "/work/CESBIO/projects/DeepChange/Iris/PASTIS"
+#
+# def pastisds_dataloader(sats) -> None:
+#     """Use a dataloader with PASTIS dataset"""
+#     dm = build_dm(sats)
+#     dm.setup(stage='fit')
+#     dm.setup(stage='test')
+#     assert hasattr(dm, 'train_dataloader') and \
+#            hasattr(dm, 'val_dataloader') and hasattr(dm, 'test_dataloader')   # type: ignore[truthy-function]
+#     for loader in (dm.train_dataloader(), dm.val_dataloader(),
+#                    dm.test_dataloader()):
+#         assert loader
+#         for ((inputs, dates), labels), _ in zip(loader, range(4)):
+#             assert list(inputs.keys()) == sats
+#             assert list(dates.keys()) == sats
+#             for sat in sats:
+#                 if sat == "S2_MSK":
+#                     b_s_x, t_s_x, p_s_x, _ = inputs[sat].shape
+#                     nb_b = 1
+#                 else:
+#                     b_s_x, t_s_x, nb_b, p_s_x, _ = inputs[sat].shape
+#                 b_s_d, t_s_d = dates[sat].shape
+#                 b_s_y, p_s_y, _ = labels.shape
+#                 assert t_s_d > 2
+#                 assert b_s_x == b_s_d == b_s_y
+#                 assert t_s_d == t_s_x
+#                 # assert nb_b == PASTIS_BANDS[sat]
+#                 assert p_s_x == p_s_y
+#
+# pastisds_dataloader(["S2"])

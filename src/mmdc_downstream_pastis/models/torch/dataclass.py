@@ -12,17 +12,6 @@ class OutUTAEForward:
     feature_maps: list[Tensor] | None = None
 
 
-@dataclass
-class OutDecoderTransformer:
-    out_sits: Tensor
-    attn: list[Tensor] | None = None
-    attn_ed: list[Tensor] | None = None
-
-
-@dataclass
-class OutputMunTAN:
-    repr: Tensor
-    attn_mtan: Tensor | None = None
 
 
 @dataclass
