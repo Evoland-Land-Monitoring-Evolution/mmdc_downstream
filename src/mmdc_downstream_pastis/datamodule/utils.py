@@ -115,80 +115,6 @@ def randomcropindex(
     return height, width
 
 
-class ItemOutput:
-    def __init__(
-        self,
-        array: Tensor,
-        time: Tensor,
-        split_in_two: bool,
-        middle: None | int = None,
-        len_sits=30,
-        mask: MaskMod = None,
-    ):
-        """
-
-        Args:
-            array (): stored as c t h w
-            time (): contains date of acquisition of each image inside the array
-            split_in_two (): wether the input SITS should be split in two
-            middle (): where to split
-        """
-        if mask is not None:
-            out_mask = mask_tensor_4d(mask)
-            my_logger.debug(f"array {array.shape}")
-            # print("her")
-            valid_mask = out_mask.valid_mask
-        else:
-            valid_mask = None
-        if split_in_two:
-            output_split = split_tensor_in_two(
-                sits=array,
-                time=time,
-                middle=middle,
-                len_sits=len_sits,
-                mask=valid_mask,
-            )
-            # my_logger.debug("array {}".format(input_array.shape))
-            array = torch.concat(
-                [output_split.array_before, output_split.array_after], dim=1
-            )
-            my_logger.debug(
-                f"ask before {output_split.mask_before[0, 0, :, 0, 0]}"
-            )
-            my_logger.debug(
-                f"mask before {output_split.mask_before.shape} after"
-                f" {output_split.mask_after.shape}"
-            )
-            valid_mask = torch.concat(
-                [output_split.mask_before, output_split.mask_after]
-            )
-            self.valid_mask = rearrange(valid_mask, "f c t h w -> f t c h w")
-            self.padd_index = output_split.padd_index
-            input_array = rearrange(array, "c f t h w -> f t c h w")
-            my_logger.debug(f"array {input_array.shape}")
-            self.input_array = input_array
-            self.input_time = torch.concat(
-                [output_split.time_before, output_split.time_after], dim=0
-            )  # f t
-            my_logger.debug("mask done")
-        else:
-            if array.shape[1] != len_sits:
-                my_logger.debug("we padd")
-                array, time, padd_index = temp_padd(
-                    array, time, len_sits=len_sits
-                )
-                self.padd_index = padd_index
-            else:
-                my_logger.debug("no padd")
-                self.padd_index = torch.zeros(len_sits).bool()
-
-            input_array = rearrange(array, " c t h w -> t c h w")
-            self.input_array = input_array
-            self.valid_mask = (
-                valid_mask  # True when incorrect acquisition False otherwise
-            )
-            self.input_time = time
-
 
 @dataclass
 class OutputMaskTensor:
@@ -196,39 +122,6 @@ class OutputMaskTensor:
     valid_mask: Tensor | None = None
     nan_mask: Tensor | None = None
 
-
-def mask_tensor_4d(mask: MaskMod) -> OutputMaskTensor:
-    """
-
-    Args:
-        input_array (): t c h w
-
-    Returns:
-
-    """
-    my_logger.debug(f"mask cld in fun {mask.mask_cld[0, :, 0, 0]}")
-    my_logger.debug(
-        f"shape nan {mask.mask_slc.shape} cld{mask.mask_nan.shape} "
-    )
-    # print(f"nan mask {mask.mask_slc[0,:,:5,:5]}")
-    cld_mask = mask.mask_cld == 1
-    # my_logger.debug(f"mask cld in fun {cld_mask[0, :, 0, 0]}")
-    nan_mask = mask.mask_slc == 0
-    cld_mask_scl = torch.logical_and(mask.mask_slc > 6, mask.mask_slc < 11)
-    cld_mask_scl = torch.logical_or(cld_mask_scl, mask.mask_slc < 2)
-    cld_mask_scl = torch.logical_or(cld_mask_scl, mask.mask_slc == 3)
-    cld_mask = torch.logical_or(cld_mask, cld_mask_scl)
-    unvalid_mask = torch.logical_or(cld_mask, nan_mask)
-    # valid_pixel_slc = torch.logical_or(
-    #     torch.logical_and(3 < mask.mask_slc, mask.mask_slc < 7),
-    #     mask.mask_slc > 10,
-    # )
-    my_logger.debug(f"valid mask {~unvalid_mask[0, :, 0, 0]}")
-    return OutputMaskTensor(
-        valid_mask=~unvalid_mask,
-        cld_mask=cld_mask,
-        nan_mask=nan_mask,
-    )
 
 
 @dataclass
@@ -398,18 +291,6 @@ class OutLoadSits:
     time: Tensor
     max_len: int
 
-
-@dataclass
-class ItemBERTOutput:
-    sits: Tensor
-    doy: Tensor
-    corruption_mask: Tensor
-    padd_index: Tensor
-    padd_val: int
-    valid_mask: Tensor
-    item: int
-    corrupted_index: list
-    true_doy: Tensor | None = None
 
 
 @dataclass
