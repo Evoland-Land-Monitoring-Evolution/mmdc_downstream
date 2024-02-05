@@ -413,7 +413,7 @@ def custom_collate_classif(batch: Iterable[OutClassifItem]) -> ClassifBInput:
         elif getattr(batch[0], key) is None:
             dict_collate[key] = None
 
-    return ClassifBInput.init_empty().fill_empty_from_dict(dict_collate)
+    return PastisBatch.init_empty().fill_empty_from_dict(dict_collate)
 
 
 class PastisDataModule(LightningDataModule):
@@ -478,48 +478,17 @@ class PastisDataModule(LightningDataModule):
         The `stage` can be used to differentiate whether
         it's called before trainer.fit()` or `trainer.test()`.
         """
-
         if stage == "fit":
             self.data = PastisDataSets(
-                PASTISDataset(PASTISOptions(
-                    task=self.task,
-                    folds=self.folds.train,
-                    dataset_path_oe=self.dataset_path_oe,
-                    dataset_path_pastis=self.dataset_path_pastis,
-                ),
-                              sats=self.sats,
-                              reference_date=self.reference_date,
-                              crop_size=self.crop_size,
-                              crop_type=self.crop_type,
-                              max_len=self.max_len),
-                PASTISDataset(PASTISOptions(
-                    task=self.task,
-                    folds=self.folds.val,
-                    dataset_path_oe=self.dataset_path_oe,
-                    dataset_path_pastis=self.dataset_path_pastis,
-                ),
-                              sats=self.sats,
-                              reference_date=self.reference_date,
-                              crop_size=self.crop_size,
-                              crop_type=self.crop_type,
-                              max_len=self.max_len),
+                self.instanciate_dataset(self.folds.train),
+                self.instanciate_dataset(self.folds.val),
             )
         if stage == "test":
             assert self.data
             self.data = PastisDataSets(
                 self.data.train,
                 self.data.val,
-                PASTISDataset(PASTISOptions(
-                    task=self.task,
-                    folds=self.folds.test,
-                    dataset_path_oe=self.dataset_path_oe,
-                    dataset_path_pastis=self.dataset_path_pastis,
-                ),
-                              sats=self.sats,
-                              reference_date=self.reference_date,
-                              crop_size=self.crop_size,
-                              crop_type=self.crop_type,
-                              max_len=self.max_len),
+                self.instanciate_dataset(self.folds.test)
             )
 
     def train_dataloader(self) -> tdata.DataLoader:
@@ -543,6 +512,19 @@ class PastisDataModule(LightningDataModule):
     def predict_dataloader(self) -> tdata.DataLoader:
         """Predict dataloader"""
         return self.test_dataloader()
+
+    def instanciate_dataset(self, fold: list[int]) -> PASTISDataset:
+        return PASTISDataset(PASTISOptions(
+            task=self.task,
+            folds=fold,
+            dataset_path_oe=self.dataset_path_oe,
+            dataset_path_pastis=self.dataset_path_pastis,
+        ),
+            sats=self.sats,
+            reference_date=self.reference_date,
+            crop_size=self.crop_size,
+            crop_type=self.crop_type,
+            max_len=self.max_len)
 
     def instanciate_data_loader(
         self,
