@@ -6,6 +6,8 @@ from typing import Any
 
 import torch
 from mmdc_singledate.datamodules.datatypes import MMDCBatch
+from ..torch.dataclass import OutUTAEForward
+from mmdc_downstream_pastis.datamodule.datatypes import PastisBatch, MMDCDataStruct
 from mmdc_singledate.datamodules.mmdc_datamodule import destructure_batch
 from mmdc_singledate.utils.train_utils import standardize_data
 
@@ -14,6 +16,14 @@ from .base import MMDCDownstreamBaseLitModule
 from ..components.losses import compute_losses
 from ..components.metrics import compute_val_metrics
 from ..torch.utae import UTAE
+
+
+def to_class_label(logits: torch.Tensor) -> torch.Tensor:
+    """Get class labels from logits"""
+    soft = torch.nn.Softmax()
+    probs = soft(logits)
+    pred = probs.max(1).indices
+    return pred
 
 
 class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
@@ -47,7 +57,7 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
 
 
 
-    def get_input(self, batch: MMDCBatch) -> torch.Tensor:
+    def get_input(self, batch: MMDCDataStruct) -> torch.Tensor:
         """
         Prepare input for downstream model.
         It can be normalized S1/S2 data or one of latent representations
@@ -90,22 +100,22 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
         We generate regression input depending on the task.
         """
         batch: PastisBatch
-        gt = batch.gt
-        reg_input = self.get_input(batch)
-        lai_pred = self.forward(reg_input)
+        gt = batch.target
+        reg_input = self.get_input(batch.sits)
+        logits = self.forward(reg_input).seg_map
         losses = compute_losses(
-            preds=lai_pred,
+            preds=logits,
             target=gt,
-            mask=batch.s2_m,
+            mask=batch.sits.data.mask,
             margin=self.margin,
             losses_list=self.losses_list,
         )
 
         if stage != "train":
             metrics = compute_val_metrics(
-                preds=lai_pred,
+                preds=logits,
                 target=gt,
-                mask=batch.s2_m,
+                mask=batch.sits.data.mask,
                 margin=self.margin,
                 metrics_list=self.metrics_list)
             return losses, metrics
@@ -167,11 +177,11 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
         """Test step. Step and return loss. Delegate to validation step"""
         return self.validation_step(batch, batch_idx, prefix="test")
 
-    def forward(self, data: torch.Tensor) -> torch.Tensor:
+    def forward(self, data: torch.Tensor) -> OutUTAEForward:
         """Forward step"""
         return self.model.forward(data)
 
-    def predict(self, batch: MMDCBatch) -> OutputLAI:
+    def predict(self, batch: MMDCBatch) -> OutUTAEForward:
         """Predict classification map"""
         self.model.eval()
         return self.model.forward(batch)
