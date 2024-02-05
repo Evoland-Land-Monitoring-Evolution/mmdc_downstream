@@ -1,19 +1,14 @@
 import logging.config
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 
 import numpy as np
 import torch
-from einops import rearrange
-from openeo_mmdc.dataset.dataclass import MaskMod
+from mmdc_singledate.datamodules.datatypes import MMDCMeteoData
 from torch import Tensor
 from torch.nn import functional as F
 
 from .dataclass import InputInterp
-
-
-from mmdc_singledate.datamodules.datatypes import MMDCMeteoData
-from dataclasses import dataclass, fields
 
 logging.config.dictConfig(
     {
@@ -93,6 +88,7 @@ class MMDCDataStruct:
         setattr(self.data, "masks", getattr(self.data, "masks").to(torch.int8))
 
     def crop(self, x, y, cs):
+        """Crop satellite image, angles, mask, dem and corresponding meteo data"""
         setattr(self, "meteo", getattr(self, "meteo")[:, :, :, y: y + cs, x: x + cs])
         setattr(self, "dem", getattr(self, "dem")[:, y: y + cs, x: x + cs])
         for field in fields(self.data):
@@ -100,8 +96,8 @@ class MMDCDataStruct:
         return self
 
     def padding(self, padd_tensor):
+        """Pad satellite image, angles, mask and corresponding meteo data"""
         setattr(self, "meteo", F.pad(getattr(self, "meteo"), (0, 0) + padd_tensor))
-        # setattr(self, "dem", F.pad(getattr(self, "dem"), padd_tensor))
         for field in fields(self.data):
             setattr(self.data, field.name, F.pad(getattr(self.data, field.name), padd_tensor))
         return self
@@ -318,13 +314,13 @@ class OutPaddBERT:
 @dataclass
 class OutClassifItem:
     sits: MMDCDataStruct
-    doy: Tensor
+    input_doy: Tensor
     target: Tensor
     padd_index: Tensor | None
     padd_val: Tensor
     item: int
-    mask_loss: Tensor | None = None
-    s2_path: str | None = None
+    mask: Tensor | None = None
+    # s2_path: str | None = None
     true_doy: Tensor | None = None
 
 
