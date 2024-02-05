@@ -6,8 +6,9 @@
 
 
 import hydra
-from hydra import initialize, compose
 import pytest
+from hydra import compose, initialize
+
 
 @pytest.mark.hpc
 def test_train_config() -> None:
