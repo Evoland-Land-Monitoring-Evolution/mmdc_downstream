@@ -29,6 +29,4 @@ losses_list : ["MSE"]
 
 model_mmdc: null
 
-stats_path: /work/scratch/data/kalinie/MMDC/good_checkpoints/test/stats.pt
-
 #histogram_path: /work/scratch/data/kalinie/src/MMDC/mmdc-downstream/src/mmdc_downstream/models/components/hist_bins.pt

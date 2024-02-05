@@ -4,7 +4,7 @@
 # python train.py experiment=mmdc_full
 
 defaults:
-  - override /datamodule: mmdc_reg_datamodule
+  - override /datamodule: mmdc_lai_datamodule.yaml
   - override /model: lai_reg_write_csv.yaml
   - override /callbacks: lai_reg_s2.yaml
   - override /trainer: default.yaml
