@@ -2,6 +2,7 @@
 # Copyright: (c) 2022 CESBIO / Centre National d'Etudes Spatiales
 """ Lightning image callbacks """
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -9,13 +10,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytorch_lightning as pl
 import torch
+from mmdc_singledate.datamodules.mmdc_datamodule import destructure_batch
 from pytorch_lightning.callbacks import Callback
 from sensorsio.utils import rgb_render
 
 from ..models.lightning.lai_regression import MMDCDownstreamRegressionLitModule, OutputLAI
-from mmdc_singledate.datamodules.mmdc_datamodule import destructure_batch
-
-from dataclasses import dataclass
 
 # Configure logging
 NUMERIC_LEVEL = getattr(logging, "INFO", None)
@@ -41,9 +40,9 @@ class MMDCLAIExpertsCallback(Callback):
     """
 
     def __init__(
-            self,
-            save_dir: str,
-            n_samples: int = 5,
+        self,
+        save_dir: str,
+        n_samples: int = 5,
     ):
         self.save_dir = save_dir
         self.n_samples = n_samples
@@ -73,9 +72,11 @@ class MMDCLAIExpertsCallback(Callback):
         )
         fig.suptitle("Prediction Inspection", fontsize=20)
 
-        for samp_idx in range(self.n_samples):  # We iterate through samples to plot
+        for samp_idx in range(
+                self.n_samples):  # We iterate through samples to plot
             data_to_plot = self.prepare_sample(prepared_data, samp_idx)
-            for col in range(len(self.labels)):     # We plot each image of the sample
+            for col in range(len(
+                    self.labels)):  # We plot each image of the sample
                 axes[samp_idx, col].imshow(data_to_plot[col],
                                            interpolation="bicubic")
                 axes[samp_idx, col].set_title(self.labels[col])
@@ -165,8 +166,9 @@ class MMDCLAIExpertsCallback(Callback):
             axis.set_title(f"LAI")
             axis.set_xlabel("Pred")
             axis.set_ylabel("GT")
-            axis.scatter(pred[i][~mask[i].bool()].detach().cpu().numpy().flatten(),
-                         gt[i][~mask[i].bool()].detach().cpu().numpy().flatten())
+            axis.scatter(
+                pred[i][~mask[i].bool()].detach().cpu().numpy().flatten(),
+                gt[i][~mask[i].bool()].detach().cpu().numpy().flatten())
             axis.plot(gt[i].detach().cpu().numpy().flatten(),
                       gt[i].detach().cpu().numpy().flatten())
         fig.savefig(image_name)
@@ -201,15 +203,17 @@ class MMDCLAIExpertsCallback(Callback):
             self.lai_gt_pred_scatterplots(
                 (pred.lai_pred, pred.lai_gt),
                 debatch.s2_m,
-                SampleInfo(batch_idx, batch_size, patch_margin, trainer.current_epoch),
+                SampleInfo(batch_idx, batch_size, patch_margin,
+                           trainer.current_epoch),
             )
 
 
 class MMDCLAIS2Callback(MMDCLAIExpertsCallback):
+
     def __init__(
-            self,
-            save_dir: str,
-            n_samples: int = 5,
+        self,
+        save_dir: str,
+        n_samples: int = 5,
     ):
         """
         Image callback for LAI prediction from S2 images

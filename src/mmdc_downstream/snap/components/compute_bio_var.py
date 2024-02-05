@@ -5,9 +5,9 @@ from typing import Literal
 
 import matplotlib.pyplot as plt
 import torch
-
 from mmdc_singledate.datamodules.components.datamodule_utils import (
     compute_stats, MMDCTensorStats)
+
 from mmdc_downstream.snap.lai_snap import BVNET
 
 DatasetPaths = namedtuple("DatasetPaths", ["input_path", "output_path"])
@@ -42,13 +42,15 @@ def compute_variables(paths: DatasetPaths,
                     # torch.save(
                     #     stats,
                     #     os.path.join(os.path.join(paths.output_path, tile),
-                    #                  file_s2.replace("s2_set", "stats_" + model.variable)))
+                    #                  file_s2.replace("s2_set",
+                    #                                  "stats_" + model.variable)))
 
 
-def process_file(tile_path: str,
-                 file_s2: str,
-                 model: BVNET,
-                 ) -> tuple[torch.Tensor, MMDCTensorStats]:
+def process_file(
+    tile_path: str,
+    file_s2: str,
+    model: BVNET,
+) -> tuple[torch.Tensor, MMDCTensorStats]:
     """
     Compute variable for each individual roi file from selected tiles
     """
@@ -87,10 +89,11 @@ def predict_variable_from_tensors(s2_set: torch.Tensor,
     return output_set.clip(0, 15)
 
 
-def visualize_lai_gt(output_set: torch.Tensor,
-                     s2_set: torch.Tensor,
-                     file_s2: str,
-                     ) -> None:
+def visualize_lai_gt(
+    output_set: torch.Tensor,
+    s2_set: torch.Tensor,
+    file_s2: str,
+) -> None:
     """Visualize LAI next to S2 image"""
     plt.close()
     fig = plt.figure(figsize=(20, 20))
@@ -145,7 +148,8 @@ def prepare_s2_image(
     return input_set.permute(0, 2, 3, 1).reshape(-1, 11)
 
 
-def process_output(output_set: torch.Tensor, output_size: torch.Size,
+def process_output(output_set: torch.Tensor,
+                   output_size: torch.Size,
                    mask: torch.Tensor = None) -> torch.Tensor:
     """
     Transforms output data from shape (B,) to (B, W, H)
@@ -157,13 +161,19 @@ def process_output(output_set: torch.Tensor, output_size: torch.Size,
     return output
 
 
-def stand_lai(value: torch.Tensor, mean: int = 3, std: int = 3,
-              ) -> torch.Tensor:
+def stand_lai(
+    value: torch.Tensor,
+    mean: int = 3,
+    std: int = 3,
+) -> torch.Tensor:
     """Standardize LAI"""
     return (value.clip(0, 15) - mean) / std
 
 
-def unstand_lai(value: torch.Tensor, mean: int = 3, std: int = 3,
-                ) -> torch.Tensor:
+def unstand_lai(
+    value: torch.Tensor,
+    mean: int = 3,
+    std: int = 3,
+) -> torch.Tensor:
     """Unstandardize LAI"""
     return value * std + mean
