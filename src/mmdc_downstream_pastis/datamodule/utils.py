@@ -44,12 +44,13 @@ class MMDCDataStruct:
     def fill_empty_from_dict(self, dictionary: dict):
         """Fill an empty dataclass instance from dictionary"""
         for key, value in dictionary.items():
-            key = key[6:] if key.startswith("meteo") else key
-            if key in self.meteo.__dict__:
+            key = key[6:] if (key.startswith("meteo") and len(key) > 5) else key
+            if type(self.meteo) is MMDCMeteoData and \
+                    key in self.meteo.__dict__:
                 setattr(self.meteo, key, value)
             elif key in self.data.__dict__:
                 setattr(self.data, key, value)
-            elif key == "dem":
+            else:
                 setattr(self, key, value)
         return self
 
@@ -59,6 +60,18 @@ class MMDCDataStruct:
         return MMDCDataStruct(
             MMDCData(None, None, None),
             MMDCMeteoData(None, None, None, None, None, None, None, None),
+            None,
+        )
+
+    @staticmethod
+    def init_empty_concat_meteo():
+        """
+        Create an empty dataclass instance,
+        with concatenated meteo data
+        """
+        return MMDCDataStruct(
+            MMDCData(None, None, None),
+            None,
             None,
         )
 
