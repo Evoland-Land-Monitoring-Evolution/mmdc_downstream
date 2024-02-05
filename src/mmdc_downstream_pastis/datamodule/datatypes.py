@@ -64,7 +64,7 @@ METEO_BANDS = {
 
 
 @dataclass
-class ClassifBInput:
+class PastisBatch:
 
     sits: MMDCDataStruct
     input_doy: torch.Tensor
@@ -83,7 +83,7 @@ class ClassifBInput:
     @staticmethod
     def init_empty():
         """Create an empty dataclass instance"""
-        return ClassifBInput(
+        return PastisBatch(
             None, None, None, None, None, None, None
         )
 
