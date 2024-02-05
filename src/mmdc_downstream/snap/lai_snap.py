@@ -4,26 +4,25 @@ import os
 from collections import OrderedDict
 from dataclasses import dataclass
 
-import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
-from tqdm import trange
 
-SNAP_WEIGHTS_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                                 "weights")
+SNAP_WEIGHTS_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "weights")
 
 
-def normalize(unnormalized: torch.Tensor, min_sample: torch.Tensor,
-              max_sample: torch.Tensor):
+def normalize(
+    unnormalized: torch.Tensor, min_sample: torch.Tensor, max_sample: torch.Tensor
+):
     """
     Normalize with sample min and max of distribution
     """
     return 2 * (unnormalized - min_sample) / (max_sample - min_sample) - 1
 
 
-def denormalize(normalized: torch.Tensor, min_sample: torch.Tensor,
-                max_sample: torch.Tensor):
+def denormalize(
+    normalized: torch.Tensor, min_sample: torch.Tensor, max_sample: torch.Tensor
+):
     """
     de-normalize with sample min and max of distribution
     """
@@ -35,52 +34,114 @@ class NormBVNETNNV2:
     """
     Min and max snap nn input and output for normalization
     """
-    input_min: torch.Tensor = torch.tensor([
-        0.0000, 0.0000, 0.0000, 0.00663797254225, 0.0139727270189,
-        0.0266901380821, 0.0163880741923, 0.0000, 0.918595400582,
-        0.342022871159, -1.0000
-    ])
 
-    input_max: torch.Tensor = torch.tensor([
-        0.253061520472, 0.290393577911, 0.305398915249, 0.608900395798,
-        0.753827384323, 0.782011770669, 0.493761397883, 0.49302598446, 1.0000,
-        0.936206429175, 1.0000
-    ])
+    input_min: torch.Tensor = torch.tensor(
+        [
+            0.0000,
+            0.0000,
+            0.0000,
+            0.00663797254225,
+            0.0139727270189,
+            0.0266901380821,
+            0.0163880741923,
+            0.0000,
+            0.918595400582,
+            0.342022871159,
+            -1.0000,
+        ]
+    )
+
+    input_max: torch.Tensor = torch.tensor(
+        [
+            0.253061520472,
+            0.290393577911,
+            0.305398915249,
+            0.608900395798,
+            0.753827384323,
+            0.782011770669,
+            0.493761397883,
+            0.49302598446,
+            1.0000,
+            0.936206429175,
+            1.0000,
+        ]
+    )
 
 
 class NormBVNETNNV3B:
     """
     Min and max snap nn input and output for normalization
     """
-    input_min: torch.Tensor = torch.tensor([
-        0.0000, 0.0000, 0.0000, 0.0119814116908, 0.0169060342706,
-        0.0176448354545, 0.0147283842139, 0.0000, 0.979624800125,
-        0.342108564072, -1.0000
-    ])
 
-    input_max: torch.Tensor = torch.tensor([
-        0.247742161604, 0.305951681647, 0.327098829671, 0.599329840352,
-        0.741682769861, 0.780987637826, 0.507673379171, 0.502205128583, 1.0000,
-        0.927484749175, 1.0000
-    ])
+    input_min: torch.Tensor = torch.tensor(
+        [
+            0.0000,
+            0.0000,
+            0.0000,
+            0.0119814116908,
+            0.0169060342706,
+            0.0176448354545,
+            0.0147283842139,
+            0.0000,
+            0.979624800125,
+            0.342108564072,
+            -1.0000,
+        ]
+    )
+
+    input_max: torch.Tensor = torch.tensor(
+        [
+            0.247742161604,
+            0.305951681647,
+            0.327098829671,
+            0.599329840352,
+            0.741682769861,
+            0.780987637826,
+            0.507673379171,
+            0.502205128583,
+            1.0000,
+            0.927484749175,
+            1.0000,
+        ]
+    )
 
 
 class NormBVNETNNV3A:
     """
     Min and max snap nn input and output for normalization
     """
-    input_min: torch.Tensor = torch.tensor([
-        0.0000, 0.0000, 0.0000, 0.008717364330310326, 0.019693160430621366,
-        0.026217828282102625, 0.018931934894415213, 0.0000, 0.979624800125421,
-        0.342108564072183, -1.0000
-    ])
 
-    input_max: torch.Tensor = torch.tensor([
-        0.23901527463861838, 0.29172736471507876, 0.32652671459255694,
-        0.5938903910368211, 0.7466909927207045, 0.7582393779705984,
-        0.4929337190581187, 0.4877499217101771, 1.0000, 0.9274847491748729,
-        1.0000
-    ])
+    input_min: torch.Tensor = torch.tensor(
+        [
+            0.0000,
+            0.0000,
+            0.0000,
+            0.008717364330310326,
+            0.019693160430621366,
+            0.026217828282102625,
+            0.018931934894415213,
+            0.0000,
+            0.979624800125421,
+            0.342108564072183,
+            -1.0000,
+        ]
+    )
+
+    input_max: torch.Tensor = torch.tensor(
+        [
+            0.23901527463861838,
+            0.29172736471507876,
+            0.32652671459255694,
+            0.5938903910368211,
+            0.7466909927207045,
+            0.7582393779705984,
+            0.4929337190581187,
+            0.4877499217101771,
+            1.0000,
+            0.9274847491748729,
+            1.0000,
+        ]
+    )
 
 
 @dataclass
@@ -137,7 +198,7 @@ class DenormSNAPCWCV3A:
     cwc_max: torch.Tensor = torch.tensor(0.5229998511245837)
 
 
-def get_SNAP_norm_factors(ver: str = '2', variable='lai'):
+def get_SNAP_norm_factors(ver: str = "2", variable="lai"):
     """
     Get normalization factor for BVNET NN
     """
@@ -151,17 +212,21 @@ def get_SNAP_norm_factors(ver: str = '2', variable='lai'):
             variable_max = DenormSNAPCCCV2().ccc_max
         elif variable == "cab":
             variable_min = DenormSNAPCCCV2().ccc_min / (
-                DenormSNAPLAIV2().lai_max - DenormSNAPLAIV2().lai_min)
+                DenormSNAPLAIV2().lai_max - DenormSNAPLAIV2().lai_min
+            )
             variable_max = DenormSNAPCCCV2().ccc_max / (
-                DenormSNAPLAIV2().lai_max - DenormSNAPLAIV2().lai_min)
+                DenormSNAPLAIV2().lai_max - DenormSNAPLAIV2().lai_min
+            )
         elif variable == "cwc":
             variable_min = DenormSNAPCWCV2().cwc_min
             variable_max = DenormSNAPCWCV2().cwc_max
         elif variable == "cw":
             variable_min = DenormSNAPCWCV2().cwc_min / (
-                DenormSNAPLAIV2().lai_max - DenormSNAPLAIV2().lai_min)
+                DenormSNAPLAIV2().lai_max - DenormSNAPLAIV2().lai_min
+            )
             variable_max = DenormSNAPCWCV2().cwc_max / (
-                DenormSNAPLAIV2().lai_max - DenormSNAPLAIV2().lai_min)
+                DenormSNAPLAIV2().lai_max - DenormSNAPLAIV2().lai_min
+            )
         else:
             raise NotImplementedError
     elif ver == "3B":
@@ -174,17 +239,21 @@ def get_SNAP_norm_factors(ver: str = '2', variable='lai'):
             variable_max = DenormSNAPCCCV3B().ccc_max
         elif variable == "cab":
             variable_min = DenormSNAPCCCV3B().ccc_min / (
-                DenormSNAPLAIV3B().lai_max - DenormSNAPLAIV3B().lai_min)
+                DenormSNAPLAIV3B().lai_max - DenormSNAPLAIV3B().lai_min
+            )
             variable_max = DenormSNAPCCCV3B().ccc_max / (
-                DenormSNAPLAIV3B().lai_max - DenormSNAPLAIV3B().lai_min)
+                DenormSNAPLAIV3B().lai_max - DenormSNAPLAIV3B().lai_min
+            )
         elif variable == "cwc":
             variable_min = DenormSNAPCWCV3B().cwc_min
             variable_max = DenormSNAPCWCV3B().cwc_max
         elif variable == "cw":
             variable_min = DenormSNAPCWCV3B().cwc_min / (
-                DenormSNAPLAIV3B().lai_max - DenormSNAPLAIV3B().lai_min)
+                DenormSNAPLAIV3B().lai_max - DenormSNAPLAIV3B().lai_min
+            )
             variable_max = DenormSNAPCWCV3B().cwc_max / (
-                DenormSNAPLAIV3B().lai_max - DenormSNAPLAIV3B().lai_min)
+                DenormSNAPLAIV3B().lai_max - DenormSNAPLAIV3B().lai_min
+            )
         else:
             raise NotImplementedError
     elif ver == "3A":
@@ -197,17 +266,21 @@ def get_SNAP_norm_factors(ver: str = '2', variable='lai'):
             variable_max = DenormSNAPCCCV3A().ccc_max
         elif variable == "cab":
             variable_min = DenormSNAPCCCV3A().ccc_min / (
-                DenormSNAPLAIV3A().lai_max - DenormSNAPLAIV3A().lai_min)
+                DenormSNAPLAIV3A().lai_max - DenormSNAPLAIV3A().lai_min
+            )
             variable_max = DenormSNAPCCCV3A().ccc_max / (
-                DenormSNAPLAIV3A().lai_max - DenormSNAPLAIV3A().lai_min)
+                DenormSNAPLAIV3A().lai_max - DenormSNAPLAIV3A().lai_min
+            )
         elif variable == "cwc":
             variable_min = DenormSNAPCWCV3A().cwc_min
             variable_max = DenormSNAPCWCV3A().cwc_max
         elif variable == "cw":
             variable_min = DenormSNAPCWCV3A().cwc_min / (
-                DenormSNAPLAIV3A().lai_max - DenormSNAPLAIV3A().lai_min)
+                DenormSNAPLAIV3A().lai_max - DenormSNAPLAIV3A().lai_min
+            )
             variable_max = DenormSNAPCWCV3A().cwc_max / (
-                DenormSNAPLAIV3A().lai_max - DenormSNAPLAIV3A().lai_min)
+                DenormSNAPLAIV3A().lai_max - DenormSNAPLAIV3A().lai_min
+            )
         else:
             raise NotImplementedError
     else:
@@ -217,44 +290,63 @@ def get_SNAP_norm_factors(ver: str = '2', variable='lai'):
 
 class BVNET(nn.Module):
     """
-    Neural Network with BVNET architecture to predict LAI from S2 reflectances and angles
+    Neural Network with BVNET architecture
+    to predict LAI from S2 reflectances and angles
     """
 
-    def __init__(self,
-                 device: str = 'cpu',
-                 ver: str = "3A",
-                 variable='lai',
-                 third_layer=False):
+    def __init__(
+        self, device: str = "cpu", ver: str = "3A", variable="lai", third_layer=False
+    ):
         super().__init__()
-        assert ver in ["2", "3A", "3B"]
+        assert ver in ("2", "3A", "3B")
         input_min, input_max, variable_min, variable_max = get_SNAP_norm_factors(
-            ver=ver, variable=variable)
+            ver=ver, variable=variable
+        )
         input_size = len(input_max)  # 8 bands + 3 angles
         hidden_layer_size = 5
         if not third_layer:
-            layers = OrderedDict([
-                ('layer_1',
-                 nn.Linear(in_features=input_size,
-                           out_features=hidden_layer_size).float()),
-                ('tanh', nn.Tanh()),
-                ('layer_2',
-                 nn.Linear(in_features=hidden_layer_size,
-                           out_features=1).float())
-            ])
+            layers = OrderedDict(
+                [
+                    (
+                        "layer_1",
+                        nn.Linear(
+                            in_features=input_size, out_features=hidden_layer_size
+                        ).float(),
+                    ),
+                    ("tanh", nn.Tanh()),
+                    (
+                        "layer_2",
+                        nn.Linear(
+                            in_features=hidden_layer_size, out_features=1
+                        ).float(),
+                    ),
+                ]
+            )
         else:
-            layers = OrderedDict([
-                ('layer_0',
-                 nn.Linear(in_features=input_size,
-                           out_features=input_size).float()),
-                ('tanh', nn.Tanh()),
-                ('layer_1',
-                 nn.Linear(in_features=input_size,
-                           out_features=hidden_layer_size).float()),
-                ('tanh', nn.Tanh()),
-                ('layer_2',
-                 nn.Linear(in_features=hidden_layer_size,
-                           out_features=1).float())
-            ])
+            layers = OrderedDict(
+                [
+                    (
+                        "layer_0",
+                        nn.Linear(
+                            in_features=input_size, out_features=input_size
+                        ).float(),
+                    ),
+                    ("tanh", nn.Tanh()),
+                    (
+                        "layer_1",
+                        nn.Linear(
+                            in_features=input_size, out_features=hidden_layer_size
+                        ).float(),
+                    ),
+                    ("tanh", nn.Tanh()),
+                    (
+                        "layer_2",
+                        nn.Linear(
+                            in_features=hidden_layer_size, out_features=1
+                        ).float(),
+                    ),
+                ]
+            )
         self.input_min = input_min.float().to(device)
         self.input_max = input_max.float().to(device)
         self.variable_min = variable_min.float().to(device)
@@ -264,29 +356,34 @@ class BVNET(nn.Module):
         self.ver = ver
         self.variable = variable
 
-
     def load_weights(self, dir, prefix=""):
         weights_1 = torch.from_numpy(
-            pd.read_csv(os.path.join(
-                dir, f"{prefix}{self.ver}_{self.variable}_weights_1.csv"),
-                        header=None).values).float()
+            pd.read_csv(
+                os.path.join(dir, f"{prefix}{self.ver}_{self.variable}_weights_1.csv"),
+                header=None,
+            ).values
+        ).float()
         weights_2 = torch.from_numpy(
-            pd.read_csv(os.path.join(
-                dir, f"{prefix}{self.ver}_{self.variable}_weights_2.csv"),
-                        header=None).values).float()
+            pd.read_csv(
+                os.path.join(dir, f"{prefix}{self.ver}_{self.variable}_weights_2.csv"),
+                header=None,
+            ).values
+        ).float()
         bias_1 = torch.from_numpy(
-            pd.read_csv(os.path.join(
-                dir, f"{prefix}{self.ver}_{self.variable}_bias_1.csv"),
-                        header=None).values).float()
+            pd.read_csv(
+                os.path.join(dir, f"{prefix}{self.ver}_{self.variable}_bias_1.csv"),
+                header=None,
+            ).values
+        ).float()
         bias_2 = torch.from_numpy(
-            pd.read_csv(os.path.join(
-                dir, f"{prefix}{self.ver}_{self.variable}_bias_2.csv"),
-                        header=None).values).float()
-        self.net.layer_1.bias = nn.Parameter(
-            bias_1.to(self.device).reshape(-1))
+            pd.read_csv(
+                os.path.join(dir, f"{prefix}{self.ver}_{self.variable}_bias_2.csv"),
+                header=None,
+            ).values
+        ).float()
+        self.net.layer_1.bias = nn.Parameter(bias_1.to(self.device).reshape(-1))
         self.net.layer_1.weight = nn.Parameter(weights_1.to(self.device))
-        self.net.layer_2.bias = nn.Parameter(
-            bias_2.to(self.device).reshape(-1))
+        self.net.layer_2.bias = nn.Parameter(bias_2.to(self.device).reshape(-1))
         self.net.layer_2.weight = nn.Parameter(weights_2.to(self.device))
 
     def set_snap_weights(self):
@@ -307,8 +404,7 @@ class BVNET(nn.Module):
                 raise NotImplementedError
         s2_data_norm = normalize(s2_data, self.input_min, self.input_max)
         variable_norm = self.net.forward(s2_data_norm)
-        variable = denormalize(variable_norm, self.variable_min,
-                               self.variable_max)
+        variable = denormalize(variable_norm, self.variable_min, self.variable_max)
         if spatial_mode:
             variable = variable.reshape(size_h, size_w, 1).permute(2, 0, 1)
         return variable

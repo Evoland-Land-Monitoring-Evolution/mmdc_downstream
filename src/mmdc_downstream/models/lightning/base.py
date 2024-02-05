@@ -5,33 +5,43 @@ from abc import abstractmethod
 from typing import Any
 
 import torch
-from mmdc_singledate.datamodules.datatypes import ShiftScale, MMDCDataStats, MMDCShiftScales
+from mmdc_singledate.datamodules.datatypes import (
+    MMDCDataStats,
+    MMDCShiftScales,
+    ShiftScale,
+)
 from pytorch_lightning import LightningModule
 from torchmetrics import MinMetric
 from torchutils import metrics
 
 from mmdc_downstream.mmdc_model.model import PretrainedMMDC
+
 from ..torch.base import MMDCDownstreamBaseModule
 
 # Configure logging
 NUMERIC_LEVEL = getattr(logging, "INFO", None)
-logging.basicConfig(level=NUMERIC_LEVEL,
-                    format="%(asctime)-15s %(levelname)s: %(message)s")
+logging.basicConfig(
+    level=NUMERIC_LEVEL, format="%(asctime)-15s %(levelname)s: %(message)s"
+)
 
 logger = logging.getLogger(__name__)
 
 
-class MMDCDownstreamBaseLitModule(LightningModule):  # pylint: disable=too-many-ancestors
+class MMDCDownstreamBaseLitModule(
+    LightningModule
+):  # pylint: disable=too-many-ancestors
     """
     Base Lightning Module for the MMDC Single Date networks
     """
 
-    def __init__(self,
-                 model: MMDCDownstreamBaseModule,
-                 model_mmdc: PretrainedMMDC | None = None,
-                 lr: float = 0.001,
-                 resume_from_checkpoint: str | None = None,
-                 stats_path: str = None):
+    def __init__(
+        self,
+        model: MMDCDownstreamBaseModule,
+        model_mmdc: PretrainedMMDC | None = None,
+        lr: float = 0.001,
+        resume_from_checkpoint: str | None = None,
+        stats_path: str = None,
+    ):
         super().__init__()
 
         # this line allows to access init params with 'self.hparams' attribute
@@ -66,8 +76,10 @@ class MMDCDownstreamBaseLitModule(LightningModule):  # pylint: disable=too-many-
         )
         shift_scale_meteo = ShiftScale(
             stats.meteo.concat_stats().median,
-            scale_regul((stats.meteo.concat_stats().qmax -
-                         stats.meteo.concat_stats().qmin) / 2.0),
+            scale_regul(
+                (stats.meteo.concat_stats().qmax - stats.meteo.concat_stats().qmin)
+                / 2.0
+            ),
         )
         shift_scale_dem = ShiftScale(
             stats.dem.median,
@@ -90,9 +102,9 @@ class MMDCDownstreamBaseLitModule(LightningModule):  # pylint: disable=too-many-
         """Generic forward pass of the model. Just delegate to the Pytorch model."""
 
     def training_step(  # pylint: disable=arguments-differ
-            self,
-            batch: Any,
-            batch_idx: int,  # pylint: disable=unused-argument
+        self,
+        batch: Any,
+        batch_idx: int,  # pylint: disable=unused-argument
     ) -> dict[str, Any]:
         """Training step. Step and return loss."""
         torch.autograd.set_detect_anomaly(True)
@@ -110,9 +122,9 @@ class MMDCDownstreamBaseLitModule(LightningModule):  # pylint: disable=too-many-
         return {"loss": loss}
 
     def validation_step(  # pylint: disable=arguments-differ
-            self,
-            batch: Any,
-            batch_idx: int,  # pylint: disable=unused-argument
+        self,
+        batch: Any,
+        batch_idx: int,  # pylint: disable=unused-argument
     ) -> dict[str, Any]:
         """Validation step. Step and return loss."""
         loss = self.step(batch)
@@ -128,9 +140,9 @@ class MMDCDownstreamBaseLitModule(LightningModule):  # pylint: disable=too-many-
         return {"loss": loss}
 
     def test_step(  # pylint: disable=arguments-differ
-            self,
-            batch: Any,
-            batch_idx: int,  # pylint: disable=unused-argument
+        self,
+        batch: Any,
+        batch_idx: int,  # pylint: disable=unused-argument
     ) -> dict[str, Any]:
         """Test step. Step and return loss."""
         loss = self.step(batch)
@@ -160,11 +172,13 @@ class MMDCDownstreamBaseLitModule(LightningModule):  # pylint: disable=too-many-
 
     def configure_optimizers(self) -> dict[str, Any]:
         """A single optimizer with a LR scheduler"""
-        optimizer = torch.optim.Adam(params=self.model.parameters(),
-                                     lr=self.learning_rate)
+        optimizer = torch.optim.Adam(
+            params=self.model.parameters(), lr=self.learning_rate
+        )
 
-        training_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-            optimizer, T_0=4, T_mult=2, eta_min=0, last_epoch=-1)
+        # training_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+        #     optimizer, T_0=4, T_mult=2, eta_min=0, last_epoch=-1
+        # )
         # scheduler = {
         #     "scheduler": training_scheduler,
         #     "interval": "epoch",
