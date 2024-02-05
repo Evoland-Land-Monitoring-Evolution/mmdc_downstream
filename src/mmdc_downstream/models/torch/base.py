@@ -10,8 +10,9 @@ from torch import nn
 
 # Configure logging
 NUMERIC_LEVEL = getattr(logging, "INFO", None)
-logging.basicConfig(level=NUMERIC_LEVEL,
-                    format="%(asctime)-15s %(levelname)s: %(message)s")
+logging.basicConfig(
+    level=NUMERIC_LEVEL, format="%(asctime)-15s %(levelname)s: %(message)s"
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +27,7 @@ class MMDCDownstreamBaseModule(nn.Module):
         Constructor
         """
         super().__init__()
-        self.device = torch.device(
-            "cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.config = config
 
     @abstractmethod

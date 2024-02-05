@@ -1,20 +1,31 @@
 import torch
 from mmdc_singledate.models.components.losses import mask_and_flatten
-from torchmetrics.regression import RelativeSquaredError, R2Score, MeanAbsoluteError, MeanAbsolutePercentageError
+from torchmetrics.regression import (
+    MeanAbsoluteError,
+    MeanAbsolutePercentageError,
+    R2Score,
+    RelativeSquaredError,
+)
 
 
-def compute_val_metrics(preds: torch.Tensor,
-                        target: torch.Tensor,
-                        mask: torch.Tensor,
-                        metrics_list: list[str],
-                        margin: int = 0,) -> dict[str, torch.Tensor]:
+def compute_val_metrics(
+    preds: torch.Tensor,
+    target: torch.Tensor,
+    mask: torch.Tensor,
+    metrics_list: list[str],
+    margin: int = 0,
+) -> dict[str, torch.Tensor]:
     """Computes regression metrics"""
     H, W = preds.shape[-2:]
 
-    mask = mask[:, :, margin:H - margin, margin:W - margin]
+    mask = mask[:, :, margin : H - margin, margin : W - margin]
 
-    preds = mask_and_flatten(preds[:, :, margin:H - margin, margin:W - margin], mask)
-    target = mask_and_flatten(target[:, :, margin:H - margin, margin:W - margin], mask)
+    preds = mask_and_flatten(
+        preds[:, :, margin : H - margin, margin : W - margin], mask
+    )
+    target = mask_and_flatten(
+        target[:, :, margin : H - margin, margin : W - margin], mask
+    )
 
     metrics_dict = {}
     if "RSE" in metrics_list or "rse" in metrics_list:

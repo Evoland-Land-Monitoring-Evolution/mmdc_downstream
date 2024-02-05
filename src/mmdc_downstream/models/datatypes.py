@@ -10,18 +10,21 @@ import torch
 @dataclass
 class DownStreamConfig:
     """Base class for configs"""
+
     mmdc_model: MMDCModel
 
 
 @dataclass
 class RegressionConfig:
     """Configuration for a Regression network"""
+
     reg_model: RegressionModel
 
 
 @dataclass
 class RegressionModel:
     """Configuration for regression MLP"""
+
     hidden_sizes: list[int]
     input_size: int
     output_size: int

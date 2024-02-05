@@ -8,8 +8,10 @@ from typing import Any
 
 import torch
 from hydra import utils as hydra_utils
-from mmdc_singledate.models.lightning.full_experts import \
-    MMDCFullExpertsLitModule, MMDCFullLitModule
+from mmdc_singledate.models.lightning.full_experts import (
+    MMDCFullExpertsLitModule,
+    MMDCFullLitModule,
+)
 from mmdc_singledate.models.torch.full_experts import AuxData
 from omegaconf import OmegaConf
 
@@ -20,40 +22,41 @@ class PretrainedMMDC:
     """Pretrained MMDC model class"""
 
     def __init__(
-            self,
-            pretrained_path: str | Path,
-            model_name: str,
-            model_type: str,
+        self,
+        pretrained_path: str | Path,
+        model_name: str,
+        model_type: str,
     ):
         self.lightning_module = None
         self.pretrained_path = os.path.abspath(pretrained_path)
         self.model_name = model_name
         self.model_type = model_type
-        self.device = torch.device(
-            "cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         self.model_mmdc = self.init_mmdc_model()
         self.set_mmdc_stats()
 
         self.lightning_module.freeze()
 
-        self.model_mmdc.nb_enc_cropped_hw, self.model_mmdc.nb_cropped_hw = \
-            self.model_mmdc.compute_cropping()
+        (
+            self.model_mmdc.nb_enc_cropped_hw,
+            self.model_mmdc.nb_cropped_hw,
+        ) = self.model_mmdc.compute_cropping()
 
     def init_mmdc_model(self) -> MMDCFullExpertsLitModule | MMDCFullLitModule:
         """Load pretrained MMDC model from checkpoint"""
         if self.pretrained_path is not None:
-            ckpt_path = os.path.join(self.pretrained_path,
-                                     self.model_name + ".ckpt")
-            cfg = OmegaConf.load(
-                os.path.join(self.pretrained_path, "config.yaml"))
+            ckpt_path = os.path.join(self.pretrained_path, self.model_name + ".ckpt")
+            cfg = OmegaConf.load(os.path.join(self.pretrained_path, "config.yaml"))
             model = hydra_utils.instantiate(cfg.model.model)
             if self.model_type == "baseline":
                 self.lightning_module = MMDCFullLitModule.load_from_checkpoint(
-                    ckpt_path, model=model, map_location=self.device)
-            else:   # experts
+                    ckpt_path, model=model, map_location=self.device
+                )
+            else:  # experts
                 self.lightning_module = MMDCFullExpertsLitModule.load_from_checkpoint(
-                    ckpt_path, model=model, map_location=self.device)
+                    ckpt_path, model=model, map_location=self.device
+                )
             return self.lightning_module.model.to(self.device)
 
     def set_mmdc_stats(self):
@@ -71,15 +74,26 @@ class PretrainedMMDC:
             self.model_mmdc.eval()
 
             s1_x, s2_x, meteo_x, dem_x = self.model_mmdc.standardize_inputs(
-                data.s1_x, data.s2_x, data.meteo_x, data.dem_x)
+                data.s1_x, data.s2_x, data.meteo_x, data.dem_x
+            )
             embs = self.model_mmdc.compute_aux_embeddings(
-                AuxData(data.s1_a, data.s2_a, meteo_x, dem_x))
+                AuxData(data.s1_a, data.s2_a, meteo_x, dem_x)
+            )
             latents = self.model_mmdc.generate_latents(s1_x, s2_x, embs)
             if self.model_type == "baseline":
-                return LatentPred(latents.sen1.mean, latents.sen1.logvar,
-                                  latents.sen2.mean, latents.sen2.logvar)
+                return LatentPred(
+                    latents.sen1.mean,
+                    latents.sen1.logvar,
+                    latents.sen2.mean,
+                    latents.sen2.logvar,
+                )
             else:
                 latent_experts = self.model_mmdc.generate_latent_experts(latents)
-                return LatentPred(latents.sen1.mean, latents.sen1.logvar,
-                                  latents.sen2.mean, latents.sen2.logvar,
-                                  latent_experts.latent_experts.mean, latent_experts.latent_experts.logvar)
+                return LatentPred(
+                    latents.sen1.mean,
+                    latents.sen1.logvar,
+                    latents.sen2.mean,
+                    latents.sen2.logvar,
+                    latent_experts.latent_experts.mean,
+                    latent_experts.latent_experts.logvar,
+                )
