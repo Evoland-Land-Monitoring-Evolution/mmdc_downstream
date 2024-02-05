@@ -29,8 +29,8 @@ losses_list : ["MSE"]
 
 model_mmdc:
   _target_: mmdc_downstream.mmdc_model.model.PretrainedMMDC
-  pretrained_path: "/work/scratch/data/kalinie/MMDC/results/latent/checkpoints/mmdc_full/2023-12-13_22-07-03/"
-  model_name: epoch_056
+  pretrained_path: "/work/scratch/data/kalinie/MMDC/results/latent/checkpoints/mmdc_full/2024-02-05_09-45-27"
+  model_name: last
   model_type: baseline   # to choose from ["baseline", "experts"]
 
-stats_path: /work/scratch/data/kalinie/MMDC/results/latent/checkpoints/mmdc_full/2023-12-13_22-07-03/stats.pt
+stats_path: /work/scratch/data/kalinie/MMDC/results/latent/checkpoints/mmdc_full/2024-02-05_09-45-27/stats.pt

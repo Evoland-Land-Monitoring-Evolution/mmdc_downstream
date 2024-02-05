@@ -1,0 +1,16 @@
+_target_: mmdc_singledate.datamodules.mmdc_datamodule.MMDCDataModule
+
+dl_config:
+  _target_: mmdc_singledate.datamodules.mmdc_datamodule.MMDCDataLoaderConfig
+  max_open_files : 2
+  batch_size_train: 50
+  batch_size_val: 100
+  num_workers: 1
+  pin_memory: False
+
+data_paths:
+  _target_: mmdc_singledate.datamodules.mmdc_datamodule.MMDCDataPaths
+  tensors_dir : /work/CESBIO/projects/DeepChange/Ekaterina/MMDC_OE
+  train_rois : /work/CESBIO/projects/DeepChange/Ekaterina/MMDC_OE/tiles_conf_training/LAI_micro/train.txt
+  val_rois : /work/CESBIO/projects/DeepChange/Ekaterina/MMDC_OE/tiles_conf_training/LAI_micro/val.txt
+  test_rois : /work/CESBIO/projects/DeepChange/Ekaterina/MMDC_OE/tiles_conf_training/LAI_micro/test.txt

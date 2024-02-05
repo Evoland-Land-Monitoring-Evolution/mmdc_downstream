@@ -1,6 +1,7 @@
 """Script to compute NDVI per ROI to select tiles for LAI model training"""
 import os
 from collections import namedtuple
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -19,14 +20,12 @@ def compute_variables(paths: DatasetPaths, tiles: list[str]) -> None:
     for tile in tiles:
         print("Computing Tile ", tile)
         tile_path = os.path.join(paths.input_path, tile)
-        if os.path.exists(tile_path):
-            files_s2_set = [
-                file for file in os.listdir(tile_path) if "s2_set" in file
-            ]
+        if Path(tile_path).exists():
+            files_s2_set = [file for file in os.listdir(tile_path) if "s2_set" in file]
             for file_s2_roi in files_s2_set:
                 df_roi = process_file(tile_path, file_s2_roi)
-                df_roi["roi"] = int(file_s2_roi.split('.')[0].split('_')[-1])
-                df_roi['tile'] = tile
+                df_roi["roi"] = int(file_s2_roi.split(".")[0].split("_")[-1])
+                df_roi["tile"] = tile
 
                 if df_all is None:
                     df_all = df_roi
@@ -35,8 +34,9 @@ def compute_variables(paths: DatasetPaths, tiles: list[str]) -> None:
 
     print(df_all)
 
-    df_all_roi = df_all.groupby(
-        ['tile', 'roi']).mean().drop(columns=['patch']).reset_index()
+    df_all_roi = (
+        df_all.groupby(["tile", "roi"]).mean().drop(columns=["patch"]).reset_index()
+    )
 
     df_all.to_csv(os.path.join(paths.input_path, "NDVI_stats_patch.csv"))
     df_all_roi.to_csv(os.path.join(paths.input_path, "NDVI_stats_roi.csv"))
@@ -51,15 +51,18 @@ def process_file(
     """
     s2_set = torch.load(os.path.join(tile_path, file_s2))
 
-    s2_mask = torch.load(
-        os.path.join(tile_path, file_s2.replace("set", "masks"))).to(int)
+    s2_mask = torch.load(os.path.join(tile_path, file_s2.replace("set", "masks"))).to(
+        int
+    )
 
     ndvi_set = compute_ndvi(s2_set, s2_mask)
 
-    df = pd.read_csv(os.path.join(
-        tile_path,
-        file_s2.replace("s2_set", "dataset").replace("pth", "csv")),
-                     sep='\t')
+    df = pd.read_csv(
+        os.path.join(
+            tile_path, file_s2.replace("s2_set", "dataset").replace("pth", "csv")
+        ),
+        sep="\t",
+    )
 
     patches = df["patch_id"].unique()
 
@@ -71,33 +74,35 @@ def process_file(
         ndvi_patch = ndvi_set[idx]
 
         # Per pixel
-        ndvi_patch_temp = rearrange(ndvi_patch, 't h w -> t (h w)')
+        ndvi_patch_temp = rearrange(ndvi_patch, "t h w -> t (h w)")
 
         min_temp, median_temp, max_temp = ndvi_patch_temp.nanquantile(
-            torch.Tensor([0.05, 0.5, 0.95]), dim=0)
+            torch.Tensor([0.05, 0.5, 0.95]), dim=0
+        )
 
         temp_dict = {
             "min_temp": min_temp,
             "median_temp": median_temp,
-            "max_temp": max_temp
+            "max_temp": max_temp,
         }
 
-        patch_dict = {'patch': patch}
+        patch_dict = {"patch": patch}
 
         for k, v in temp_dict.items():
             min_patch, median_patch, max_patch = v.quantile(
-                torch.Tensor([0.05, 0.5, 0.95]))
+                torch.Tensor([0.05, 0.5, 0.95])
+            )
 
             patch_dict[k + "_min"] = min_patch.item()
             patch_dict[k + "_median"] = median_patch.item()
             patch_dict[k + "_max"] = max_patch.item()
 
-        if len(global_df) == 0:
+        if not global_df:
             global_df = pd.DataFrame(patch_dict, index=[0])
         else:
             global_df = pd.concat(
-                [global_df, pd.DataFrame(patch_dict, index=[0])],
-                ignore_index=True)
+                [global_df, pd.DataFrame(patch_dict, index=[0])], ignore_index=True
+            )
 
         # mean_temp = ndvi_patch_temp.nanmean(0)
         # median_temp = ndvi_patch_temp.nanmedian(0).values
@@ -132,12 +137,14 @@ def visualize_lai_gt(
     plt.close()
     fig = plt.figure(figsize=(20, 20))
     ax1 = plt.subplot2grid((2, 2), (0, 0))
-    ax1.imshow(output_set[0].detach().numpy() / 15, cmap='gray')
+    ax1.imshow(output_set[0].detach().numpy() / 15, cmap="gray")
     ax2 = plt.subplot2grid((2, 2), (0, 1))
-    ax2.imshow(s2_set[0, [7, 2, 1]].permute(1, 2, 0).detach().numpy() /
-               s2_set[0, [7, 2, 1]].reshape(3, -1).max(1).values)
+    ax2.imshow(
+        s2_set[0, [7, 2, 1]].permute(1, 2, 0).detach().numpy()
+        / s2_set[0, [7, 2, 1]].reshape(3, -1).max(1).values
+    )
     ax3 = plt.subplot2grid((2, 2), (1, 0), colspan=2)
 
     ax3.hist(output_set[0].detach().numpy(), bins=20)
-    print(file_s2.split('.')[0])
-    fig.savefig(file_s2.split('.')[0] + ".png")
+    print(file_s2.split(".")[0])
+    fig.savefig(file_s2.split(".")[0] + ".png")
