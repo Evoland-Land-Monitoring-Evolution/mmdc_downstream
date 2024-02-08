@@ -1,17 +1,19 @@
-import torch.utils.data as tdata
 from dataclasses import dataclass
 from typing import Literal
+
 import torch
-from mmdc_downstream_pastis.datamodule.utils import OutClassifItem, apply_padding, MMDCDataStruct, randomcropindex
+import torch.utils.data as tdata
+
+from mmdc_downstream_pastis.datamodule.utils import MMDCDataStruct
 
 
 @dataclass
 class PastisFolds:
     """Pastis folds for different tasks"""
+
     train: list[int]
     val: list[int]
     test: list[int] | None = None
-
 
 
 @dataclass
@@ -21,7 +23,6 @@ class PastisDataSets:
     train: tdata.Dataset
     val: tdata.Dataset
     test: tdata.Dataset | None = None
-
 
 
 @dataclass
@@ -49,7 +50,6 @@ class PASTISOptions:
     task: Literal["semantic"] = "semantic"
 
 
-
 METEO_BANDS = {
     "dew_temp": "dewpoint-temperature",
     "prec": "precipitation-flux",
@@ -62,14 +62,10 @@ METEO_BANDS = {
 }
 
 
-
 @dataclass
 class PastisBatch:
-
     sits: MMDCDataStruct
     input_doy: torch.Tensor
-    mask: torch.Tensor
-    target: torch.Tensor
     padd_val: torch.Tensor
     padd_index: torch.Tensor
     true_doy: torch.Tensor = None
@@ -83,9 +79,7 @@ class PastisBatch:
     @staticmethod
     def init_empty():
         """Create an empty dataclass instance"""
-        return PastisBatch(
-            None, None, None, None, None, None, None
-        )
+        return PastisBatch(None, None, None, None, None)
 
     def fill_empty_from_dict(self, dictionary: dict):
         """Fill an empty dataclass instance from dictionary"""
@@ -123,3 +117,16 @@ class ModuleInput:
         if self.true_doy is not None:
             self.true_doy.pin_memory()
         return self
+
+
+@dataclass
+class OneSatellitePatch:
+    sits: MMDCDataStruct
+    input_doy: torch.Tensor
+    # target: torch.Tensor
+    padd_index: torch.Tensor | None
+    padd_val: torch.Tensor
+    # item: int
+    # mask: torch.Tensor | None = None
+    # s2_path: str | None = None
+    true_doy: torch.Tensor | None = None

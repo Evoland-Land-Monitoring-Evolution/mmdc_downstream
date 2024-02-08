@@ -36,17 +36,19 @@ class MMDCDataStruct:
     meteo: MMDCMeteoData | torch.Tensor
     dem: torch.Tensor
 
-    def fill_empty_from_dict(self, dictionary: dict):
+    def fill_empty_from_dict(self, dictionary: dict, flatten_meteo: bool = False):
         """Fill an empty dataclass instance from dictionary"""
         for key, value in dictionary.items():
             key = key[6:] if (key.startswith("meteo") and len(key) > 5) else key
-            if type(self.meteo) is MMDCMeteoData and \
-                    key in self.meteo.__dict__:
+            if type(self.meteo) is MMDCMeteoData and key in self.meteo.__dict__:
                 setattr(self.meteo, key, value)
             elif key in self.data.__dict__:
                 setattr(self.data, key, value)
             else:
-                setattr(self, key, value)
+                if key == "meteo" and flatten_meteo:
+                    setattr(self, key, torch.flatten(value, start_dim=2, end_dim=3))
+                else:
+                    setattr(self, key, value)
         return self
 
     @staticmethod
@@ -70,13 +72,35 @@ class MMDCDataStruct:
             None,
         )
 
+    @staticmethod
+    def init_empty_zeros_s1(t_max, H, W):
+        """
+        Create an empty dataclass instance,
+        with concatenated meteo data
+        """
+        return MMDCDataStruct(
+            MMDCData(
+                torch.zeros(t_max, 3, H, W),
+                torch.ones(t_max, 1, H, W),
+                torch.zeros(t_max, 1, H, W),
+            ),
+            torch.zeros(t_max, 6, 8, H, W),
+            torch.zeros(4, H, W),
+        )
+
     def concat_meteo(self):
         """Concatenate meteo data into 8-features image series"""
-        setattr(self,
-                "meteo",
-                torch.cat([getattr(self.meteo, field.name).unsqueeze(-3)
-                           for field in fields(self.meteo)], -3)
-                )
+        setattr(
+            self,
+            "meteo",
+            torch.cat(
+                [
+                    getattr(self.meteo, field.name).unsqueeze(-3)
+                    for field in fields(self.meteo)
+                ],
+                -3,
+            ),
+        )
         return self
 
     def casting(self, dtype: torch.dtype):
@@ -89,17 +113,25 @@ class MMDCDataStruct:
 
     def crop(self, x, y, cs):
         """Crop satellite image, angles, mask, dem and corresponding meteo data"""
-        setattr(self, "meteo", getattr(self, "meteo")[:, :, :, y: y + cs, x: x + cs])
-        setattr(self, "dem", getattr(self, "dem")[:, y: y + cs, x: x + cs])
+        setattr(self, "meteo", getattr(self, "meteo")[:, :, :, y : y + cs, x : x + cs])
+        setattr(self, "dem", getattr(self, "dem")[:, y : y + cs, x : x + cs])
         for field in fields(self.data):
-            setattr(self.data, field.name, getattr(self.data, field.name)[:, :, y: y + cs, x: x + cs])
+            setattr(
+                self.data,
+                field.name,
+                getattr(self.data, field.name)[:, :, y : y + cs, x : x + cs],
+            )
         return self
 
     def padding(self, padd_tensor):
         """Pad satellite image, angles, mask and corresponding meteo data"""
         setattr(self, "meteo", F.pad(getattr(self, "meteo"), (0, 0) + padd_tensor))
         for field in fields(self.data):
-            setattr(self.data, field.name, F.pad(getattr(self.data, field.name), padd_tensor))
+            setattr(
+                self.data,
+                field.name,
+                F.pad(getattr(self.data, field.name), padd_tensor),
+            )
         return self
 
 
@@ -124,13 +156,11 @@ def randomcropindex(
     return height, width
 
 
-
 @dataclass
 class OutputMaskTensor:
     cld_mask: Tensor | None = None
     valid_mask: Tensor | None = None
     nan_mask: Tensor | None = None
-
 
 
 @dataclass
@@ -148,74 +178,6 @@ def split_before_after_tensor(tensor: Tensor, middle: int):
     array_before = torch.unsqueeze(tensor[:, :middle, ...], dim=1)  # c f t h w
     array_after = torch.unsqueeze(tensor[:, middle:, ...], dim=1)
     return array_before, array_after
-
-
-def split_tensor_in_two(
-    sits: Tensor,
-    time: Tensor,
-    middle: int,
-    len_sits: int,
-    mask: Tensor | None = None,
-) -> OutputSplitTensorin2:
-    """
-    COnvert array and time np.array into torch Tensor as well as separate the input in two given the middle position.
-    When required temporal padding is achieved
-    Args:
-        sits ():
-        time ():
-        middle ():
-        len_sits ():
-
-    Returns:
-
-    """
-
-    array_before, array_after = split_before_after_tensor(sits, middle)
-    my_logger.debug(f"before {array_before.shape} after {array_after.shape}")
-    time_before = torch.unsqueeze(time[:middle], dim=0)  # f t
-    time_after = torch.unsqueeze(time[middle:], dim=0)  # f t
-    if mask is not None:
-        my_logger.debug(f"in split fn {mask[0, :, 0, 0]}")
-        mask_before, mask_after = split_before_after_tensor(mask, middle)
-        my_logger.debug(f"{mask_before[0, 0, :, 0, 0]}")
-    else:
-        mask_before, mask_after = None, None
-
-    if middle != len_sits:
-        my_logger.debug("Add temporal padding")
-        array_before, time_before, padd_before = temp_padd_split(
-            array_before, time_before, len_sits=len_sits
-        )
-        array_after, time_after, padd_after = temp_padd_split(
-            array_after, time_after, len_sits=len_sits
-        )
-        my_logger.debug(
-            f"before {array_before.shape} after {array_after.shape}"
-        )
-        padd_index = torch.stack([padd_before, padd_after], dim=0)
-        if mask is not None:
-            mask_before = padd_sits_split(
-                mask_before, len_sits=len_sits, t=mask_before.shape[2]
-            )
-            mask_after = padd_sits_split(
-                mask_after, len_sits=len_sits, t=mask_after.shape[2]
-            )
-    else:
-        my_logger.debug(
-            "No temporal padding has been applied as the SITS can be"
-            " split perfectly in two"
-        )
-        padd_index = (torch.zeros(2, len_sits)).bool()
-    # print(f"mask bef in split {mask_after[0,0,:,0,0]}")
-    return OutputSplitTensorin2(
-        array_before=array_before,
-        array_after=array_after,
-        time_before=time_before,
-        time_after=time_after,
-        padd_index=padd_index,
-        mask_before=mask_before,
-        mask_after=mask_after,
-    )
 
 
 def temp_padd_split(
@@ -292,36 +254,6 @@ def temp_padd(
     if len_sits - t != 0:
         padd_index[-len_sits + t :] = 1
     return F.pad(array, padd_tensor), F.pad(time, padd_t), padd_index.bool()
-
-
-@dataclass
-class OutLoadSits:
-    array: Tensor
-    time: Tensor
-    max_len: int
-
-
-
-@dataclass
-class OutPaddBERT:
-    padd_array: Tensor
-    padd_time: Tensor
-    padd_corruption_mask: Tensor
-    padd_val: int
-    padd_index: Tensor
-
-
-@dataclass
-class OutClassifItem:
-    sits: MMDCDataStruct
-    input_doy: Tensor
-    target: Tensor
-    padd_index: Tensor | None
-    padd_val: Tensor
-    item: int
-    mask: Tensor | None = None
-    # s2_path: str | None = None
-    true_doy: Tensor | None = None
 
 
 def apply_padding(allow_padd, max_len, t, sits, doy):

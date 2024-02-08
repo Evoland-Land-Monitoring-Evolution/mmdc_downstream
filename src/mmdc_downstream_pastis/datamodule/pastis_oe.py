@@ -1,39 +1,47 @@
-# Taken from https://github.com/VSainteuf/utae-paps/blob/3d83dc50e67e7ae204559e819cfbb432b1b21e10/src/dataset.py#L85
+# Taken from
+# https://github.com/VSainteuf/utae-paps/blob/3d83dc50e67e7ae204559e819cfbb432b1b21e10/src/dataset.py#L85
 # some adaptations were made
 import logging
 import os
-from datetime import datetime
-from typing import Literal
-
-from dataclasses import dataclass
-
-import torch.utils.data as tdata
 from collections.abc import Iterable
+from datetime import datetime
+from pathlib import Path
+from typing import Literal
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 import torch
-from einops import rearrange
+import torch.utils.data as tdata
+from pytorch_lightning import LightningDataModule
 from torch import nn
 from torch.nn import functional as F
 
-from datatypes import *
-
 from mmdc_downstream_pastis.constant.dataset import S2_BAND  # TODO change
 from mmdc_downstream_pastis.constant.pastis import LABEL_PASTIS
-from pytorch_lightning import LightningDataModule
-from mmdc_downstream_pastis.datamodule.utils import OutClassifItem, apply_padding, MMDCDataStruct, randomcropindex
+from mmdc_downstream_pastis.datamodule.datatypes import (
+    METEO_BANDS,
+    OneSatellitePatch,
+    PastisBatch,
+    PastisDataSets,
+    PastisFolds,
+    PASTISOptions,
+)
+from mmdc_downstream_pastis.datamodule.utils import (
+    MMDCDataStruct,
+    apply_padding,
+    randomcropindex,
+)
 
 # Configure logging
 NUMERIC_LEVEL = getattr(logging, "INFO", None)
-logging.basicConfig(level=NUMERIC_LEVEL,
-                    format="%(asctime)-15s %(levelname)s: %(message)s")
+logging.basicConfig(
+    level=NUMERIC_LEVEL, format="%(asctime)-15s %(levelname)s: %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 
 class PASTISDataset(tdata.Dataset):
-
     def __init__(
         self,
         options: PASTISOptions,
@@ -92,7 +100,6 @@ class PASTISDataset(tdata.Dataset):
                 in format 'YYYY-MM-DD' and the closest available date will be selected.
             sats (list): defines the satellites to use (only Sentinel-2 is available
                 in v1.0)
-        path_subdataset (None or str). if not None indicates a path to a csv which contains a column id_patch. All the patches from get_item will be from this subset
         """
 
         super().__init__()
@@ -120,6 +127,8 @@ class PASTISDataset(tdata.Dataset):
 
         self.max_len = max_len
         self.sats = sats
+
+        self.strict_s1 = False
 
         # Get metadata
         meta_patch = self.get_metadata()
@@ -160,49 +169,99 @@ class PASTISDataset(tdata.Dataset):
 
         print("Dataset ready.")
 
+    def get_one_satellite_patches(self, satellite):
+        path = self.options.dataset_path_oe
+        sat_patches = [
+            int(file[:-3].split("_")[-1])
+            for file in os.listdir(os.path.join(path, satellite))
+        ]
+
+        meteo_patches = [
+            int(file[:-3].split("_")[-1])
+            for file in os.listdir(os.path.join(path, f"{satellite}_METEO"))
+        ]
+
+        dem_patches = [
+            int(file[:-3].split("_")[-1])
+            for file in os.listdir(os.path.join(path, "DEM"))
+        ]
+
+        return np.intersect1d(
+            np.intersect1d(sat_patches, meteo_patches, assume_unique=False),
+            dem_patches,
+            assume_unique=True,
+        )
+
     # TODO adapt for three sensors
     def patches_to_keep(self) -> np.array:
         """
-        We make lists of all available patches for a satellite and corresponding meteo and dem data.
+        We make lists of all available patches for a satellite
+        and corresponding meteo and dem data.
         And we choose only patches presents for all modalities.
         In case we use several satellites, we choose patches present for all of them.
         """
-        path = self.options.dataset_path_oe
+
         valid_patches = []
         for satellite in self.sats:
-            sat_patches = [
-                int(file[:-3].split("_")[-1])
-                for file in os.listdir(os.path.join(path, satellite))]
-
-            meteo_patches = [int(file[:-3].split("_")[-1])
-                             for file in os.listdir(
-                                 os.path.join(path, f"{satellite}_METEO"))]
-
-            dem_patches = [int(file[:-3].split("_")[-1])
-                           for file in os.listdir(os.path.join(path, "DEM"))]
-
-            valid = np.intersect1d(np.intersect1d(sat_patches, meteo_patches, assume_unique=True),
-                                   dem_patches, assume_unique=True)
+            valid = self.get_one_satellite_patches(satellite)
             if len(self.sats) == 1:
                 return valid
 
-            valid_patches.append(valid)
+        if len(self.sats) == 1:
+            return self.get_one_satellite_patches(self.sats[0])
 
-        return np.intersect1d(valid_patches[0], valid_patches[1], assume_unique=True)
+        elif len(self.sats) == 2:
+            for satellite in self.sats:
+                valid = self.get_one_satellite_patches(satellite)
+                valid_patches.append(valid)
+
+            if (
+                (np.sort(self.sats) == ["S1_ASC", "S2"]).all()
+                or (np.sort(self.sats) == ["S1_DESC", "S2"]).all()
+                or self.strict_s1
+            ):
+                return np.intersect1d(
+                    valid_patches[0], valid_patches[1], assume_unique=True
+                )
+            else:  # ["S1_ASC", "S1_DESC"]
+                return np.union1d(valid_patches[0], valid_patches[1])
+
+        else:
+            for satellite in np.sort(self.sats):
+                valid = self.get_one_satellite_patches(satellite)
+                valid_patches.append(valid)
+            if not self.strict_s1:
+                return np.union1d(
+                    np.intersect1d(
+                        valid_patches[0], valid_patches[2], assume_unique=True
+                    ),
+                    np.intersect1d(
+                        valid_patches[1], valid_patches[1], assume_unique=True
+                    ),
+                )
+            else:
+                return np.intersect1d(
+                    np.intersect1d(
+                        valid_patches[0], valid_patches[2], assume_unique=True
+                    ),
+                    valid_patches[1],
+                    assume_unique=True,
+                )
 
     def get_metadata(self) -> gpd.GeoDataFrame:
         """Return a GeoDatFrame with the patch metadata"""
         logger.info("Reading patch metadata . . .")
         meta_patch = gpd.read_file(
-            os.path.join(self.options.dataset_path_pastis, "metadata.geojson"))
+            os.path.join(self.options.dataset_path_pastis, "metadata.geojson")
+        )
         meta_patch.index = meta_patch["ID_PATCH"].astype(int)
         meta_patch.sort_index(inplace=True)
 
         # Select Fold samples
         if self.options.folds is not None:
-            meta_patch = pd.concat([
-                meta_patch[meta_patch["Fold"] == f] for f in self.options.folds
-            ])
+            meta_patch = pd.concat(
+                [meta_patch[meta_patch["Fold"] == f] for f in self.options.folds]
+            )
 
         # We only keep patches with all modalities available
         meta_patch = meta_patch[meta_patch.ID_PATCH.isin(self.patches_to_keep())]
@@ -212,140 +271,173 @@ class PASTISDataset(tdata.Dataset):
         return self.len
 
     def get_dates(self, id_patch, sat):
-        return self.date_range[np.where(
-            self.date_tables[sat][id_patch] == 1)[0]]
+        return self.date_range[np.where(self.date_tables[sat][id_patch] == 1)[0]]
+
+    @staticmethod
+    def load_file(path: str):
+        """Load file if exists"""
+        # if len(self.sats) == 1 or (np.sort(self.sats) == ["S1_ASC", "S2"]).all()
+        # or (np.sort(self.sats) == ["S1_DESC", "S2"]).all() or self.strict_s1:
+        return torch.load(path) if Path(path).exists() else None
 
     def read_data_from_disk(
         self,
         item: int,
         id_patch: int,
-    ) -> tuple[dict[str, MMDCDataStruct], torch.Tensor, dict[
-            str, torch.Tensor], dict[str, torch.Tensor]]:
+    ) -> tuple[
+        dict[str, MMDCDataStruct],
+        torch.Tensor,
+        dict[str, torch.Tensor],
+        dict[str, torch.Tensor],
+    ]:
         """Get id_patch from disk and cache it as item in the dataset"""
         data_pastis = {
-            satellite:
-            torch.load(
+            satellite: self.load_file(
                 os.path.join(
                     self.options.dataset_path_oe,
                     satellite,
                     f"{satellite}_{id_patch}.pt",
-                ))
+                )
+            )
             for satellite in self.sats
         }  # pastis_eo.dataclass.PASTISItem
         data: dict[str, MMDCDataStruct] = {}
         for satellite in self.sats:
             data_all = data_pastis[satellite]
-            dem = torch.load(
-                os.path.join(
-                    self.options.dataset_path_oe,
-                    "DEM",
-                    f"DEM_{id_patch}.pt",
-                ))
-            data_one_sat = {
-                "img": data_all.sits,
-                "mask": data_all.mask,
-                "angles": data_all.angles.nan_to_num(),
-                "dem": dem.nan_to_num()
-            }
-
-            data_one_sat.update({
-                f"meteo_{k}":
-                torch.load(
+            if data_all is not None:
+                dem = self.load_file(
                     os.path.join(
                         self.options.dataset_path_oe,
-                        f"{satellite}_METEO",
-                        f"{satellite}_{k}_{id_patch}.pt",
-                    ))
-                for k in METEO_BANDS
-            })
+                        "DEM",
+                        f"DEM_{id_patch}.pt",
+                    )
+                )
+                data_one_sat = {
+                    "img": data_all.sits,
+                    "mask": data_all.mask,
+                    "angles": data_all.angles.nan_to_num(),
+                    "dem": dem.nan_to_num(),
+                }
 
-            data[satellite] = MMDCDataStruct.init_empty().fill_empty_from_dict(
-                data_one_sat).concat_meteo()
+                data_one_sat.update(
+                    {
+                        f"meteo_{k}": self.load_file(
+                            os.path.join(
+                                self.options.dataset_path_oe,
+                                f"{satellite}_METEO",
+                                f"{satellite}_{k}_{id_patch}.pt",
+                            )
+                        )
+                        for k in METEO_BANDS
+                    }
+                )
+
+                data[satellite] = (
+                    MMDCDataStruct.init_empty()
+                    .fill_empty_from_dict(data_one_sat)
+                    .concat_meteo()
+                )
+            else:
+                data[satellite] = None
 
         # Retrieve date sequences
-        dates = {s: a.doy for s, a in data_pastis.items()}
-        true_doys = {s: a.true_doy for s, a in data_pastis.items()}
+        dates = {s: (a.doy if a is not None else None) for s, a in data_pastis.items()}
+        true_doys = {
+            s: (a.true_doy if a is not None else None) for s, a in data_pastis.items()
+        }
         if self.options.task == "semantic":
             target = np.load(
                 os.path.join(
                     self.options.dataset_path_pastis,
                     "ANNOTATIONS",
                     f"TARGET_{id_patch}.npy",
-                ))
+                )
+            )
             target = torch.from_numpy(target[0].astype(int))
         else:
             raise NotImplementedError
         if self.options.cache:  # Not sure it works
             if self.options.mem16:
                 self.memory[item] = [
-                    {
-                        k: v.casting(torch.float32)
-                        for k, v in data.items()
-                    },
+                    {k: v.casting(torch.float32) for k, v in data.items()},
                     target,
-                    {
-                        k: d
-                        for k, d in dates.items()
-                    },
-                    {
-                        k: d
-                        for k, d in true_doys.items()
-                    },
+                    {k: d for k, d in dates.items()},
+                    {k: d for k, d in true_doys.items()},
                 ]
             else:
                 self.memory[item] = [data, target, dates, true_doys]
 
         return data, target, dates, true_doys
 
-    def __getitem__(self, item) -> OutClassifItem:
+    def __getitem__(
+        self, item: int
+    ) -> (dict[str, OneSatellitePatch], torch.Tensor, torch.Tensor, int):
         id_patch = self.id_patches[item]
 
         # Retrieve and prepare satellite data
         if not self.options.cache or item not in self.memory.keys():
-            data, target, dates, true_doys = self.read_data_from_disk(
-                item, id_patch)
+            data, target, dates, true_doys = self.read_data_from_disk(item, id_patch)
 
         else:
             data, target, dates, true_doys = self.memory[item]
             if self.options.mem16:
                 data = {k: v.casting(torch.float32) for k, v in data.items()}
 
-        if len(self.sats) == 1:  # TODO change that for multimodal
-            sits = data[self.sats[0]]
-            doy = dates[self.sats[0]]
+        t, c, h, w = data[self.sats[0]].data.img.shape
+        y, x = self.get_crop_idx(
+            rows=h, cols=w
+        )  # so that same crop for all the bands of a sits
+
+        target = target[y : y + self.crop_size, x : x + self.crop_size]
+        target[target == 19] = 0  # merge background and void class
+        mask = (target != 0) & (target != 19)
+        output = {
+            sat: self.return_one_satellite(data, dates, true_doys, sat, [x, y])
+            for sat in self.sats
+        }
+
+        return output, target, mask, id_patch
+
+    def return_one_satellite(self, data, dates, true_doys, sat, crop_xy):
+        if (sits := data[sat]) is not None:
+            doy = dates[sat]
             if self.extract_true_doy:
-                true_doy = true_doys[self.sats[0]]
+                true_doy = true_doys[sat]
             else:
                 true_doy = None
             t, c, h, w = sits.data.img.shape
-            y, x = self.get_crop_idx(
-                rows=sits.data.img.shape[2], cols=sits.data.img.shape[3]
-            )  # so that same crop for all the bands of a sits
+            x, y = crop_xy
 
             sits = sits.crop(x, y, self.crop_size)
-            target = target[y:y + self.crop_size, x:x + self.crop_size]
-            target[target == 19] = 0  # merge background and void class
+
             # if self.transform is not None:
             #     my_logger.debug("Apply transform per SITS")
             #     sits = rearrange(sits, "t c h w -> c t h w")
             #     sits = self.transform(sits)
             #     sits = rearrange(sits, "c t h w -> t c h w")
-            sits, doy, padd_index = apply_padding(self.allow_pad, self.max_len,
-                                                  t, sits, doy)
+            sits, doy, padd_index = apply_padding(
+                self.allow_pad, self.max_len, t, sits, doy
+            )
             if true_doy is not None:
                 padd_true_doy = F.pad(true_doy, (0, self.max_len - t))
             else:
                 padd_true_doy = None
-            return OutClassifItem(
+            return OneSatellitePatch(
                 sits=sits,
                 input_doy=doy.to(sits.data.img.device),
                 padd_index=padd_index.bool(),
-                target=target,
                 padd_val=torch.tensor(self.max_len - t),
-                item=item,
-                mask=(target != 0) & (target != 19),
                 true_doy=padd_true_doy,
             )
+        return OneSatellitePatch(
+            sits=MMDCDataStruct.init_empty_zeros_s1(
+                self.max_len, self.crop_size, self.crop_size
+            ),
+            input_doy=torch.zeros(self.max_len),
+            padd_index=torch.full([self.max_len], True),
+            padd_val=torch.tensor(self.max_len),
+            true_doy=None if not self.extract_true_doy else torch.zeros(self.max_len),
+        )
 
     def get_crop_idx(self, rows, cols) -> tuple[int, int]:
         """return the coordinate, width and height of the window loaded
@@ -359,8 +451,9 @@ class PASTISDataset(tdata.Dataset):
         if self.crop_type == "Random":
             return randomcropindex(rows, cols, self.crop_size, self.crop_size)
 
-        return int(rows // 2 - self.crop_size // 2), int(cols // 2 -
-                                                         self.crop_size // 2)
+        return int(rows // 2 - self.crop_size // 2), int(
+            cols // 2 - self.crop_size // 2
+        )
 
     def extract_class_count(self, workers):
         M = self.len
@@ -379,41 +472,61 @@ class PASTISDataset(tdata.Dataset):
 
 def prepare_dates(date_dict, reference_date):
     d = pd.DataFrame().from_dict(date_dict, orient="index")
-    d = d[0].apply(lambda x: (datetime(int(str(x)[:4]), int(str(x)[4:6]),
-                                       int(str(x)[6:])) - reference_date).days)
+    d = d[0].apply(
+        lambda x: (
+            datetime(int(str(x)[:4]), int(str(x)[4:6]), int(str(x)[6:]))
+            - reference_date
+        ).days
+    )
     return d.values
 
 
-def custom_collate_classif(batch: Iterable[OutClassifItem]) -> ClassifBInput:
-    dict_collate = {}
+def custom_collate_classif(
+    batch: Iterable[dict[str, OneSatellitePatch], torch.Tensor, torch.Tensor, int]
+) -> (dict[str, PastisBatch], torch.Tensor, torch.Tensor, list[int]):
+    batch_dict = {}
+
+    sat_dict = [b[0] for b in batch]
+    target = torch.stack([b[1] for b in batch], 0)
+    mask = torch.stack([b[2] for b in batch], 0)
+    id_patch = [b[3] for b in batch]
+
     # TODO add padding here
-    for key in batch[0].__dict__:
-        if type(getattr(batch[0], key)) is MMDCDataStruct:
-            to_collate = [getattr(b, key) for b in batch]
-            sits_col = {}
-            for k in to_collate[0].__dict__:
-                if type(getattr(to_collate[0], k)) is torch.Tensor:
-                    sits_col[k] = torch.stack(
-                        [getattr(c, k) for c in to_collate])
-                else:
-                    #type is MMDCData
-                    to_collate2 = [getattr(c, k) for c in to_collate]
-                    # sits_col[k] = {k2: torch.stack([getattr(c, k2) for c in to_collate2])
-                    #                for k2 in to_collate2[0].__dict__}
-                    sits_col.update({
-                        k2:
-                        torch.stack([getattr(c, k2) for c in to_collate2])
-                        for k2 in to_collate2[0].__dict__
-                    })
-            dict_collate[key] = MMDCDataStruct.init_empty_concat_meteo(
-            ).fill_empty_from_dict(sits_col)
-        elif type(getattr(batch[0], key)) is torch.Tensor:
-            dict_collate[key] = torch.stack([getattr(b, key) for b in batch])
+    for sat in sat_dict[0]:
+        item = [v[sat] for v in sat_dict]
+        dict_collate = {}
+        for key in item[0].__dict__:
+            if type(getattr(item[0], key)) is MMDCDataStruct:
+                to_collate = [getattr(b, key) for b in item]
+                sits_col = {}
+                for k in to_collate[0].__dict__:
+                    if type(getattr(to_collate[0], k)) is torch.Tensor:
+                        sits_col[k] = torch.stack([getattr(c, k) for c in to_collate])
+                    else:
+                        # type is MMDCData
+                        to_collate2 = [getattr(c, k) for c in to_collate]
+                        # sits_col[k] = {k2: torch.stack([getattr(c, k2)
+                        # for c in to_collate2])
+                        #                for k2 in to_collate2[0].__dict__}
+                        sits_col.update(
+                            {
+                                k2: torch.stack([getattr(c, k2) for c in to_collate2])
+                                for k2 in to_collate2[0].__dict__
+                            }
+                        )
+                dict_collate[
+                    key
+                ] = MMDCDataStruct.init_empty_concat_meteo().fill_empty_from_dict(
+                    sits_col, flatten_meteo=True
+                )
+            elif type(getattr(item[0], key)) is torch.Tensor:
+                dict_collate[key] = torch.stack([getattr(b, key) for b in item])
 
-        elif getattr(batch[0], key) is None:
-            dict_collate[key] = None
+            elif getattr(item[0], key) is None:
+                dict_collate[key] = None
 
-    return PastisBatch.init_empty().fill_empty_from_dict(dict_collate)
+        batch_dict[sat] = PastisBatch.init_empty().fill_empty_from_dict(dict_collate)
+    return batch_dict, target, mask, id_patch
 
 
 class PastisDataModule(LightningDataModule):
@@ -432,7 +545,7 @@ class PastisDataModule(LightningDataModule):
         self,
         dataset_path_oe: str,
         dataset_path_pastis: str,
-        folds: PastisFolds,
+        folds: PastisFolds | None,
         sats: list[str] = ["S2"],
         reference_date: str = "2018-10-01",
         task: Literal["semantic"] = "semantic",
@@ -441,7 +554,7 @@ class PastisDataModule(LightningDataModule):
         crop_type: Literal["Center", "Random"] = "Random",
         num_workers: int = 1,
         # path_dir_csv: str | None = None,
-        max_len: int = 60,
+        max_len: int = 100,
     ):
         super().__init__()
 
@@ -488,7 +601,7 @@ class PastisDataModule(LightningDataModule):
             self.data = PastisDataSets(
                 self.data.train,
                 self.data.val,
-                self.instanciate_dataset(self.folds.test)
+                self.instanciate_dataset(self.folds.test),
             )
 
     def train_dataloader(self) -> tdata.DataLoader:
@@ -507,29 +620,31 @@ class PastisDataModule(LightningDataModule):
         """Test dataloader"""
         assert self.data is not None
         assert self.data.test is not None
-        return self.instanciate_data_loader(self.data.test, shuffle=False)
+        return self.instanciate_data_loader(
+            self.data.test, shuffle=False, drop_last=False
+        )
 
     def predict_dataloader(self) -> tdata.DataLoader:
         """Predict dataloader"""
         return self.test_dataloader()
 
-    def instanciate_dataset(self, fold: list[int]) -> PASTISDataset:
-        return PASTISDataset(PASTISOptions(
-            task=self.task,
-            folds=fold,
-            dataset_path_oe=self.dataset_path_oe,
-            dataset_path_pastis=self.dataset_path_pastis,
-        ),
+    def instanciate_dataset(self, fold: list[int] | None) -> PASTISDataset:
+        return PASTISDataset(
+            PASTISOptions(
+                task=self.task,
+                folds=fold,
+                dataset_path_oe=self.dataset_path_oe,
+                dataset_path_pastis=self.dataset_path_pastis,
+            ),
             sats=self.sats,
             reference_date=self.reference_date,
             crop_size=self.crop_size,
             crop_type=self.crop_type,
-            max_len=self.max_len)
+            max_len=self.max_len,
+        )
 
     def instanciate_data_loader(
-        self,
-        dataset: tdata.Dataset,
-        shuffle: bool = False,
+        self, dataset: tdata.Dataset, shuffle: bool = False, drop_last: bool = True
     ) -> tdata.DataLoader:
         """Return a data loader with the PASTIS data set"""
 
@@ -537,49 +652,82 @@ class PastisDataModule(LightningDataModule):
             dataset=dataset,
             batch_size=self.batch_size,
             shuffle=shuffle,
-            drop_last=True,
-            collate_fn=lambda x: custom_collate_classif(x),
+            drop_last=drop_last,
+            collate_fn=custom_collate_classif,
         )
 
-#
-# def build_dm(sats) -> PastisDataModule:
-#     """Builds datamodule"""
-#     return PastisDataModule(dataset_path_oe=dataset_path_oe,
-#                             dataset_path_pastis=dataset_path_pastis,
-#                             folds=PastisFolds([1, 2, 3], [4], [5]),
-#                             sats=sats,
-#                             task="semantic",
-#                             batch_size=1)
-#
-#
-# dataset_path_oe = "/work/CESBIO/projects/DeepChange/Ekaterina/Pastis_OE"
-# dataset_path_pastis = "/work/CESBIO/projects/DeepChange/Iris/PASTIS"
-#
-# def pastisds_dataloader(sats) -> None:
-#     """Use a dataloader with PASTIS dataset"""
-#     dm = build_dm(sats)
-#     dm.setup(stage='fit')
-#     dm.setup(stage='test')
-#     assert hasattr(dm, 'train_dataloader') and \
-#            hasattr(dm, 'val_dataloader') and hasattr(dm, 'test_dataloader')   # type: ignore[truthy-function]
-#     for loader in (dm.train_dataloader(), dm.val_dataloader(),
-#                    dm.test_dataloader()):
-#         assert loader
-#         for ((inputs, dates), labels), _ in zip(loader, range(4)):
-#             assert list(inputs.keys()) == sats
-#             assert list(dates.keys()) == sats
-#             for sat in sats:
-#                 if sat == "S2_MSK":
-#                     b_s_x, t_s_x, p_s_x, _ = inputs[sat].shape
-#                     nb_b = 1
-#                 else:
-#                     b_s_x, t_s_x, nb_b, p_s_x, _ = inputs[sat].shape
-#                 b_s_d, t_s_d = dates[sat].shape
-#                 b_s_y, p_s_y, _ = labels.shape
-#                 assert t_s_d > 2
-#                 assert b_s_x == b_s_d == b_s_y
-#                 assert t_s_d == t_s_x
-#                 # assert nb_b == PASTIS_BANDS[sat]
-#                 assert p_s_x == p_s_y
-#
-# pastisds_dataloader(["S2"])
+
+def build_dm(sats) -> PastisDataModule:
+    """Builds datamodule"""
+    return PastisDataModule(
+        dataset_path_oe=dataset_path_oe,
+        dataset_path_pastis=dataset_path_pastis,
+        folds=PastisFolds([1, 2, 3], [4], [5]),
+        sats=sats,
+        task="semantic",
+        batch_size=2,
+    )
+
+
+dataset_path_oe = "/work/CESBIO/projects/DeepChange/Ekaterina/Pastis_OE"
+dataset_path_pastis = "/work/CESBIO/projects/DeepChange/Iris/PASTIS"
+
+
+def pastisds_dataloader(sats) -> None:
+    """Use a dataloader with PASTIS dataset"""
+    dm = build_dm(sats)
+    dm.setup(stage="fit")
+    dm.setup(stage="test")
+    assert (
+        hasattr(dm, "train_dataloader")
+        and hasattr(dm, "val_dataloader")
+        and hasattr(dm, "test_dataloader")
+    )  # type: ignore[truthy-function]
+    for loader in (dm.train_dataloader(), dm.val_dataloader(), dm.test_dataloader()):
+        assert loader
+        for (batch_dict, target, mask, id_patch), _ in zip(loader, range(4)):
+            assert list(batch_dict.keys()) == sats
+            for sat in sats:
+                b_s_x, t_s_x, nb_b, p_s_x, _ = batch_dict[sat].sits.data.img.shape
+                b_s_ang, t_s_ang, nb_b_ang, p_s_ang, _ = batch_dict[
+                    sat
+                ].sits.data.angles.shape
+                b_s_imsk, t_s_imsk, nb_b_imsk, p_s_imsk, _ = batch_dict[
+                    sat
+                ].sits.data.mask.shape
+                b_s_dem, nb_b_dem, p_s_dem, _ = batch_dict[sat].sits.dem.shape
+                b_s_meteo, t_s_meteo, nb_b_meteo, p_s_meteo, _ = batch_dict[
+                    sat
+                ].sits.meteo.shape
+                b_s_d, t_s_d = batch_dict[sat].input_doy.shape
+                b_s_y, p_s_y, _ = target.shape
+                b_s_m, p_s_m, _ = mask.shape
+                b_s_id = len(id_patch)
+                assert t_s_d > 2
+                assert nb_b_dem == 4
+                assert nb_b_meteo == 48
+                assert (
+                    b_s_x
+                    == b_s_ang
+                    == b_s_imsk
+                    == b_s_dem
+                    == b_s_meteo
+                    == b_s_d
+                    == b_s_y
+                    == b_s_m
+                    == b_s_id
+                )
+                assert t_s_x == t_s_ang == t_s_imsk == t_s_meteo == t_s_d
+                # assert nb_b == PASTIS_BANDS[sat]
+                assert (
+                    p_s_x
+                    == p_s_ang
+                    == p_s_imsk
+                    == p_s_dem
+                    == p_s_meteo
+                    == p_s_y
+                    == p_s_m
+                )
+
+
+pastisds_dataloader(["S1_ASC", "S1_DESC", "S2"])
