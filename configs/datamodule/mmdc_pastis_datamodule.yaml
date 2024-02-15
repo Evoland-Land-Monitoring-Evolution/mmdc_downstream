@@ -1,0 +1,20 @@
+_target_: mmdc_downstream_pastis.datamodule.pastis_oe.PastisDataModule
+
+dataset_path_oe: /work/CESBIO/projects/DeepChange/Ekaterina/Pastis_OE
+dataset_path_pastis: /work/CESBIO/projects/DeepChange/Iris/PASTIS
+
+task:
+  _target_: mtan_s1s2_classif.datamodules.pastis_dataset.PASTISTask
+#  target:
+#    _target_: mtan_s1s2_classif.datamodules.pastis_dataset.PASTISTarget
+#    name: SEMANTIC
+  reference_date: "2018-10-01"
+  sats: [ "S2" ]
+
+folds:
+  _target_: mmdc_downstream_pastis.datamodule.pastis_oe.PastisFolds
+  train: [1, 2, 3]
+  val: [4]
+  test: [5]
+
+batch_size: 2
