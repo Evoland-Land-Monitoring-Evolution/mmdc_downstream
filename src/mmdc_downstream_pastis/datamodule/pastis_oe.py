@@ -54,7 +54,7 @@ class PASTISDataset(tdata.Dataset):
         transform: nn.Module | None = None,
         max_len: int = 60,
         allow_padd: bool = True,
-        extract_true_doy=False,
+        extract_true_doy=True,
     ):
         """
         Pytorch Dataset class to load samples from the PASTIS dataset, for semantic and
@@ -236,7 +236,7 @@ class PASTISDataset(tdata.Dataset):
                         valid_patches[0], valid_patches[2], assume_unique=True
                     ),
                     np.intersect1d(
-                        valid_patches[1], valid_patches[1], assume_unique=True
+                        valid_patches[1], valid_patches[2], assume_unique=True
                     ),
                 )
             else:
@@ -345,6 +345,8 @@ class PASTISDataset(tdata.Dataset):
         true_doys = {
             s: (a.true_doy if a is not None else None) for s, a in data_pastis.items()
         }
+        # if self.extract_true_doy:
+        #     data_all.dates_dt.index
         if self.options.task == "semantic":
             target = np.load(
                 os.path.join(
@@ -402,7 +404,7 @@ class PASTISDataset(tdata.Dataset):
         if (sits := data[sat]) is not None:
             doy = dates[sat]
             if self.extract_true_doy:
-                true_doy = true_doys[sat]
+                true_doy = torch.Tensor(true_doys[sat])
             else:
                 true_doy = None
             t, c, h, w = sits.data.img.shape
@@ -415,19 +417,21 @@ class PASTISDataset(tdata.Dataset):
             #     sits = rearrange(sits, "t c h w -> c t h w")
             #     sits = self.transform(sits)
             #     sits = rearrange(sits, "c t h w -> t c h w")
-            sits, doy, padd_index = apply_padding(
-                self.allow_pad, self.max_len, t, sits, doy
-            )
-            if true_doy is not None:
-                padd_true_doy = F.pad(true_doy, (0, self.max_len - t))
+            if self.max_len == 0:
+                padd_index = torch.full([len(doy)], False)
             else:
-                padd_true_doy = None
+                sits, doy, padd_index = apply_padding(
+                    self.allow_pad, self.max_len, t, sits, doy
+                )
+            if true_doy is not None and self.max_len != 0:
+                true_doy = F.pad(true_doy, (0, self.max_len - t))
+
             return OneSatellitePatch(
                 sits=sits,
-                input_doy=doy.to(sits.data.img.device),
+                input_doy=doy.to_device(sits.data.img.device),
                 padd_index=padd_index.bool(),
                 padd_val=torch.tensor(self.max_len - t),
-                true_doy=padd_true_doy,
+                true_doy=true_doy,
             )
         return OneSatellitePatch(
             sits=MMDCDataStruct.init_empty_zeros_s1(
@@ -665,7 +669,7 @@ def build_dm(sats) -> PastisDataModule:
         folds=PastisFolds([1, 2, 3], [4], [5]),
         sats=sats,
         task="semantic",
-        batch_size=2,
+        batch_size=4,
     )
 
 
