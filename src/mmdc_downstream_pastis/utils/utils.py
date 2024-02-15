@@ -15,16 +15,17 @@ from mmdc_downstream_pastis.datamodule.datatypes import PastisBatch
 class MMDCPartialBatch:
     """Partial MMDC batch that is fed to MMDC model"""
 
-    img: torch.Tensor | None
-    angles: torch.Tensor | None
-    mask: torch.Tensor | None
-    dem: torch.Tensor | None
-    meteo: torch.Tensor | None
+    img: torch.Tensor
+    angles: torch.Tensor
+    mask: torch.Tensor
+    dem: torch.Tensor
+    meteo: torch.Tensor
     type: str = "S2"
 
     @staticmethod
     def fill_from(batch_sat: PastisBatch, satellite: str) -> Self:
         """Fill from PastisBatch"""
+        assert batch_sat is not None
         return MMDCPartialBatch(
             img=batch_sat.sits.data.img,
             angles=batch_sat.sits.data.angles,
