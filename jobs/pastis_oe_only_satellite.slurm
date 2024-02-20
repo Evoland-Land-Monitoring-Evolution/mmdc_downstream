@@ -16,7 +16,7 @@
 module purge
 
 export SCRATCH=/work/scratch/data/${USER}
-export SRCDIR=${SCRATCH}/src/MMDC/mmdc-downstream-pastis
+export SRCDIR=${SCRATCH}/src/MMDC/mmdc-downstream
 export MMDC_INIT=${SRCDIR}/mmdc_init.sh
 export WORKING_DIR=${SCRATCH}/MMDC/jobs
 
