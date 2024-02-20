@@ -1,0 +1,14 @@
+
+_target_: mmdc_downstream_pastis.models.lightning.pastis_utae_semantic.MMDCPastisUTAE
+lr: 0.0001
+resume_from_checkpoint: null
+
+model:
+  _target_: mmdc_downstream_pastis.models.torch.utae.UTAE
+  in_channels: 10
+  num_classes: 20
+
+metrics_list : ["cross_entropy"]
+
+# To choose from ["RMSE", "MSE", "MAE"]
+losses_list : ["cross_entropy"]
