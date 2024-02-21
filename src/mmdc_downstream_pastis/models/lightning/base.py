@@ -110,8 +110,26 @@ class MMDCPastisBaseLitModule(LightningModule):  # pylint: disable=too-many-ance
 
         return {"loss": loss}
 
+    def on_train_epoch_start(self) -> None:
+        self.iou_meter.reset()
+
     def on_train_epoch_end(self) -> None:
         logger.info("Ended traning epoch %s", self.trainer.current_epoch)
+        miou, acc = self.iou_meter.get_miou_acc()
+        self.log(
+            "train/mIoU",
+            miou,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=False,
+        )
+        self.log(
+            "train/accuracy",
+            acc,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=False,
+        )
 
     def on_validation_epoch_start(self) -> None:
         self.iou_meter.reset()
@@ -161,7 +179,8 @@ class MMDCPastisBaseLitModule(LightningModule):  # pylint: disable=too-many-ance
         The scales are already set in the loaded model
         """
         logger.info("On fit start")
-        self.model.apply(weight_init)
+        if self.resume_from_checkpoint is None:
+            self.model.apply(weight_init)
 
     def configure_optimizers(self) -> dict[str, Any]:
         """A single optimizer with a LR scheduler"""

@@ -53,8 +53,9 @@ class MMDCPastisUTAE(MMDCPastisBaseLitModule):
         """
         (x, dates), gt = batch
         gt = gt.long()
-        out: OutUTAEForward = self.forward(x, batch_positions=dates)
-        logits = out.seg_map
+        # out: OutUTAEForward = self.forward(x, batch_positions=dates)
+        # logits = out.seg_map
+        logits = self.forward(x, batch_positions=dates)
         losses = compute_losses(
             preds=logits,
             target=gt,
@@ -62,8 +63,7 @@ class MMDCPastisUTAE(MMDCPastisBaseLitModule):
             losses_list=self.losses_list,
         )
 
-        if stage != "train":
-            self.iou_meter.add(to_class_label(logits), gt)
+        self.iou_meter.add(to_class_label(logits), gt)
 
         return losses
 
@@ -126,7 +126,7 @@ class MMDCPastisUTAE(MMDCPastisBaseLitModule):
     def configure_optimizers(self) -> dict[str, Any]:
         """A single optimizer with a LR scheduler"""
         optimizer = torch.optim.Adam(
-            params=self.model.parameters(), lr=self.learning_rate, weight_decay=0.01
+            params=self.model.parameters(), lr=self.learning_rate  # , weight_decay=0.01
         )
 
         # training_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
