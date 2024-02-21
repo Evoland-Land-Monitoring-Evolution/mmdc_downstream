@@ -4,7 +4,34 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from mt_ssl.model.encoding import PositionalEncoder
+
+class PositionalEncoder(nn.Module):
+    def __init__(self, d, T=1000, repeat=None, offset=0):
+        super().__init__()
+        self.d = d
+        self.T = T
+        self.repeat = repeat
+        self.denom = torch.pow(
+            T, 2 * (torch.arange(offset, offset + d).float() // 2) / d
+        )
+        self.updated_location = False
+
+    def forward(self, batch_positions):
+        self.denom = self.denom.to(batch_positions.device)
+        if not self.updated_location:
+            self.updated_location = True
+        sinusoid_table = (
+            batch_positions[:, :, None] / self.denom[None, None, :]
+        )  # B x T x C
+        sinusoid_table[:, :, 0::2] = torch.sin(sinusoid_table[:, :, 0::2])  # dim 2i
+        sinusoid_table[:, :, 1::2] = torch.cos(sinusoid_table[:, :, 1::2])  # dim 2i+1
+
+        if self.repeat is not None:
+            sinusoid_table = torch.cat(
+                [sinusoid_table for _ in range(self.repeat)], dim=-1
+            )
+
+        return sinusoid_table
 
 
 class LTAE2d(nn.Module):
@@ -22,19 +49,24 @@ class LTAE2d(nn.Module):
     ):
         """
         Lightweight Temporal Attention Encoder (L-TAE) for image time series.
-        Attention-based sequence encoding that maps a sequence of images to a single feature map.
+        Attention-based sequence encoding that maps a sequence of images
+        to a single feature map.
         A shared L-TAE is applied to all pixel positions of the image sequence.
         Args:
             in_channels (int): Number of channels of the input embeddings.
             n_head (int): Number of attention heads.
             d_k (int): Dimension of the key and query vectors.
-            mlp (List[int]): Widths of the layers of the MLP that processes the concatenated outputs of the attention heads.
+            mlp (List[int]): Widths of the layers of the MLP that processes
+            the concatenated outputs of the attention heads.
             dropout (float): dropout
-            d_model (int, optional): If specified, the input tensors will first processed by a fully connected layer
-                to project them into a feature space of dimension d_model.
+            d_model (int, optional): If specified, the input tensors will
+            first processed by a fully connected layer to project them
+            into a feature space of dimension d_model.
             T (int): Period to use for the positional encoding.
-            return_att (bool): If true, the module returns the attention masks along with the embeddings (default False)
-            positional_encoding (bool): If False, no positional encoding is used (default True).
+            return_att (bool): If true, the module returns the attention
+            masks along with the embeddings (default False)
+            positional_encoding (bool): If False, no positional encoding
+            is used (default True).
         """
         super().__init__()
         self.in_channels = in_channels
@@ -82,9 +114,7 @@ class LTAE2d(nn.Module):
         self.mlp = nn.Sequential(*layers)
         self.dropout = nn.Dropout(dropout)
 
-    def forward(
-        self, x, batch_positions=None, pad_mask=None, return_comp=False
-    ):
+    def forward(self, x, batch_positions=None, pad_mask=None, return_comp=False):
         sz_b, seq_len, d, h, w = x.shape
         if pad_mask is not None:
             pad_mask = (
@@ -94,16 +124,10 @@ class LTAE2d(nn.Module):
                 .repeat((1, 1, 1, w))
             )  # BxTxHxW
             pad_mask = (
-                pad_mask.permute(0, 2, 3, 1)
-                .contiguous()
-                .view(sz_b * h * w, seq_len)
+                pad_mask.permute(0, 2, 3, 1).contiguous().view(sz_b * h * w, seq_len)
             )
 
-        out = (
-            x.permute(0, 3, 4, 1, 2)
-            .contiguous()
-            .view(sz_b * h * w, seq_len, d)
-        )
+        out = x.permute(0, 3, 4, 1, 2).contiguous().view(sz_b * h * w, seq_len, d)
         out = self.in_norm(out.permute(0, 2, 1)).permute(0, 2, 1)
 
         if self.inconv is not None:
@@ -116,9 +140,7 @@ class LTAE2d(nn.Module):
                 .unsqueeze(-1)
                 .repeat((1, 1, 1, w))
             )  # BxTxHxW
-            bp = (
-                bp.permute(0, 2, 3, 1).contiguous().view(sz_b * h * w, seq_len)
-            )
+            bp = bp.permute(0, 2, 3, 1).contiguous().view(sz_b * h * w, seq_len)
             out = out + self.positional_encoder(bp)
 
         out, attn = self.attention_heads(out, pad_mask=pad_mask)
@@ -157,9 +179,7 @@ class MultiHeadAttention(nn.Module):
         self.fc1_k = nn.Linear(d_in, n_head * d_k)
         nn.init.normal_(self.fc1_k.weight, mean=0, std=np.sqrt(2.0 / (d_k)))
 
-        self.attention = ScaledDotProductAttention(
-            temperature=np.power(d_k, 0.5)
-        )
+        self.attention = ScaledDotProductAttention(temperature=np.power(d_k, 0.5))
 
     def forward(self, v, pad_mask=None, return_comp=False):
         d_k, d_in, n_head = self.d_k, self.d_in, self.n_head
@@ -170,9 +190,7 @@ class MultiHeadAttention(nn.Module):
         )  # (n*b) x d_k
 
         k = self.fc1_k(v).view(sz_b, seq_len, n_head, d_k)
-        k = (
-            k.permute(2, 0, 1, 3).contiguous().view(-1, seq_len, d_k)
-        )  # (n*b) x lk x dk
+        k = k.permute(2, 0, 1, 3).contiguous().view(-1, seq_len, d_k)  # (n*b) x lk x dk
 
         if pad_mask is not None:
             pad_mask = pad_mask.repeat(
