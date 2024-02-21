@@ -113,7 +113,7 @@ for batch_dict, target, mask, id_patch in loader:
     latents1 = mmdc_model.get_latent_s1_mmdc(batch_s1.to_device(mmdc_model.device))
     print(latents1.mean.shape)
 
-    days_delta = 2008
+    days_delta = 1643
 
     batch_s2 = MMDCPartialBatch.fill_from(batch_dict["S2"], "S2")
     latents2 = mmdc_model.get_latent_s2_mmdc(batch_s2.to_device(mmdc_model.device))
