@@ -13,7 +13,11 @@ from mmdc_singledate.datamodules.components.datamodule_components import (
     dem_height_aspect,
 )
 
+from mmdc_downstream_pastis.datamodule.datatypes import PastisBatch
+from mmdc_downstream_pastis.datamodule.utils import MMDCDataStruct
+
 # from mmdc_downstream_pastis.utils.utils import MMDCPartialBatch
+
 
 METEO_DAYS_BEFORE = 4
 METEO_DAYS_AFTER = 1
@@ -63,7 +67,6 @@ def get_meteo_dates_modality(dates_df, satellite):
 # def filter_clouds():
 #
 
-
 METEO_BANDS = {
     "dew_temp": "dewpoint-temperature",
     "prec": "precipitation-flux",
@@ -75,7 +78,6 @@ METEO_BANDS = {
     "wind_speed": "wind-speed",
 }
 meteo_modalities = [k.upper() for k in METEO_BANDS]
-
 
 # json_data = gpd.read_file(geojson_path)
 # utm_crs = json_data.estimate_utm_crs()
@@ -168,7 +170,7 @@ def encode_tile(
                 months_folders, folder_data, slice, modality, meteo=True
             )
             for sat, dates_sat in dates.items():
-                data[sat][modality] = build_meteo(
+                data[sat][f"meteo_{modality}"] = build_meteo(
                     images, sliced_meteo, dates_sat, modality
                 )[modality]
 
@@ -184,26 +186,37 @@ def encode_tile(
                 torch.argmin(torch.isnan(dem_dataset).sum((1, 2)))
             ]
         dem = dem_height_aspect(dem_dataset.squeeze(0))
-        for key in data:
-            data[key]["dem"] = dem
+        for sat in data:
+            data[sat]["dem"] = dem
+        batch_dict = {}
+        for sat in data:
+            sits = (
+                MMDCDataStruct.init_empty()
+                .fill_empty_from_dict(data[sat])
+                .concat_meteo()
+            )
+            tcd_batch = PastisBatch(
+                sits=sits,
+                input_doy=dates[sat][f"date_{sat}"].values,
+                padd_val=torch.Tensor([]),
+                padd_index=torch.Tensor([]),
+            )
+            batch_dict[sat] = tcd_batch
 
-        # class PastisBatch:
-        #     sits: MMDCDataStruct
-        #     input_doy: torch.Tensor
-        #     padd_val: torch.Tensor
-        #     padd_index: torch.Tensor
-        #     true_doy: torch.Tensor = None
+        # batch_asc = MMDCPartialBatch.fill_from(batch_dict["S1_ASC"], "S1")
+        # batch_desc = MMDCPartialBatch.fill_from(batch_dict["S1_DESC"], "S1")
+        # days_asc = batch_dict["S1_ASC"].true_doy
+        # days_desc = batch_dict["S1_DESC"].true_doy
+        # batch_s1, asc_ind, desc_ind = create_s1(batch_asc, batch_desc,
+        #                                         days_asc, days_desc)
         #
-        # class MMDCDataStruct:
-        #     """Dataclass holding the tensors for image and auxiliary data in MMDC"""
+        # print(batch_asc.img.shape, batch_desc.img.shape)
+        # latents1 = mmdc_model.get_latent_s1_mmdc(
+        #     batch_s1.to_device(mmdc_model.device))
+        # print(latents1.mean.shape)
         #
-        #     data: MMDCData
-        #     meteo: MMDCMeteoData | torch.Tensor
-        #     dem: torch.Tensor
+        # days_delta = 2008
         #
-        # class MMDCData:
-        #     """Dataclass holding the tensors for image and auxiliary data in MMDC"""
-        #
-        #     img: torch.Tensor | None
-        #     mask: torch.Tensor | None
-        #     angles: torch.Tensor | None
+        # batch_s2 = MMDCPartialBatch.fill_from(batch_dict["S2"], "S2")
+        # latents2 = mmdc_model.get_latent_s2_mmdc(
+        #     batch_s2.to_device(mmdc_model.device))
