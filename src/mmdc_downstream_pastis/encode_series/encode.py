@@ -4,6 +4,7 @@
 from pathlib import Path
 
 import numpy as np
+from mmdc_singledate.models.datatypes import VAELatentSpace
 
 from mmdc_downstream_pastis.datamodule.pastis_oe import PastisDataModule
 from mmdc_downstream_pastis.utils.utils import MMDCPartialBatch
@@ -63,22 +64,35 @@ def create_s1(batch_asc, batch_desc, days_asc, days_desc):
         return batch_s1, asc_ind, desc_ind
 
 
-def encode_one_batch(mmdc_model, batch_dict):
+def encode_one_batch(
+    mmdc_model, batch_dict
+) -> tuple[VAELatentSpace, VAELatentSpace, VAELatentSpace, VAELatentSpace]:
     batch_asc = MMDCPartialBatch.fill_from(batch_dict["S1_ASC"], "S1")
     batch_desc = MMDCPartialBatch.fill_from(batch_dict["S1_DESC"], "S1")
     days_asc = batch_dict["S1_ASC"].true_doy
     days_desc = batch_dict["S1_DESC"].true_doy
     batch_s1, asc_ind, desc_ind = create_s1(batch_asc, batch_desc, days_asc, days_desc)
 
-    print(batch_asc.img.shape, batch_desc.img.shape)
+    print("batch_s1.img.shape", batch_s1.img.shape)
+    print("batch_s1.angles.shape", batch_s1.angles.shape)
+    print("batch_s1.meteo.shape", batch_s1.meteo.shape)
+    print("batch_s1.dem.shape", batch_s1.dem.shape)
+
     latents1 = mmdc_model.get_latent_s1_mmdc(batch_s1.to_device(mmdc_model.device))
-    print(latents1.mean.shape)
+
+    latents1_asc = VAELatentSpace(
+        latents1.mean[:, asc_ind], latents1.logvar[:, asc_ind]
+    )
+    latents1_desc = VAELatentSpace(
+        latents1.mean[:, desc_ind], latents1.logvar[:, desc_ind]
+    )
 
     # days_delta = 1643
 
     batch_s2 = MMDCPartialBatch.fill_from(batch_dict["S2"], "S2")
+
     latents2 = mmdc_model.get_latent_s2_mmdc(batch_s2.to_device(mmdc_model.device))
-    return latents1, latents2
+    return latents1, latents1_asc, latents1_desc, latents2
 
 
 def encode_series(mmdc_model, dataset_path_oe, dataset_path_pastis, sats):
@@ -88,4 +102,6 @@ def encode_series(mmdc_model, dataset_path_oe, dataset_path_pastis, sats):
     loader = dm.instanciate_data_loader(dataset, shuffle=False, drop_last=False)
     for batch_dict, target, mask, id_patch in loader:
         print(id_patch)
-        latents1, latents2 = encode_one_batch(mmdc_model, batch_dict)
+        latents1, latents1_asc, latents1_desc, latents2 = encode_one_batch(
+            mmdc_model, batch_dict
+        )
