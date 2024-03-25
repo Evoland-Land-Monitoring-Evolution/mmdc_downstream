@@ -1,5 +1,6 @@
 import os
 
+import matplotlib.pyplot as plt
 import pandas as pd
 from catboost import CatBoostRegressor
 from sklearn.metrics import mean_squared_error
@@ -26,10 +27,6 @@ X_train, X_test, y_train, y_test = train_test_split(
 
 print("getting model")
 model = CatBoostRegressor(iterations=150, l2_leaf_reg=17, depth=8)
-#
-# loaded_model = CatBoostRegressor()
-# name = os.path.join(folder_data, "catboost_model")
-# loaded_model.load_model(fname=name, format='cbm')
 
 print("Fitting model")
 # Fit model
@@ -40,15 +37,16 @@ print("Predicting")
 # Get predictions
 pred = model.predict(X_test)
 
-print(pred)
-print(y_test.flatten())
+print("Pred " + pred)
+print("GT" + y_test.flatten())
 
-# loss_fn = nn.MSELoss()
-#
-# loss = loss_fn(torch.Tensor(pred), torch.Tensor(y_test).reshape(-1)).item()
-#
+plt.scatter(pred, y_test, s=1, c="red", alpha=0.5)
+plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()])
+plt.xlabel("pred")
+plt.ylabel("gt")
+plt.savefig("our_plot_s2.png")
 
-mse = mean_squared_error(y_test.flatten(), pred, squared=False)
 
-print(mse)
-model.save_model(os.path.join(folder_data, "catboost_model_depth_8"), format="cbm")
+rmse = mean_squared_error(y_test.flatten(), pred, squared=False)
+
+print(rmse)
