@@ -37,8 +37,8 @@ print("Predicting")
 # Get predictions
 pred = model.predict(X_test)
 
-print("Pred " + pred)
-print("GT" + y_test.flatten())
+print(pred)
+print(y_test.flatten())
 
 plt.scatter(pred, y_test, s=1, c="red", alpha=0.5)
 plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()])
