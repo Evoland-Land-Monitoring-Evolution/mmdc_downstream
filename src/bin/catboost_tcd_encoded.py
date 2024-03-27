@@ -15,6 +15,8 @@ folder_data = "/work/scratch/data/kalinie/TCD/OpenEO_data/t32tnt/encoded/"
 model = "res_2024-03-08_11-09-43"
 model = "res_2024-02-27_14-47-18"
 model = "res_2024-03-06_08-51-27"
+model = "res_"
+
 
 feat_nb = 6
 
@@ -52,7 +54,7 @@ for sat in satellites:
     data = pd.concat(all_df, ignore_index=True)
     print(data.shape)
 
-    data_cols = [c for c in data.columns if ("mu" in c)]  # or ('logvar' in c)]
+    data_cols = [c for c in data.columns if ("mu" in c) or ("logvar" in c)]
     gt_cols = ["TCD"]
 
     median_dict = {}
@@ -73,9 +75,10 @@ for sat in satellites:
                     median_dict[f"{value}_f{f}_m{month}"] = median
 
         data = pd.concat([data[main_cols], pd.DataFrame.from_dict(median_dict)], axis=1)
-        data_cols = median_dict.keys()
+        data_cols = np.asarray(median_dict.keys())
+        assert data_cols.size * 2 * feat_nb
 
-        data = data.fillna(-1)
+    print(data.shape)
 
     print("splitting data")
 
