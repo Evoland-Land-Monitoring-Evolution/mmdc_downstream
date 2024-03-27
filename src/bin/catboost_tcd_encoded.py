@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,7 +14,7 @@ folder_data = "/work/scratch/data/kalinie/TCD/OpenEO_data/t32tnt/encoded/"
 
 model = "res_2024-03-08_11-09-43"
 model = "res_2024-02-27_14-47-18"
-# model = "res_2024-03-06_08-51-27"
+model = "res_2024-03-06_08-51-27"
 
 feat_nb = 6
 
@@ -86,7 +87,6 @@ for sat in satellites:
 
     model_cat = CatBoostRegressor(
         iterations=n_iterations,
-        learning_rate=0.01,
         l2_leaf_reg=leaf,
         depth=depth,
     )
@@ -110,10 +110,13 @@ for sat in satellites:
     plt.xlabel("pred")
     plt.ylabel("gt")
     print(rmse)
+    encoded_folder = f"encoded_d_{depth}_leaf_{leaf}_iter_{n_iterations}_{model}"
+    Path(os.path.join(folder_data, encoded_folder)).mkdir(exist_ok=True, parents=True)
     plt.savefig(
         os.path.join(
             folder_data,
-            f"encoded_d_{depth}_leaf_{leaf}_iter_{n_iterations}_{model}_{sat}.png",
+            encoded_folder,
+            f"{encoded_folder}_{sat}.png",
         )
     )
     plt.close()
