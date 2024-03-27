@@ -54,9 +54,8 @@ class PretrainedMMDCPastis(PretrainedMMDC):
             dem_x = self.standardize_dem(
                 reshape_sits(repeat_dem(data.dem, time=data.img.shape[1]))
             )
-
             return self.compute_aux_embeddings[data.type](
-                reshape_sits(data.angles), meteo_x, dem_x
+                reshape_sits(data.angles).nan_to_num(), meteo_x, dem_x
             )
 
     def compute_aux_embeddings_s1(
@@ -65,6 +64,7 @@ class PretrainedMMDCPastis(PretrainedMMDC):
         meteo: torch.Tensor,
         dem: torch.Tensor,
     ) -> S1S2VAEAuxiliaryEmbeddings:
+        self.model_mmdc.eval()
         """Generate the embeddings for the S1 auxiliary data"""
         s1_a_emb = self.model_mmdc.nets.embedders.s1_angles(s1_angles)
         s1_dem_emb = self.model_mmdc.nets.embedders.s1_dem(dem, s1_a_emb)
@@ -78,6 +78,7 @@ class PretrainedMMDCPastis(PretrainedMMDC):
         dem: torch.Tensor,
     ) -> S1S2VAEAuxiliaryEmbeddings:
         """Generate the embeddings for the S2 auxiliary data"""
+        self.model_mmdc.eval()
         s2_a_emb = self.model_mmdc.nets.embedders.s2_angles(s2_angles)
         s2_dem_emb = self.model_mmdc.nets.embedders.s2_dem(dem, s2_a_emb)
         meteo_emb = self.model_mmdc.nets.embedders.meteo(meteo)
@@ -89,7 +90,6 @@ class PretrainedMMDCPastis(PretrainedMMDC):
             self.model_mmdc.eval()
             batch_size = data.img.shape[0]
             embs = self.prepare_aux_embeddings(data)
-
             latent_s1 = self.model_mmdc.generate_latent_s1(
                 self.standardize_s1(reshape_sits(data.img)), embs
             )
@@ -126,7 +126,7 @@ class PretrainedMMDCPastis(PretrainedMMDC):
             s1_x,
             shift=self.model_mmdc.scales.sen1.shift,
             scale=self.model_mmdc.scales.sen1.scale,
-        )
+        ).nan_to_num()
 
     def standardize_s2(self, s2_x: torch.Tensor) -> torch.Tensor:
         """Standardize S2"""
@@ -141,7 +141,7 @@ class PretrainedMMDCPastis(PretrainedMMDC):
             s2_x,
             shift=self.model_mmdc.scales.sen2.shift,
             scale=self.model_mmdc.scales.sen2.scale,
-        )
+        ).nan_to_num()
 
     def standardize_meteo(self, meteo_x: torch.Tensor) -> torch.Tensor:
         """Standardize meteo"""
@@ -157,7 +157,7 @@ class PretrainedMMDCPastis(PretrainedMMDC):
             meteo_x,
             shift=self.model_mmdc.scales.meteo.shift,
             scale=self.model_mmdc.scales.meteo.scale,
-        )
+        ).nan_to_num()
 
     def standardize_dem(self, dem_x: torch.Tensor) -> torch.Tensor:
         """Standardize DEM"""
@@ -173,4 +173,4 @@ class PretrainedMMDCPastis(PretrainedMMDC):
             dem_x,
             shift=self.model_mmdc.scales.dem.shift,
             scale=self.model_mmdc.scales.dem.scale,
-        )
+        ).nan_to_num()
