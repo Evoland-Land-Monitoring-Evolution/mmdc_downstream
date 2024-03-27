@@ -3,6 +3,8 @@
 
 """Project utils"""
 
+import dataclasses
+from copy import deepcopy
 from dataclasses import dataclass, fields
 
 import torch
@@ -63,5 +65,16 @@ class MMDCPartialBatch:
         """Send data to device"""
         for field in fields(self):
             if field.type is torch.Tensor:
-                setattr(self, field.name, getattr(self, field.name).to_device(device))
+                setattr(self, field.name, getattr(self, field.name).to(device))
         return self
+
+    def __getitem__(self, item: int | list[int]) -> Self:
+        """Get the same slice (batch elements) for each field (tensor)
+        of the data class"""
+        new = deepcopy(self)
+        for key, value in dataclasses.asdict(self).items():
+            if key != "type" and key != "dem":
+                setattr(new, key, value[item])
+            else:
+                setattr(new, key, value)
+        return new
