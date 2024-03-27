@@ -4,6 +4,7 @@
 from pathlib import Path
 
 import numpy as np
+import torch
 from mmdc_singledate.models.datatypes import VAELatentSpace
 
 from mmdc_downstream_pastis.datamodule.pastis_oe import PastisDataModule
@@ -78,7 +79,22 @@ def encode_one_batch(
     print("batch_s1.meteo.shape", batch_s1.meteo.shape)
     print("batch_s1.dem.shape", batch_s1.dem.shape)
 
-    latents1 = mmdc_model.get_latent_s1_mmdc(batch_s1.to_device(mmdc_model.device))
+    if batch_s1.img.shape[1] >= 40 and batch_s1.img.shape[-1] >= 500:
+        batch_s1_0 = batch_s1[:, : int(batch_s1.img.shape[1] / 2)]
+        batch_s1_1 = batch_s1[:, int(batch_s1.img.shape[1] / 2) :]
+        print("batch_s1.img.shape", batch_s1_0.img.shape)
+        latents1_0 = mmdc_model.get_latent_s1_mmdc(
+            batch_s1_0.to_device(mmdc_model.device)
+        )
+        latents1_1 = mmdc_model.get_latent_s1_mmdc(
+            batch_s1_1.to_device(mmdc_model.device)
+        )
+        latents1 = VAELatentSpace(
+            torch.cat([latents1_0.mean, latents1_1.mean], dim=1),
+            torch.cat([latents1_0.logvar, latents1_1.logvar], dim=1),
+        )
+    else:
+        latents1 = mmdc_model.get_latent_s1_mmdc(batch_s1.to_device(mmdc_model.device))
 
     latents1_asc = VAELatentSpace(
         latents1.mean[:, asc_ind], latents1.logvar[:, asc_ind]
@@ -91,7 +107,21 @@ def encode_one_batch(
 
     batch_s2 = MMDCPartialBatch.fill_from(batch_dict["S2"], "S2")
 
-    latents2 = mmdc_model.get_latent_s2_mmdc(batch_s2.to_device(mmdc_model.device))
+    if batch_s2.img.shape[1] >= 50 and batch_s2.img.shape[-1] >= 500:
+        batch_s2_0 = batch_s2[:, : int(batch_s2.img.shape[1] / 2)]
+        batch_s2_1 = batch_s2[:, int(batch_s2.img.shape[1] / 2) :]
+        latents2_0 = mmdc_model.get_latent_s2_mmdc(
+            batch_s2_0.to_device(mmdc_model.device)
+        )
+        latents2_1 = mmdc_model.get_latent_s2_mmdc(
+            batch_s2_1.to_device(mmdc_model.device)
+        )
+        latents2 = VAELatentSpace(
+            torch.cat([latents2_0.mean, latents2_1.mean], dim=1),
+            torch.cat([latents2_0.logvar, latents2_1.logvar], dim=1),
+        )
+    else:
+        latents2 = mmdc_model.get_latent_s2_mmdc(batch_s2.to_device(mmdc_model.device))
     return latents1, latents1_asc, latents1_desc, latents2
 
 
