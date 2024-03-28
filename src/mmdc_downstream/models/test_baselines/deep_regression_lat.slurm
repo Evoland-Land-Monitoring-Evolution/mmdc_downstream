@@ -8,7 +8,7 @@
 #SBATCH --partition=gpu_a100        # partition
 #SBATCH --qos=gpu_all               # QoS
 #SBATCH --time=5:00:00            # Walltime
-#SBATCH --mem-per-cpu=12G          # memory per core
+#SBATCH --mem-per-cpu=24G          # memory per core
 #SBATCH --account=cesbio           # MANDATORY : account (launch myaccounts to list your accounts)
 #SBATCH --export=none              #  to start the job with a clean environnement and source of ~/.bashrc
 
@@ -23,5 +23,5 @@ export WORKING_DIR=${SCRATCH}/MMDC/jobs
 cd ${WORKING_DIR}
 source ${MMDC_INIT}
 
-HYDRA_FULL_ERROR=1 python   ${SRCDIR}/src/mmdc_downstream/models/test_baselines/deep_regression_lat.py
+HYDRA_FULL_ERROR=1 python   ${SRCDIR}/src/mmdc_downstream/models/test_baselines/deep_regression_lat_new.py
  >> output_$SLURM_JOBID.log

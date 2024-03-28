@@ -43,7 +43,9 @@ input_max = np.array(
     ]
 )
 
-path = "/work/scratch/data/kalinie/MMDC/jobs/data_values_exp.csv"
+path = (
+    "/work/scratch/data/kalinie/MMDC/jobs/data_values_baseline_2024-02-27_14-47-18.csv"
+)
 
 df = pd.read_csv(path)
 
@@ -65,6 +67,7 @@ df = df.rename(
 # train_data = \
 #     ["s2_input", "exp_lat", "s1_lat", "s2_lat", 's1_asc', "s1_desc", "s1_mask"]
 train_data = ["s1_asc", "s1_desc", "s1_mask"]
+train_data = ["s2_lat"]
 
 train_col_all = [
     i for i in df.columns for data_type in train_data if i.startswith(data_type)
@@ -119,36 +122,64 @@ for data_type in train_data:
 
 # y_test_denorm = denormalize(y_test, lai_min, lai_max)
 
-nrows = 1
-ncols = 2
-fig, axes = plt.subplots(
-    nrows=nrows,
-    ncols=ncols,
-    sharex=False,
-    sharey=False,
-    figsize=(20, nrows * 3.5 + 2),
-)
 
 loss_fn = nn.MSELoss()  # mean square error
 
-for i in range(nrows):
-    for j in range(ncols):
-        key = list(results.keys())[i * ncols + j]
-        pred = denormalize(results[key], lai_min, lai_max)
-        axis = axes[j]
-        axis.set_title(key)
-        axis.scatter(y_test_denorm[key], pred, s=0.1)
-        axis.set_xlabel(
-            "loss="
-            + str(
-                np.round(
-                    loss_fn(
-                        torch.Tensor(pred), torch.Tensor(y_test_denorm[key])
-                    ).item(),
-                    3,
+if len(results.keys()) > 1:
+    nrows = 1
+    ncols = 2
+    fig, axes = plt.subplots(
+        nrows=nrows,
+        ncols=ncols,
+        sharex=False,
+        sharey=False,
+        figsize=(20, nrows * 3.5 + 2),
+    )
+
+    for i in range(nrows):
+        for j in range(ncols):
+            key = list(results.keys())[i * ncols + j]
+            pred = denormalize(results[key], lai_min, lai_max)
+            axis = axes[j]
+            axis.set_title(key)
+            axis.scatter(y_test_denorm[key], pred, s=0.1)
+            axis.set_xlabel(
+                "loss="
+                + str(
+                    np.round(
+                        loss_fn(
+                            torch.Tensor(pred), torch.Tensor(y_test_denorm[key])
+                        ).item(),
+                        3,
+                    )
                 )
             )
+            axis.plot(y_test_denorm[key], y_test_denorm[key])
+    plt.savefig("random_forest.png")
+    plt.show()
+else:
+    pred = denormalize(results[list(results.keys())[0]], lai_min, lai_max)
+
+    print("max", pred.max())
+    print("min", pred.min())
+
+    loss_fn = nn.MSELoss()
+
+    plt.scatter(y_test_denorm[list(results.keys())[0]], pred, s=0.1)
+    plt.plot(
+        y_test_denorm[list(results.keys())[0]], y_test_denorm[list(results.keys())[0]]
+    )
+    plt.xlabel(
+        "loss="
+        + str(
+            np.round(
+                loss_fn(
+                    torch.Tensor(pred),
+                    torch.Tensor(y_test_denorm[list(results.keys())[0]]),
+                ).item(),
+                3,
+            )
         )
-        axis.plot(y_test_denorm[key], y_test_denorm[key])
-plt.savefig("random_forest.png")
-plt.show()
+    )
+    plt.savefig(f"random_forest_{list(results.keys())[0]}.png")
+    plt.show()
