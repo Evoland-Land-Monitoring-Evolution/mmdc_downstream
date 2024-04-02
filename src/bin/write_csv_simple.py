@@ -196,7 +196,7 @@ for type, files in files_dict.items():
 
     csv_name = f"data_values_{model_type}_{pretrained_path.split('/')[-1]}_{type}.csv"
 
-    for enum, file in enumerate(files[:-1]):
+    for enum, file in enumerate(files):
         log.info(f"{file}")
         tensors = load_files([file])
 
