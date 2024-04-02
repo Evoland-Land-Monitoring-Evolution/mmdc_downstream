@@ -2,6 +2,7 @@
 # Copyright: (c) 2024 CESBIO / Centre National d'Etudes Spatiales
 """ Lightning module for lai regression prediction """
 
+import logging
 from typing import Any
 
 import torch
@@ -21,6 +22,8 @@ from ..components.metrics import compute_val_metrics
 from ..datatypes import OutputLAI
 from ..torch.lai_regression import MMDCDownstreamRegressionModule
 from .base import MMDCDownstreamBaseLitModule
+
+logging.getLogger().setLevel(logging.INFO)
 
 
 class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
@@ -49,6 +52,7 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
 
         self.model_snap = model_snap
         self.model_snap.set_snap_weights()
+        self.model_snap.eval()
         self.input_data = input_data
 
         self.losses_list = losses_list
@@ -131,16 +135,32 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
         batch: MMDCBatch = destructure_batch(batch)
         lai_gt = self.compute_gt(batch)
         reg_input = self.get_regression_input(batch)
+        mask = batch.s2_m
+        if "lat" in self.input_data or "experts" in self.input_data:
+            H, W = reg_input.shape[-2:]
+            reg_input = reg_input[
+                :, :, self.margin : H - self.margin, self.margin : W - self.margin
+            ]
+            lai_gt = lai_gt[
+                :, :, self.margin : H - self.margin, self.margin : W - self.margin
+            ]
+            mask = mask[
+                :, :, self.margin : H - self.margin, self.margin : W - self.margin
+            ]
         lai_pred = self.forward(reg_input)
+        logging.info(f"MMDC {self.model_mmdc.model_mmdc.training}")
+        logging.info(f"LAI NN {self.model.training}")
         losses = compute_losses(
             preds=lai_pred,
             target=lai_gt,
-            mask=batch.s2_m,
-            margin=self.margin,
+            mask=mask,
             losses_list=self.losses_list,
             bin_weights=self.bin_weights,
             denorm_min_max=(self.model_snap.variable_min, self.model_snap.variable_max),
         )
+        logging.info(torch.min(lai_gt[~torch.isnan(lai_gt)]))
+        logging.info(torch.max(lai_gt[~torch.isnan(lai_gt)]))
+        logging.info(torch.mean(lai_gt[~torch.isnan(lai_gt)]))
 
         if stage != "train":
             metrics = compute_val_metrics(
@@ -150,8 +170,7 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
                 target=denormalize(
                     lai_gt, self.model_snap.variable_min, self.model_snap.variable_max
                 ),
-                mask=batch.s2_m,
-                margin=self.margin,
+                mask=mask,
                 metrics_list=self.metrics_list,
             )
             return losses, metrics

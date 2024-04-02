@@ -18,14 +18,8 @@ def compute_val_metrics(
     """Computes regression metrics"""
     H, W = preds.shape[-2:]
 
-    mask = mask[:, :, margin : H - margin, margin : W - margin]
-
-    preds = mask_and_flatten(
-        preds[:, :, margin : H - margin, margin : W - margin], mask
-    )
-    target = mask_and_flatten(
-        target[:, :, margin : H - margin, margin : W - margin], mask
-    )
+    preds = mask_and_flatten(preds, mask)
+    target = mask_and_flatten(target, mask)
 
     metrics_dict = {}
     if "RSE" in metrics_list or "rse" in metrics_list:

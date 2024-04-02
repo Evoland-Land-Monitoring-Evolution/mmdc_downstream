@@ -24,21 +24,14 @@ def compute_losses(
     target: torch.Tensor,
     mask: torch.Tensor,
     losses_list: list[str],
-    margin: int = 0,
     bin_weights: torch.Tensor | None = None,
     denorm_min_max: tuple[torch.Tensor, torch.Tensor] = None,
 ) -> dict[str, torch.Tensor]:
     """Computes regression losses"""
     H, W = preds.shape[-2:]
 
-    mask = mask[:, :, margin : H - margin, margin : W - margin]
-
-    preds = mask_and_flatten(
-        preds[:, :, margin : H - margin, margin : W - margin], mask
-    )
-    target = mask_and_flatten(
-        target[:, :, margin : H - margin, margin : W - margin], mask
-    )
+    preds = mask_and_flatten(preds, mask)
+    target = mask_and_flatten(target, mask)
 
     losses_dict = {}
 
