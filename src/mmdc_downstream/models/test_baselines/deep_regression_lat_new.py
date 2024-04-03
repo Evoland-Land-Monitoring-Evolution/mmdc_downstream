@@ -150,19 +150,17 @@ for data_type in selected_data:
         y_test = torch.tensor(y_test.values, dtype=torch.float32).reshape(-1, 1)
 
         model = MLP(in_feat=X_train.shape[1])
-        print(
-            denormalize(y_train, lai_min, lai_max).min(),
-            denormalize(y_train, lai_min, lai_max).max(),
-        )
+        logging.info(denormalize(y_train, lai_min, lai_max).min().cpu().numpy())
+        logging.info(denormalize(y_train, lai_min, lai_max).max().cpu().numpy())
         train_dl = DataLoader(
             TensorDataset(X_train, y_train),
-            batch_size=200 * 64 * 64,
+            batch_size=64 * 64,
             shuffle=True,
             num_workers=4,
         )
-        print(
-            denormalize(y_val, lai_min, lai_max).min(),
-            denormalize(y_train, lai_min, lai_max).max(),
+        logging.info(denormalize(y_val, lai_min, lai_max).min().cpu().numpy())
+        logging.info(
+            denormalize(y_val, lai_min, lai_max).max().cpu().numpy(),
         )
         val_dl = DataLoader(
             TensorDataset(X_val, y_val),
@@ -170,6 +168,8 @@ for data_type in selected_data:
             shuffle=False,
             num_workers=4,
         )
+        logging.info(denormalize(y_test, lai_min, lai_max).min().cpu().numpy())
+        logging.info(denormalize(y_test, lai_min, lai_max).max().cpu().numpy())
         test_dl = DataLoader(
             TensorDataset(X_test, y_test),
             batch_size=400 * 64 * 64,
@@ -179,8 +179,8 @@ for data_type in selected_data:
 
         # loss function and optimizer
         loss_fn = MeanSquaredError(squared=False)  # root mean square error
-        optimizer = optim.Adam(model.parameters(), lr=0.00001)
-
+        optimizer = optim.Adam(model.parameters(), lr=0.001)
+        logging.info(f'lr={optimizer.param_groups[0]["lr"]}')
         # training parameters
         n_epochs = 50  # number of epochs to run
 
@@ -204,7 +204,14 @@ for data_type in selected_data:
         # Run the training loop
         for epoch in range(n_epochs):  # 5 epochs at maximum
             if epoch == 5:
+                optimizer.param_groups[0]["lr"] = 0.0001
+                logging.info(f"epoch={epoch}")
+                logging.info(f'lr={optimizer.param_groups[0]["lr"]}')
+
+            if epoch == 10:
+                logging.info(f"epoch={epoch}")
                 optimizer.param_groups[0]["lr"] = 0.00001
+                logging.info(f'lr={optimizer.param_groups[0]["lr"]}')
 
             # Print epoch
             logging.info(f"Starting epoch {epoch + 1}")
