@@ -32,28 +32,16 @@ class RegressionModel:
 
 @dataclass
 class MMDCModel:
+    """Class for loading pretrained MMDC model"""
+
     pretrained_path: str | Path | None
     model_name: str | Path | None
 
 
-# @dataclass
-# class MMDCRegBatch:
-#     # pylint: disable=too-many-instance-attributes
-#     """Lightning module batch"""
-#
-#     s2_x: torch.Tensor
-#     s2_m: torch.Tensor
-#     s2_a: torch.Tensor
-#     s1_x: torch.Tensor
-#     s1_vm: torch.Tensor
-#     s1_a: torch.Tensor
-#     meteo_x: torch.Tensor
-#     dem_x: torch.Tensor
-#     lai_y: torch.Tensor
-
-
 @dataclass
 class OutputLAI:
+    """LAI output"""
+
     lai_pred: torch.Tensor
     latent: torch.Tensor
     lai_gt: torch.Tensor | None = None
@@ -61,9 +49,11 @@ class OutputLAI:
 
 @dataclass
 class LatentPred:
-    latent_S1_mu: torch.Tensor
-    latent_S1_logvar: torch.Tensor
-    latent_S2_mu: torch.Tensor
-    latent_S2_logvar: torch.Tensor
+    """Predicted latent variables"""
+
+    latent_s1_mu: torch.Tensor
+    latent_s1_logvar: torch.Tensor
+    latent_s2_mu: torch.Tensor
+    latent_s2_logvar: torch.Tensor
     latent_experts_mu: torch.Tensor | None = None
     latent_experts_logvar: torch.Tensor | None = None
