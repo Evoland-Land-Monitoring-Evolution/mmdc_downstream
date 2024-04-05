@@ -125,7 +125,9 @@ def get_stats(stats: MMDCDataStats) -> MMDCShiftScales:
 
 dlc, dm = build_data_loader()
 results_path = "/work/scratch/data/kalinie/MMDC/results"
-model_folder = "latent/checkpoints/mmdc_full/2024-02-27_14-47-18"
+# model_folder = "latent/checkpoints/mmdc_full/2024-02-27_14-47-18"
+model_folder = "latent/checkpoints/mmdc_full_tiny/2024-04-02_21-33-55"
+
 pretrained_path = os.path.join(results_path, model_folder)
 model_name = "last"
 model_type = "baseline"
@@ -295,25 +297,25 @@ for type, files in files_dict.items():
             )
             latent = model_mmdc.get_latent_mmdc(batch)
             s1_lat_mu = (
-                rearrange(latent.latent_S1_mu, "b c h w -> (b h w) c")[~mask][idx]
+                rearrange(latent.latent_s1_mu, "b c h w -> (b h w) c")[~mask][idx]
                 .to(torch.float32)
                 .cpu()
                 .numpy()
             )
             s1_lat_logvar = (
-                rearrange(latent.latent_S1_logvar, "b c h w -> (b h w) c")[~mask][idx]
+                rearrange(latent.latent_s1_logvar, "b c h w -> (b h w) c")[~mask][idx]
                 .to(torch.float32)
                 .cpu()
                 .numpy()
             )
             s2_lat_mu = (
-                rearrange(latent.latent_S2_mu, "b c h w -> (b h w) c")[~mask][idx]
+                rearrange(latent.latent_s2_mu, "b c h w -> (b h w) c")[~mask][idx]
                 .to(torch.float32)
                 .cpu()
                 .numpy()
             )
             s2_lat_logvar = (
-                rearrange(latent.latent_S2_logvar, "b c h w -> (b h w) c")[~mask][idx]
+                rearrange(latent.latent_s2_logvar, "b c h w -> (b h w) c")[~mask][idx]
                 .to(torch.float32)
                 .cpu()
                 .numpy()
