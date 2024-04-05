@@ -1,4 +1,12 @@
-# https://src.koda.cnrs.fr/yoel.zerah.1/prosailvae/-/blob/pvae/bvnet_regression/bvnet.py?ref_type=heads
+#!/usr/bin/env python3
+"""
+Code to produce LAI GT with SNAP model.
+This code is taken from
+https://src.koda.cnrs.fr/yoel.zerah.1/prosailvae/-/blob/pvae/bvnet_regression/bvnet.py?ref_type=heads
+"""
+
+# pylint: skip-file
+#  type: ignore
 
 import os
 from collections import OrderedDict
