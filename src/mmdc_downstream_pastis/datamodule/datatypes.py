@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Literal
 
+import numpy as np
 import torch
 import torch.utils.data as tdata
 
@@ -123,10 +124,6 @@ class ModuleInput:
 class OneSatellitePatch:
     sits: MMDCDataStruct
     input_doy: torch.Tensor
-    # target: torch.Tensor
     padd_index: torch.Tensor | None
     padd_val: torch.Tensor
-    # item: int
-    # mask: torch.Tensor | None = None
-    # s2_path: str | None = None
-    true_doy: torch.Tensor | None = None
+    true_doy: np.ndarray | None

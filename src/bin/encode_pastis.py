@@ -32,7 +32,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--dataset_path_oe",
         type=str,
         help="OE data folder",
-        default="/work/CESBIO/projects/DeepChange/Ekaterina/Pastis_OE"
+        default=f"{os.environ['WORK']}/scratch_data/PASTIS_OE"
         # required=True
     )
 
@@ -40,7 +40,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--dataset_path_pastis",
         type=str,
         help="Original Pastis data folder",
-        default="/work/CESBIO/projects/DeepChange/Iris/PASTIS"
+        default=f"{os.environ['WORK']}/scratch_data/PASTIS"
         # required=True
     )
 
@@ -64,8 +64,8 @@ def get_parser() -> argparse.ArgumentParser:
         "--pretrained_path",
         type=str,
         help="list of available tiles",
-        default="/work/scratch/data/kalinie/MMDC/results/latent/checkpoints/"
-        "mmdc_full/2024-02-05_09-45-27"
+        default=f"{os.environ['WORK']}/results/MMDC/results/latent/checkpoints/"
+        "mmdc_full_tiny/2024-04-05_14-58-22"
         # required=False,
     )
 
@@ -73,7 +73,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--model_name",
         type=str,
         help="Name of the pretrained model (last or epoch_XXX)",
-        default="last"
+        default="epoch_129"
         # required=False,
     )
 

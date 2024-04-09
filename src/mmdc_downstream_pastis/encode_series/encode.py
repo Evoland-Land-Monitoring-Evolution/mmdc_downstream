@@ -4,11 +4,24 @@
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import torch
 from mmdc_singledate.models.datatypes import VAELatentSpace
 
 from mmdc_downstream_pastis.datamodule.pastis_oe import PastisDataModule
 from mmdc_downstream_pastis.utils.utils import MMDCPartialBatch
+
+
+def back_to_date(days_int, ref_date):
+    return [
+        pd.to_datetime(
+            [
+                pd.Timedelta(dd, "d") + pd.to_datetime(ref_date)
+                for dd in days_int.numpy()[d]
+            ]
+        )
+        for d in range(len(days_int))
+    ]
 
 
 def build_dm(
@@ -29,15 +42,33 @@ def build_dm(
 def create_s1(batch_asc, batch_desc, days_asc, days_desc):
     bs, t, ch, h, w = batch_asc.img.shape
     if bs == 1:
+        days_asc, days_desc = days_asc[0], days_desc[0]
         common_days = np.union1d(days_asc, days_desc)
-        # torch.cat((a, b)).unique()
+        s1_asc_desc = pd.merge_asof(
+            pd.DatetimeIndex(days_asc).to_frame(name="asc"),
+            pd.DatetimeIndex(days_desc).to_frame(name="desc"),
+            left_index=True,
+            right_index=True,
+            tolerance=pd.Timedelta(1, "D"),
+            direction="nearest",
+        )
+        s1_desc_asc = pd.merge_asof(
+            pd.DatetimeIndex(days_desc).to_frame(name="desc"),
+            pd.DatetimeIndex(days_asc).to_frame(name="asc"),
+            left_index=True,
+            right_index=True,
+            tolerance=pd.Timedelta(1, "D"),
+            direction="nearest",
+        )
 
-        _, asc_ind, _ = np.intersect1d(
-            common_days, days_asc, assume_unique=True, return_indices=True
+        df_merged_days = (
+            pd.concat([s1_asc_desc, s1_desc_asc])
+            .sort_index()
+            .drop_duplicates()
+            .reset_index()
         )
-        _, desc_ind, _ = np.intersect1d(
-            common_days, days_desc, assume_unique=True, return_indices=True
-        )
+        asc_ind = df_merged_days.index[df_merged_days["asc"].notnull()].values
+        desc_ind = df_merged_days.index[df_merged_days["desc"].notnull()].values
 
         batch_s1 = MMDCPartialBatch.create_empty_s1_with_shape(
             batch_size=bs,
@@ -66,12 +97,15 @@ def create_s1(batch_asc, batch_desc, days_asc, days_desc):
 
 
 def encode_one_batch(
-    mmdc_model, batch_dict
+    mmdc_model, batch_dict, ref_date=None
 ) -> tuple[VAELatentSpace, VAELatentSpace, VAELatentSpace, VAELatentSpace]:
     batch_asc = MMDCPartialBatch.fill_from(batch_dict["S1_ASC"], "S1")
     batch_desc = MMDCPartialBatch.fill_from(batch_dict["S1_DESC"], "S1")
     days_asc = batch_dict["S1_ASC"].true_doy
     days_desc = batch_dict["S1_DESC"].true_doy
+    if ref_date is not None:
+        days_asc = back_to_date(days_asc, ref_date)
+        days_desc = back_to_date(days_desc, ref_date)
     batch_s1, asc_ind, desc_ind = create_s1(batch_asc, batch_desc, days_asc, days_desc)
 
     print("batch_s1.img.shape", batch_s1.img.shape)
@@ -133,5 +167,5 @@ def encode_series(mmdc_model, dataset_path_oe, dataset_path_pastis, sats):
     for batch_dict, target, mask, id_patch in loader:
         print(id_patch)
         latents1, latents1_asc, latents1_desc, latents2 = encode_one_batch(
-            mmdc_model, batch_dict
+            mmdc_model, batch_dict, ref_date=dm.reference_date
         )

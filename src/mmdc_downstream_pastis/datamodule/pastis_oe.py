@@ -343,7 +343,8 @@ class PASTISDataset(tdata.Dataset):
         # Retrieve date sequences
         dates = {s: (a.doy if a is not None else None) for s, a in data_pastis.items()}
         true_doys = {
-            s: (a.true_doy if a is not None else None) for s, a in data_pastis.items()
+            s: (a.dates_dt.values[:, 0] if a is not None else None)
+            for s, a in data_pastis.items()
         }
         # if self.extract_true_doy:
         #     data_all.dates_dt.index
@@ -404,7 +405,12 @@ class PASTISDataset(tdata.Dataset):
         if (sits := data[sat]) is not None:
             doy = dates[sat]
             if self.extract_true_doy:
-                true_doy = torch.Tensor(true_doys[sat])
+                true_doy = torch.Tensor(
+                    (
+                        pd.to_datetime(true_doys[sat])
+                        - pd.to_datetime(self.reference_date)
+                    ).days
+                )
             else:
                 true_doy = None
             t, c, h, w = sits.data.img.shape
