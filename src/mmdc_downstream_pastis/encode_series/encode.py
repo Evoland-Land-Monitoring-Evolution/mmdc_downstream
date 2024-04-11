@@ -42,7 +42,36 @@ def build_dm(
     )
 
 
-def create_s1(batch_asc, batch_desc, days_asc, days_desc):
+def fill_batch_s1(
+    batch_s1: MMDCPartialBatch, asc_ind, desc_ind, batch_asc, batch_desc
+) -> MMDCPartialBatch:
+    only_in_desc = desc_ind[~np.in1d(desc_ind, asc_ind)]
+
+    if len(asc_ind) > 0:
+        batch_s1.img[:, asc_ind, :3, :, :] = batch_asc.img
+        batch_s1.angles[:, asc_ind, :1, :, :] = batch_asc.angles
+        batch_s1.mask[:, asc_ind, :1, :, :] = batch_asc.mask
+        batch_s1.meteo[:, asc_ind, :, :, :] = batch_asc.meteo
+        batch_s1.dem = batch_asc.dem
+    if len(desc_ind) > 0:
+        batch_s1.img[:, desc_ind, 3:, :, :] = batch_desc.img
+        batch_s1.angles[:, desc_ind, 1:, :, :] = batch_desc.angles
+        batch_s1.mask[:, desc_ind, 1:, :, :] = batch_desc.mask
+        batch_s1.meteo[:, only_in_desc, :, :, :] = batch_desc.meteo[
+            :, ~np.in1d(desc_ind, asc_ind)
+        ]
+        if len(asc_ind) == 0:
+            batch_s1.dem = batch_desc.dem
+
+    return batch_s1
+
+
+def create_s1(
+    batch_asc: MMDCPartialBatch,
+    batch_desc: MMDCPartialBatch,
+    days_asc: np.ndarray,
+    days_desc: np.ndarray,
+) -> tuple[MMDCPartialBatch, np.ndarray, np.ndarray, np.ndarray]:
     bs, t, ch, h, w = batch_asc.img.shape
     if bs == 1:
         days_asc, days_desc = days_asc[0], days_desc[0]
@@ -81,19 +110,7 @@ def create_s1(batch_asc, batch_desc, days_asc, days_desc):
             nb_mask=2,
             nb_angles=2,
         )
-        if len(asc_ind) > 0:
-            batch_s1.img[:, asc_ind, :3, :, :] = batch_asc.img
-            batch_s1.angles[:, asc_ind, :1, :, :] = batch_asc.angles
-            batch_s1.mask[:, asc_ind, :1, :, :] = batch_asc.mask
-            batch_s1.meteo[:, asc_ind, :, :, :] = batch_asc.meteo
-            batch_s1.dem = batch_asc.dem
-        if len(desc_ind) > 0:
-            batch_s1.img[:, desc_ind, 3:, :, :] = batch_desc.img
-            batch_s1.angles[:, desc_ind, 1:, :, :] = batch_desc.angles
-            batch_s1.mask[:, desc_ind, 1:, :, :] = batch_desc.mask
-            batch_s1.meteo[:, desc_ind, :, :, :] = batch_desc.meteo
-            if len(asc_ind) == 0:
-                batch_s1.dem = batch_desc.dem
+        batch_s1 = fill_batch_s1(batch_s1, asc_ind, desc_ind, batch_asc, batch_desc)
 
         return batch_s1, asc_ind, desc_ind, days_s1
 
