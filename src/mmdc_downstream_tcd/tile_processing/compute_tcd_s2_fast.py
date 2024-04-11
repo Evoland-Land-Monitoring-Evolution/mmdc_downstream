@@ -1,4 +1,3 @@
-import json
 import os
 from pathlib import Path
 
@@ -8,6 +7,7 @@ import torch
 from encode_tile import generate_coord_matrix, get_s2, get_sliced_modality, get_slices
 
 from mmdc_downstream.utils import get_logger
+from mmdc_downstream_tcd.tile_processing.utils import get_tcd_gt
 
 log = get_logger(__name__)
 
@@ -20,40 +20,6 @@ folder_data = "/work/scratch/data/kalinie/TCD/OpenEO_data/t32tnt/"
 months_folders = ["3", "4", "5", "6", "7", "8", "9", "10"]
 window = 500
 gt_path = "/work/scratch/data/kalinie/TCD/OpenEO_data/SAMPLES_t32tnt_32632.geojson"
-
-tcd_values = pd.DataFrame(columns=["TCD", "x", "y", "x_round", "y_round"])
-with open(gt_path) as f:
-    data = json.load(f)
-
-for feature in data["features"]:
-    x, y = feature["geometry"]["coordinates"][0]
-    tcd = feature["properties"]["TCD"]
-
-    x_r = round(x / 5) * 5
-    y_r = round(y / 5) * 5
-    if x_r % 10 == 0:
-        x_r -= 5
-    if y_r % 10 == 0:
-        y_r -= 5
-
-    if x - x_r > 5:
-        x_r += 10
-
-    if y - y_r > 5:
-        y_r += 10
-
-    # x_r = int(x / 10) * 10 - 5
-    # y_r = int(y / 10) * 10 - 5
-    tcd_values = pd.concat(
-        [
-            tcd_values,
-            pd.DataFrame(
-                [{"TCD": tcd, "x": x, "y": y, "x_round": x_r, "y_round": y_r}]
-            ),
-        ],
-        ignore_index=True,
-    )
-print(tcd_values.head(50))
 
 
 def get_s2_gt(folder_data: str | Path, months_folders: list[str | int], window: int):
@@ -72,6 +38,8 @@ def get_s2_gt(folder_data: str | Path, months_folders: list[str | int], window: 
     s2_dates = np.load(os.path.join(folder_data, "dates.npy"))
     print(s2_dates)
     log.info("Done with clouds")
+
+    tcd_values = get_tcd_gt(gt_path)
 
     all_slices_gt = []
 
