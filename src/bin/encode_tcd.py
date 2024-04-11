@@ -37,7 +37,8 @@ def get_parser() -> argparse.ArgumentParser:
         "--folder_data",
         type=str,
         help="input folder",
-        default="/work/CESBIO/projects/DeepChange/Ekaterina/TCD/OpenEO_data/t32tnt/"
+        # default="/work/CESBIO/projects/DeepChange/Ekaterina/TCD/OpenEO_data/t32tnt/",
+        default=f"{os.environ['SCRATCH']}/scratch_data/TCD/OpenEO_data/t32tnt/"
         # required=True
     )
 
@@ -45,7 +46,8 @@ def get_parser() -> argparse.ArgumentParser:
         "--output_path",
         type=str,
         help="output folder",
-        default="/work/scratch/data/kalinie/TCD/OpenEO_data/t32tnt/encoded"
+        # default="/work/scratch/data/kalinie/TCD/OpenEO_data/t32tnt/encoded"
+        default=f"{os.environ['WORK']}/results/TCD/t32tnt/encoded"
         # required=True
     )
 
@@ -53,7 +55,8 @@ def get_parser() -> argparse.ArgumentParser:
         "--gt_path",
         type=str,
         help="path to geojson ground truth file",
-        default="/work/scratch/data/kalinie/TCD/OpenEO_data/SAMPLES_t32tnt_32632.geojson",  # noqa: E501
+        # default="/work/scratch/data/kalinie/TCD/OpenEO_data/SAMPLES_t32tnt_32632.geojson",  # noqa: E501
+        default=f"{os.environ['SCRATCH']}/scratch_data/TCD/SAMPLES_t32tnt_32632.geojson",  # noqa: E501
         # required=True
     )
 
@@ -77,18 +80,15 @@ def get_parser() -> argparse.ArgumentParser:
         "--pretrained_path",
         type=str,
         help="list of available tiles",
-        default="/work/scratch/data/kalinie/MMDC/results/latent/checkpoints/"
-        # "mmdc_mask/2024-03-08_11-09-43"
-        # "mmdc_full/2024-02-27_14-47-18"
-        # "mmdc_full/2024-03-06_08-51-27"
-        "mmdc_moe_no_mask/2024-03-25_17-13-46",
+        default=f"{os.environ['WORK']}/results/MMDC/results/latent/checkpoints/"
+        "mmdc_full_tiny/2024-04-05_14-58-22",
     )
 
     arg_parser.add_argument(
         "--model_name",
         type=str,
         help="Name of the pretrained model (last or epoch_XXX)",
-        default="last"
+        default="epoch_129"
         # required=False,
     )
 
@@ -135,4 +135,5 @@ if __name__ == "__main__":
         output_path,
         mmdc_model,
         args.gt_path,
+        s1_join=True,
     )
