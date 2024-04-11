@@ -1,14 +1,30 @@
 #!/usr/bin/env python3
 # Copyright: (c) 2023 CESBIO / Centre National d'Etudes Spatiales
 
+import logging
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import torch
 from mmdc_singledate.models.datatypes import VAELatentSpace
 
 from mmdc_downstream_pastis.datamodule.pastis_oe import PastisDataModule
 from mmdc_downstream_pastis.utils.utils import MMDCPartialBatch
+
+log = logging.getLogger(__name__)
+
+
+def back_to_date(days_int, ref_date):
+    return [
+        pd.to_datetime(
+            [
+                pd.Timedelta(dd, "d") + pd.to_datetime(ref_date)
+                for dd in days_int.numpy()[d]
+            ]
+        )
+        for d in range(len(days_int))
+    ]
 
 
 def build_dm(
@@ -29,19 +45,36 @@ def build_dm(
 def create_s1(batch_asc, batch_desc, days_asc, days_desc):
     bs, t, ch, h, w = batch_asc.img.shape
     if bs == 1:
-        common_days = np.union1d(days_asc, days_desc)
-        # torch.cat((a, b)).unique()
+        days_asc, days_desc = days_asc[0], days_desc[0]
+        s1_asc_desc = pd.merge_asof(
+            pd.DatetimeIndex(days_asc).to_frame(name="asc"),
+            pd.DatetimeIndex(days_desc).to_frame(name="desc"),
+            left_index=True,
+            right_index=True,
+            tolerance=pd.Timedelta(1, "D"),
+            direction="nearest",
+        )
+        s1_desc_asc = pd.merge_asof(
+            pd.DatetimeIndex(days_desc).to_frame(name="desc"),
+            pd.DatetimeIndex(days_asc).to_frame(name="asc"),
+            left_index=True,
+            right_index=True,
+            tolerance=pd.Timedelta(1, "D"),
+            direction="nearest",
+        )
 
-        _, asc_ind, _ = np.intersect1d(
-            common_days, days_asc, assume_unique=True, return_indices=True
+        df_merged_days = (
+            pd.concat([s1_asc_desc, s1_desc_asc]).sort_index().drop_duplicates()
         )
-        _, desc_ind, _ = np.intersect1d(
-            common_days, days_desc, assume_unique=True, return_indices=True
-        )
+        days_s1 = df_merged_days.index.values
+        log.info(days_s1)
+        df_merged_days = df_merged_days.reset_index()
+        asc_ind = df_merged_days.index[df_merged_days["asc"].notnull()].values
+        desc_ind = df_merged_days.index[df_merged_days["desc"].notnull()].values
 
         batch_s1 = MMDCPartialBatch.create_empty_s1_with_shape(
             batch_size=bs,
-            times=len(common_days),
+            times=len(days_s1.reshape(-1)),
             height=h,
             width=w,
             nb_channels=6,
@@ -62,17 +95,29 @@ def create_s1(batch_asc, batch_desc, days_asc, days_desc):
             if len(asc_ind) == 0:
                 batch_s1.dem = batch_desc.dem
 
-        return batch_s1, asc_ind, desc_ind
+        return batch_s1, asc_ind, desc_ind, days_s1
 
 
 def encode_one_batch(
-    mmdc_model, batch_dict
-) -> tuple[VAELatentSpace, VAELatentSpace, VAELatentSpace, VAELatentSpace]:
+    mmdc_model, batch_dict, ref_date=None
+) -> tuple[
+    VAELatentSpace,
+    VAELatentSpace,
+    VAELatentSpace,
+    VAELatentSpace,
+    torch.Tensor,
+    np.ndarray,
+]:
     batch_asc = MMDCPartialBatch.fill_from(batch_dict["S1_ASC"], "S1")
     batch_desc = MMDCPartialBatch.fill_from(batch_dict["S1_DESC"], "S1")
     days_asc = batch_dict["S1_ASC"].true_doy
     days_desc = batch_dict["S1_DESC"].true_doy
-    batch_s1, asc_ind, desc_ind = create_s1(batch_asc, batch_desc, days_asc, days_desc)
+    if ref_date is not None:
+        days_asc = back_to_date(days_asc, ref_date)
+        days_desc = back_to_date(days_desc, ref_date)
+    batch_s1, asc_ind, desc_ind, days_s1 = create_s1(
+        batch_asc, batch_desc, days_asc, days_desc
+    )
 
     print("batch_s1.img.shape", batch_s1.img.shape)
     print("batch_s1.angles.shape", batch_s1.angles.shape)
@@ -122,7 +167,10 @@ def encode_one_batch(
         )
     else:
         latents2 = mmdc_model.get_latent_s2_mmdc(batch_s2.to_device(mmdc_model.device))
-    return latents1, latents1_asc, latents1_desc, latents2
+
+    batch_s1_mask = (batch_s1.mask.sum(2) > 1).unsqueeze(2)
+
+    return latents1, latents1_asc, latents1_desc, latents2, batch_s1_mask, days_s1
 
 
 def encode_series(mmdc_model, dataset_path_oe, dataset_path_pastis, sats):
@@ -132,6 +180,11 @@ def encode_series(mmdc_model, dataset_path_oe, dataset_path_pastis, sats):
     loader = dm.instanciate_data_loader(dataset, shuffle=False, drop_last=False)
     for batch_dict, target, mask, id_patch in loader:
         print(id_patch)
-        latents1, latents1_asc, latents1_desc, latents2 = encode_one_batch(
-            mmdc_model, batch_dict
-        )
+        (
+            latents1,
+            latents1_asc,
+            latents1_desc,
+            latents2,
+            batch_s1_mask,
+            days_s1,
+        ) = encode_one_batch(mmdc_model, batch_dict, ref_date=dm.reference_date)

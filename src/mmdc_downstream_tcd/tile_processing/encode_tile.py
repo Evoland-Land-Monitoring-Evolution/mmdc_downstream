@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any, Literal
@@ -16,7 +17,6 @@ from mmdc_singledate.datamodules.components.datamodule_components import (
     dem_height_aspect,
 )
 
-from mmdc_downstream.utils import get_logger
 from mmdc_downstream_pastis.datamodule.datatypes import PastisBatch
 from mmdc_downstream_pastis.datamodule.utils import MMDCDataStruct
 from mmdc_downstream_pastis.encode_series.encode import encode_one_batch
@@ -33,9 +33,7 @@ METEO_DAYS_BEFORE = 4
 METEO_DAYS_AFTER = 1
 BANDS_S2 = ["B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B11", "B12"]
 
-log = get_logger(__name__)
-
-gt_path = "/work/scratch/data/kalinie/TCD/OpenEO_data/SAMPLES_t32tnt_32632.geojson"
+log = logging.getLogger(__name__)
 
 satellites = ["s2", "s1_asc", "s1_desc"]
 
@@ -211,10 +209,70 @@ def check_s1_nans(
         ) as xarray_ds:
             array = torch.Tensor(xarray_ds.VV.values)
             nans = torch.isnan(array).to(torch.float)
-            nan_ratio = torch.mean(nans, dim=((1, 2)))
-            dates = xarray_ds.t[nan_ratio < 0.05].sortby("t")
+            nan_ratio = torch.mean(nans, dim=(1, 2))
+            condition = nan_ratio < 0.05 if orbit == "ASCENDING" else nan_ratio > 0.06
+            dates = xarray_ds.t[condition].sortby("t")
             all_dates.append(dates)
     return xr.concat(all_dates, dim="t").sortby("t").values
+
+
+# def check_s1_nans(
+#         folder_data: str | Path, months_folders: list[str], orbit="ASCENDING"
+# ) -> np.ndarray:
+#     all_dates = []
+#     all_nans = []
+#     all_dates_available = []
+#     for month in months_folders:
+#         nc_file = os.path.join(folder_data, month, f"Sentinel1_{orbit}", "openEO.nc")
+#         with xr.open_dataset(
+#                 nc_file,
+#                 decode_coords="all",
+#                 mask_and_scale=True,
+#                 decode_times=True,
+#                 engine="netcdf4",
+#         ) as xarray_ds:
+#             array = torch.Tensor(xarray_ds.VV.values)
+#             nans = torch.isnan(array).to(torch.float)
+#             all_nans.append(nans.to(torch.int))
+#
+#             with rasterio.open(
+#                     os.path.join(folder_data, f"nans_{orbit}_{month}.TIFF"),
+#                     'w',
+#                     driver='GTiff',
+#                     height=nans.shape[-2],
+#                     width=nans.shape[-1],
+#                     count=nans.shape[0],
+#                     dtype=rasterio.int8,
+#                     # crs=xarray_ds.crs,
+#                     # transform=transform,
+#             ) as dst:
+#                 log.info(nans.to(torch.bool).shape)
+#                 dst.write(nans.to(torch.bool).cpu().numpy())
+#
+#             nan_ratio = torch.mean(nans, dim=(1, 2))
+#             dates = xarray_ds.t[nan_ratio < 0.05].sortby("t")
+#             all_dates.append(dates)
+#             log.info(orbit)
+#             log.info(month)
+#             log.info(nan_ratio)
+#             log.info(xarray_ds.t.values)
+#             all_dates_available.append(xarray_ds.t.values)
+#     all_nans = torch.concat(all_nans)
+#     with rasterio.open(
+#             os.path.join(folder_data, f"nans_{orbit}"),
+#             'w',
+#             driver='GTiff',
+#             height=all_nans.shape[-2],
+#             width=all_nans.shape[-1],
+#             count=all_nans.shape[0],
+#             dtype=rasterio.int8,
+#             # crs=xarray_ds.crs,
+#             # transform=transform,
+#     ) as dst:
+#         log.info(all_nans.to(torch.bool).shape)
+#         dst.write(all_nans.to(torch.bool).cpu().numpy())
+#     print(orbit, np.concatenate(all_dates_available))
+#     return xr.concat(all_dates, dim="t").sortby("t").values
 
 
 def get_bounds(folder_data: str | Path, months_folders: list[str | int]):
@@ -353,6 +411,7 @@ def encode_tile(
     output_folder: str | Path,
     mmdc_model: PretrainedMMDCPastis,
     gt_file: str | Path = None,
+    s1_join: bool = True,
 ):
     """
     Encode a tile with MMDC algorithm with a sliding window
@@ -368,23 +427,24 @@ def encode_tile(
 
     # s2_dates = check_s2_clouds(folder_data, months_folders)
     s2_dates = np.load(os.path.join(folder_data, "dates_s2.npy"))
-    s1_dates_asc = np.load(os.path.join(folder_data, "dates_s1_asc.npy"))
-    s1_dates_desc = np.load(os.path.join(folder_data, "dates_s1_desc.npy"))
+    s1_dates_asc = np.load(os.path.join(folder_data, "dates_s1_asc_good.npy"))
+    s1_dates_desc = np.load(os.path.join(folder_data, "dates_s1_desc_good.npy"))
 
     # print("computing s1 asc")
     # s1_dates_asc = check_s1_nans(folder_data, months_folders,
     #                          orbit="ASCENDING")
-    #
     # np.save(os.path.join(folder_data, "dates_s1_asc.npy"), s1_dates_asc)
     # print("computing s1 desc")
     # s1_dates_desc = check_s1_nans(folder_data, months_folders,
     #                          orbit="DESCENDING")
-    #
+    # #
     # np.save(os.path.join(folder_data, "dates_s1_desc.npy"), s1_dates_desc)
-
     tcd_values = None
     if gt_file is not None:
-        tcd_values = get_tcd_gt(gt_path)
+        tcd_values = get_tcd_gt(gt_file)
+
+    # Whether we produce separate embeddings for s1_asc and s1_desc or not
+    satellites_to_write = ["s2", "s1"] if s1_join else satellites
 
     print(tcd_values)
 
@@ -523,7 +583,7 @@ def encode_tile(
                 tcd_batch = PastisBatch(
                     sits=sits,
                     input_doy=None,
-                    true_doy=dates_meteo[sat][f"date_{sat}"].values,
+                    true_doy=dates_meteo[sat][f"date_{sat}"].values[None, :],
                     padd_val=torch.Tensor([]),
                     padd_index=torch.Tensor([]),
                 )
@@ -532,35 +592,50 @@ def encode_tile(
                 encoded_patch[f"{sat}_mask"] = sits.data.mask[
                     0, :, :, margin:-margin, margin:-margin
                 ]
-            print("encoding")
+            log.info("encoding")
 
             del data, tcd_batch
 
-            latents1, latents1_asc, latents1_desc, latents2 = encode_one_batch(
-                mmdc_model, batch_dict
-            )
+            (
+                latents1,
+                latents1_asc,
+                latents1_desc,
+                latents2,
+                mask_s1,
+                days_s1,
+            ) = encode_one_batch(mmdc_model, batch_dict)
             encoded_patch["matrix"] = xy_matrix
             encoded_patch["s2_lat_mu"] = latents2.mean[
                 0, :, :, margin:-margin, margin:-margin
             ]
-            log.info(encoded_patch["s2_lat_mu"].shape)
             encoded_patch["s2_lat_logvar"] = latents2.logvar[
                 0, :, :, margin:-margin, margin:-margin
             ]
-            encoded_patch["s1_asc_lat_mu"] = latents1_asc.mean[
-                0, :, :, margin:-margin, margin:-margin
-            ]
-            encoded_patch["s1_asc_lat_logvar"] = latents1_asc.logvar[
-                0, :, :, margin:-margin, margin:-margin
-            ]
-            log.info(encoded_patch["s1_asc_lat_logvar"].shape)
 
-            encoded_patch["s1_desc_lat_mu"] = latents1_desc.mean[
-                0, :, :, margin:-margin, margin:-margin
-            ]
-            encoded_patch["s1_desc_lat_logvar"] = latents1_desc.logvar[
-                0, :, :, margin:-margin, margin:-margin
-            ]
+            if s1_join:
+                encoded_patch["s1_lat_mu"] = latents1.mean[
+                    0, :, :, margin:-margin, margin:-margin
+                ]
+                encoded_patch["s1_lat_logvar"] = latents1.logvar[
+                    0, :, :, margin:-margin, margin:-margin
+                ]
+                encoded_patch["s1_mask"] = mask_s1[
+                    0, :, :, margin:-margin, margin:-margin
+                ]
+                encoded_patch["s1_doy"] = days_s1
+            else:
+                encoded_patch["s1_asc_lat_mu"] = latents1_asc.mean[
+                    0, :, :, margin:-margin, margin:-margin
+                ]
+                encoded_patch["s1_asc_lat_logvar"] = latents1_asc.logvar[
+                    0, :, :, margin:-margin, margin:-margin
+                ]
+                encoded_patch["s1_desc_lat_mu"] = latents1_desc.mean[
+                    0, :, :, margin:-margin, margin:-margin
+                ]
+                encoded_patch["s1_desc_lat_logvar"] = latents1_desc.logvar[
+                    0, :, :, margin:-margin, margin:-margin
+                ]
 
             # create_netcdf_encoded(xy_matrix,
             #                       encoded_patch["s2_lat_mu"].cpu().numpy(),
@@ -582,13 +657,14 @@ def encode_tile(
             #                                s1=True)
 
             if ind.size > 0 and tcd_values_sliced is not None:
-                for sat in satellites:
+                for sat in satellites_to_write:
                     mask = encoded_patch[f"{sat}_mask"].expand_as(
                         encoded_patch[f"{sat}_lat_mu"]
                     )
 
                     encoded_patch[f"{sat}_lat_mu"][mask.bool()] = torch.nan
                     encoded_patch[f"{sat}_lat_logvar"][mask.bool()] = torch.nan
+
                     gt_ref_values_mu = rearrange_ts(encoded_patch[f"{sat}_lat_mu"])[
                         :, ind[:, 0], ind[:, 1]
                     ].T
@@ -634,13 +710,15 @@ def encode_tile(
                             output_folder, f"gt_tcd_t32tnt_encoded_{sat}_{enum}.csv"
                         )
                     )
-
-                    np.save(
-                        os.path.join(
-                            output_folder, f"gt_tcd_t32tnt_days_{sat}_{enum}.npy"
-                        ),
-                        days,
-                    )
+                    if not Path(
+                        os.path.join(output_folder, f"gt_tcd_t32tnt_days_{sat}.npy")
+                    ).exists():
+                        np.save(
+                            os.path.join(
+                                output_folder, f"gt_tcd_t32tnt_days_{sat}.npy"
+                            ),
+                            days,
+                        )
 
             # torch.save(encoded_patch,
             #            os.path.join(output_folder, f"Encoded_patch_{enum}.pt"))
@@ -654,6 +732,6 @@ def encode_tile(
                 batch_dict,
             )
 
-    for sat in satellites:
+    for sat in satellites_to_write:
         final_df = pd.concat(sliced_gt[sat], ignore_index=True)
         final_df.to_csv(os.path.join(output_folder, f"gt_tcd_t32tnt_encoded_{sat}.csv"))

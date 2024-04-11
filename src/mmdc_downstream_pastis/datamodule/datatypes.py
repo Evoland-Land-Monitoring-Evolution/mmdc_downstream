@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Literal
 
+import numpy as np
 import torch
 import torch.utils.data as tdata
 
@@ -68,7 +69,7 @@ class PastisBatch:
     input_doy: torch.Tensor
     padd_val: torch.Tensor
     padd_index: torch.Tensor
-    true_doy: torch.Tensor = None
+    true_doy: torch.Tensor | np.ndarray = None
 
     def w(self):
         return self.sits.data.img.shape[-1]
@@ -123,10 +124,6 @@ class ModuleInput:
 class OneSatellitePatch:
     sits: MMDCDataStruct
     input_doy: torch.Tensor
-    # target: torch.Tensor
     padd_index: torch.Tensor | None
     padd_val: torch.Tensor
-    # item: int
-    # mask: torch.Tensor | None = None
-    # s2_path: str | None = None
     true_doy: torch.Tensor | None = None
