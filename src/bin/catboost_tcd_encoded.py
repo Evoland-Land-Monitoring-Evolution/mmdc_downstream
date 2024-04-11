@@ -10,12 +10,16 @@ from sklearn.model_selection import train_test_split
 
 main_cols = ["index", "TCD", "x", "y", "x_round", "y_round"]
 
-folder_data = "/work/scratch/data/kalinie/TCD/OpenEO_data/t32tnt/encoded/"
+# folder_data = "/work/scratch/data/kalinie/TCD/OpenEO_data/t32tnt/encoded/"
 
-model = "res_2024-03-08_11-09-43"
-model = "res_2024-02-27_14-47-18"
-model = "res_2024-03-06_08-51-27"
-model = "res_"
+folder_data = "/home/kalinichevae/jeanzay/results/TCD/t32tnt/encoded/"
+
+#
+#
+# model = "res_2024-03-08_11-09-43"
+# model = "res_2024-02-27_14-47-18"
+# model = "res_2024-03-06_08-51-27"
+model = "res_2024-04-05_14-58-22"
 
 
 feat_nb = 6
@@ -25,11 +29,13 @@ leaf = 17
 depth = 11
 
 
-months_median = True
+months_median = False
 
 csv_folder = os.path.join(folder_data, model)
 
-satellites = ["s2", "s1_asc", "s1_desc"]
+# satellites = ["s2", "s1_asc", "s1_desc"]
+satellites = ["s1"]
+
 
 for sat in satellites:
     all_df = []
@@ -38,18 +44,14 @@ for sat in satellites:
         file for file in os.listdir(csv_folder) if file.endswith("csv") and sat in file
     ]
 
-    months_dates = None
     for csv_name in np.sort(csv_files):
         data = pd.read_csv(os.path.join(csv_folder, csv_name))
         all_df.append(data)
 
-        if months_dates is None:
-            days_name = csv_name.replace("encoded", "days").replace("csv", "npy")
-            days = np.load(os.path.join(csv_folder, days_name))
-            months_dates = (
-                pd.DatetimeIndex(days).to_frame(name="dates").dates.dt.month.values
-            )
-            dates_ind = np.arange(len(months_dates))
+    days_name = f"gt_tcd_t32tnt_days_{sat}.npy"
+    days = np.load(os.path.join(csv_folder, days_name))
+    months_dates = pd.DatetimeIndex(days).to_frame(name="dates").dates.dt.month.values
+    dates_ind = np.arange(len(months_dates))
 
     data = pd.concat(all_df, ignore_index=True)
     print(data.shape)
