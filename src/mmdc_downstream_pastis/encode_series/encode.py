@@ -66,6 +66,37 @@ def fill_batch_s1(
     return batch_s1
 
 
+def match_asc_desc(
+    days_asc: np.ndarray, days_desc: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    s1_asc_desc = pd.merge_asof(
+        pd.DatetimeIndex(days_asc).to_frame(name="asc"),
+        pd.DatetimeIndex(days_desc).to_frame(name="desc"),
+        left_index=True,
+        right_index=True,
+        tolerance=pd.Timedelta(1, "D"),
+        direction="nearest",
+    )
+    s1_desc_asc = pd.merge_asof(
+        pd.DatetimeIndex(days_desc).to_frame(name="desc"),
+        pd.DatetimeIndex(days_asc).to_frame(name="asc"),
+        left_index=True,
+        right_index=True,
+        tolerance=pd.Timedelta(1, "D"),
+        direction="nearest",
+    )
+
+    df_merged_days = (
+        pd.concat([s1_asc_desc, s1_desc_asc]).sort_index().drop_duplicates()
+    )
+    days_s1 = df_merged_days.index.values
+    log.info(days_s1)
+    df_merged_days = df_merged_days.reset_index()
+    asc_ind = df_merged_days.index[df_merged_days["asc"].notnull()].values
+    desc_ind = df_merged_days.index[df_merged_days["desc"].notnull()].values
+    return asc_ind, desc_ind, days_s1
+
+
 def create_s1(
     batch_asc: MMDCPartialBatch,
     batch_desc: MMDCPartialBatch,
@@ -75,31 +106,7 @@ def create_s1(
     bs, t, ch, h, w = batch_asc.img.shape
     if bs == 1:
         days_asc, days_desc = days_asc[0], days_desc[0]
-        s1_asc_desc = pd.merge_asof(
-            pd.DatetimeIndex(days_asc).to_frame(name="asc"),
-            pd.DatetimeIndex(days_desc).to_frame(name="desc"),
-            left_index=True,
-            right_index=True,
-            tolerance=pd.Timedelta(1, "D"),
-            direction="nearest",
-        )
-        s1_desc_asc = pd.merge_asof(
-            pd.DatetimeIndex(days_desc).to_frame(name="desc"),
-            pd.DatetimeIndex(days_asc).to_frame(name="asc"),
-            left_index=True,
-            right_index=True,
-            tolerance=pd.Timedelta(1, "D"),
-            direction="nearest",
-        )
-
-        df_merged_days = (
-            pd.concat([s1_asc_desc, s1_desc_asc]).sort_index().drop_duplicates()
-        )
-        days_s1 = df_merged_days.index.values
-        log.info(days_s1)
-        df_merged_days = df_merged_days.reset_index()
-        asc_ind = df_merged_days.index[df_merged_days["asc"].notnull()].values
-        desc_ind = df_merged_days.index[df_merged_days["desc"].notnull()].values
+        asc_ind, desc_ind, days_s1 = match_asc_desc(days_asc, days_desc)
 
         batch_s1 = MMDCPartialBatch.create_empty_s1_with_shape(
             batch_size=bs,
