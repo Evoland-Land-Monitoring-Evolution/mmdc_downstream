@@ -22,7 +22,6 @@ class InterporlItem:
 @dataclass
 class ModuleInput:
     sits: Tensor
-    input_doy: Tensor
     padd_index: Tensor | None
     cld_mask: Tensor | None = None
     true_doy: Tensor | None = None
@@ -30,7 +29,6 @@ class ModuleInput:
     # custom memory pinning method on custom type
     def pin_memory(self):
         self.sits = self.sits.pin_memory()
-        self.input_doy = self.input_doy.pin_memory()
         self.padd_index = self.padd_index.pin_memory()
         if self.cld_mask is not None:
             self.cld_mask = self.cld_mask.pin_memory()

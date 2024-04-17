@@ -66,7 +66,6 @@ METEO_BANDS = {
 @dataclass
 class PastisBatch:
     sits: MMDCDataStruct
-    input_doy: torch.Tensor
     padd_val: torch.Tensor
     padd_index: torch.Tensor
     true_doy: torch.Tensor = None
@@ -93,7 +92,6 @@ class PastisBatch:
     # # TODO: cloud mask
     # def pin_memory(self):
     #     self.sits = self.sits.pin_memory()
-    #     self.input_doy = self.input_doy.pin_memory()
     #     self.padd_index = self.padd_index.pin_memory()
     #     if self.true_doy is not None:
     #         self.true_doy.pin_memory()
@@ -103,7 +101,6 @@ class PastisBatch:
 @dataclass
 class ModuleInput:
     sits: torch.Tensor
-    input_doy: torch.Tensor
     padd_index: torch.Tensor | None
     cld_mask: torch.Tensor | None = None
     true_doy: torch.Tensor | None = None
@@ -111,7 +108,6 @@ class ModuleInput:
     # custom memory pinning method on custom type
     def pin_memory(self):
         self.sits = self.sits.pin_memory()
-        self.input_doy = self.input_doy.pin_memory()
         self.padd_index = self.padd_index.pin_memory()
         if self.cld_mask is not None:
             self.cld_mask = self.cld_mask.pin_memory()
@@ -123,7 +119,6 @@ class ModuleInput:
 @dataclass
 class OneSatellitePatch:
     sits: MMDCDataStruct
-    input_doy: torch.Tensor
     padd_index: torch.Tensor | None
     padd_val: torch.Tensor
     true_doy: np.ndarray | None
