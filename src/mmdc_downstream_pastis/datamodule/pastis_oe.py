@@ -15,7 +15,6 @@ import torch
 import torch.utils.data as tdata
 from pytorch_lightning import LightningDataModule
 from torch import nn
-from torch.nn import functional as F
 
 from mmdc_downstream_pastis.constant.dataset import S2_BAND  # TODO change
 from mmdc_downstream_pastis.constant.pastis import LABEL_PASTIS
@@ -54,7 +53,6 @@ class PASTISDataset(tdata.Dataset):
         transform: nn.Module | None = None,
         max_len: int = 60,
         allow_padd: bool = True,
-        extract_true_doy=True,
     ):
         """
         Pytorch Dataset class to load samples from the PASTIS dataset, for semantic and
@@ -104,7 +102,6 @@ class PASTISDataset(tdata.Dataset):
 
         super().__init__()
 
-        self.extract_true_doy = extract_true_doy
         self.allow_pad = allow_padd
         if sats is None:
             sats = ["S2"]
@@ -134,9 +131,6 @@ class PASTISDataset(tdata.Dataset):
         meta_patch = self.get_metadata()
         self.id_patches = meta_patch.index
         self.len = len(self.id_patches)
-
-        self.date_tables = {s: None for s in sats}
-        self.date_range = np.array(range(-200, 5000))
 
         # self.dict_classes = dict_classes if dict_classes is not None else LABEL_PASTIS
         self.dict_classes = LABEL_PASTIS
@@ -169,7 +163,10 @@ class PASTISDataset(tdata.Dataset):
 
         print("Dataset ready.")
 
-    def get_one_satellite_patches(self, satellite):
+    def get_one_satellite_patches(self, satellite: str) -> np.array:
+        """
+        For each satellite, we check that all the modalities are available for a patch
+        """
         path = self.options.dataset_path_oe
         sat_patches = [
             int(file[:-3].split("_")[-1])
@@ -248,7 +245,7 @@ class PASTISDataset(tdata.Dataset):
                     assume_unique=True,
                 )
 
-    def get_metadata(self) -> gpd.GeoDataFrame:
+    def get_metadata(self, check_patches: bool = True) -> gpd.GeoDataFrame:
         """Return a GeoDatFrame with the patch metadata"""
         logger.info("Reading patch metadata . . .")
         meta_patch = gpd.read_file(
@@ -264,14 +261,12 @@ class PASTISDataset(tdata.Dataset):
             )
 
         # We only keep patches with all modalities available
-        meta_patch = meta_patch[meta_patch.ID_PATCH.isin(self.patches_to_keep())]
+        if check_patches:
+            meta_patch = meta_patch[meta_patch.ID_PATCH.isin(self.patches_to_keep())]
         return meta_patch
 
     def __len__(self):
         return self.len
-
-    def get_dates(self, id_patch, sat):
-        return self.date_range[np.where(self.date_tables[sat][id_patch] == 1)[0]]
 
     @staticmethod
     def load_file(path: str):
@@ -284,12 +279,7 @@ class PASTISDataset(tdata.Dataset):
         self,
         item: int,
         id_patch: int,
-    ) -> tuple[
-        dict[str, MMDCDataStruct],
-        torch.Tensor,
-        dict[str, torch.Tensor],
-        dict[str, torch.Tensor],
-    ]:
+    ) -> tuple[dict[str, MMDCDataStruct], torch.Tensor, dict[str, torch.Tensor],]:
         """Get id_patch from disk and cache it as item in the dataset"""
         data_pastis = {
             satellite: self.load_file(
@@ -341,13 +331,10 @@ class PASTISDataset(tdata.Dataset):
                 data[satellite] = None
 
         # Retrieve date sequences
-        dates = {s: (a.doy if a is not None else None) for s, a in data_pastis.items()}
         true_doys = {
-            s: (a.dates_dt.values[:, 0] if a is not None else None)
+            s: (self.prepare_dates(a.dates_dt.values[:, 0]) if a is not None else None)
             for s, a in data_pastis.items()
         }
-        # if self.extract_true_doy:
-        #     data_all.dates_dt.index
         if self.options.task == "semantic":
             target = np.load(
                 os.path.join(
@@ -364,25 +351,25 @@ class PASTISDataset(tdata.Dataset):
                 self.memory[item] = [
                     {k: v.casting(torch.float32) for k, v in data.items()},
                     target,
-                    {k: d for k, d in dates.items()},
                     {k: d for k, d in true_doys.items()},
                 ]
             else:
-                self.memory[item] = [data, target, dates, true_doys]
+                self.memory[item] = [data, target, true_doys]
 
-        return data, target, dates, true_doys
+        return data, target, true_doys
 
     def __getitem__(
         self, item: int
     ) -> (dict[str, OneSatellitePatch], torch.Tensor, torch.Tensor, int):
+        """Get one item"""
         id_patch = self.id_patches[item]
 
         # Retrieve and prepare satellite data
         if not self.options.cache or item not in self.memory.keys():
-            data, target, dates, true_doys = self.read_data_from_disk(item, id_patch)
+            data, target, true_doys = self.read_data_from_disk(item, id_patch)
 
         else:
-            data, target, dates, true_doys = self.memory[item]
+            data, target, true_doys = self.memory[item]
             if self.options.mem16:
                 data = {k: v.casting(torch.float32) for k, v in data.items()}
 
@@ -395,24 +382,22 @@ class PASTISDataset(tdata.Dataset):
         target[target == 19] = 0  # merge background and void class
         mask = (target != 0) & (target != 19)
         output = {
-            sat: self.return_one_satellite(data, dates, true_doys, sat, [x, y])
+            sat: self.return_one_satellite(data, true_doys, sat, [x, y])
             for sat in self.sats
         }
 
         return output, target, mask, id_patch
 
-    def return_one_satellite(self, data, dates, true_doys, sat, crop_xy):
+    def prepare_dates(self, true_doys: np.array) -> torch.Tensor:
+        """
+        Transform date to day of interest relative to ref date
+        """
+        return torch.Tensor(
+            (pd.to_datetime(true_doys) - pd.to_datetime(self.reference_date)).days
+        )
+
+    def return_one_satellite(self, data, true_doy, sat, crop_xy):
         if (sits := data[sat]) is not None:
-            doy = dates[sat]
-            if self.extract_true_doy:
-                true_doy = torch.Tensor(
-                    (
-                        pd.to_datetime(true_doys[sat])
-                        - pd.to_datetime(self.reference_date)
-                    ).days
-                )
-            else:
-                true_doy = None
             t, c, h, w = sits.data.img.shape
             x, y = crop_xy
 
@@ -424,17 +409,14 @@ class PASTISDataset(tdata.Dataset):
             #     sits = self.transform(sits)
             #     sits = rearrange(sits, "c t h w -> t c h w")
             if self.max_len == 0:
-                padd_index = torch.full([len(doy)], False)
+                padd_index = torch.full([len(true_doy)], False)
             else:
-                sits, doy, padd_index = apply_padding(
-                    self.allow_pad, self.max_len, t, sits, doy
+                sits, doy, padd_index, true_doys = apply_padding(
+                    self.allow_pad, self.max_len, t, sits, true_doy
                 )
-            if true_doy is not None and self.max_len != 0:
-                true_doy = F.pad(true_doy, (0, self.max_len - t))
 
             return OneSatellitePatch(
                 sits=sits,
-                input_doy=doy.to(sits.data.img.device),
                 padd_index=padd_index.bool(),
                 padd_val=torch.tensor(self.max_len - t),
                 true_doy=true_doy,
@@ -443,10 +425,9 @@ class PASTISDataset(tdata.Dataset):
             sits=MMDCDataStruct.init_empty_zeros_s1(
                 self.max_len, self.crop_size, self.crop_size
             ),
-            input_doy=torch.zeros(self.max_len),
             padd_index=torch.full([self.max_len], True),
             padd_val=torch.tensor(self.max_len),
-            true_doy=None if not self.extract_true_doy else torch.zeros(self.max_len),
+            true_doy=torch.zeros(self.max_len),
         )
 
     def get_crop_idx(self, rows, cols) -> tuple[int, int]:
@@ -480,26 +461,14 @@ class PASTISDataset(tdata.Dataset):
         return df
 
 
-def prepare_dates(date_dict, reference_date):
-    d = pd.DataFrame().from_dict(date_dict, orient="index")
-    d = d[0].apply(
-        lambda x: (
-            datetime(int(str(x)[:4]), int(str(x)[4:6]), int(str(x)[6:]))
-            - reference_date
-        ).days
-    )
-    return d.values
-
-
 def custom_collate_classif(
     batch: Iterable[dict[str, OneSatellitePatch], torch.Tensor, torch.Tensor, int]
 ) -> (dict[str, PastisBatch], torch.Tensor, torch.Tensor, list[int]):
     batch_dict = {}
 
-    sat_dict = [b[0] for b in batch]
-    target = torch.stack([b[1] for b in batch], 0)
-    mask = torch.stack([b[2] for b in batch], 0)
-    id_patch = [b[3] for b in batch]
+    sat_dict, target, mask, id_patch = zip(*batch)
+    target = torch.stack(target, 0)
+    mask = torch.stack(mask, 0)
 
     # TODO add padding here
     for sat in sat_dict[0]:
@@ -711,7 +680,6 @@ class PastisDataModule(LightningDataModule):
 #                 b_s_meteo, t_s_meteo, nb_b_meteo, p_s_meteo, _ = batch_dict[
 #                     sat
 #                 ].sits.meteo.shape
-#                 b_s_d, t_s_d = batch_dict[sat].input_doy.shape
 #                 b_s_y, p_s_y, _ = target.shape
 #                 b_s_m, p_s_m, _ = mask.shape
 #                 b_s_id = len(id_patch)
