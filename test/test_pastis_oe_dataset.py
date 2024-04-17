@@ -60,11 +60,9 @@ def test_pastisds_dataloader(sats) -> None:
                 b_s_meteo, t_s_meteo, nb_b_meteo, p_s_meteo, _ = batch_dict[
                     sat
                 ].sits.meteo.shape
-                b_s_d, t_s_d = batch_dict[sat].input_doy.shape
                 b_s_y, p_s_y, _ = target.shape
                 b_s_m, p_s_m, _ = mask.shape
                 b_s_id = len(id_patch)
-                assert t_s_d > 2
                 assert nb_b_dem == 4
                 assert nb_b_meteo == 48
                 assert (
@@ -73,12 +71,11 @@ def test_pastisds_dataloader(sats) -> None:
                     == b_s_imsk
                     == b_s_dem
                     == b_s_meteo
-                    == b_s_d
                     == b_s_y
                     == b_s_m
                     == b_s_id
                 )
-                assert t_s_x == t_s_ang == t_s_imsk == t_s_meteo == t_s_d
+                assert t_s_x == t_s_ang == t_s_imsk == t_s_meteo
                 # assert nb_b == PASTIS_BANDS[sat]
                 assert (
                     p_s_x
