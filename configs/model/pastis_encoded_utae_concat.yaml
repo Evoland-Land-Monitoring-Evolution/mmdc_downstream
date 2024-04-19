@@ -1,0 +1,16 @@
+
+_target_: mmdc_downstream_pastis.models.lightning.pastis_encoded_utae_semantic.MMDCPastisEncodedUTAE
+lr: 0.001
+resume_from_checkpoint: null #/work/scratch/data/kalinie/MMDC/results/pastis/checkpoints/pastis_utae/2024-02-20_16-30-23/epoch_098.ckpt
+
+model:
+  _target_: mmdc_downstream_pastis.models.torch.utae_fusion.UTAEFusion
+#  in_channels: 10
+#  num_classes: 20
+  input_dim: 12
+  fusion: concat
+
+metrics_list : ["cross_entropy"]
+
+# To choose from ["RMSE", "MSE", "MAE"]
+losses_list : ["cross_entropy"]

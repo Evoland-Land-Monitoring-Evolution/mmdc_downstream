@@ -14,9 +14,10 @@ task:
   sats: [ "S2" ]
 
 folds:
-  _target_: mtan_s1s2_classif.datamodules.pastis_dataset.PastisFolds
+  _target_: mmdc_downstream_pastis.datamodule.datatypes.PastisFolds
   train: [1,2,3]
   val: [4]
   test: [5]
 
 batch_size: 4
+crop_size: 64

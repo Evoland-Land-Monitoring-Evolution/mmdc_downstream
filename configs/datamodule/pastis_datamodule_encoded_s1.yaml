@@ -4,7 +4,7 @@ dataset_path_oe: ${oc.env:WORK}/results/Pastis_encoded/2024-04-05_14-58-22
 dataset_path_pastis: ${oc.env:SCRATCH}/scratch_data/Pastis
 
 reference_date: "2018-10-01"
-sats: [ "S1", "S2" ]
+sats: [ "S1" ]
 task: "semantic"
 
 folds:
