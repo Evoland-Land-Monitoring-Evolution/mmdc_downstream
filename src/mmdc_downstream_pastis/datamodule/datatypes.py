@@ -79,7 +79,7 @@ class PastisBatch:
     @staticmethod
     def init_empty():
         """Create an empty dataclass instance"""
-        return PastisBatch(None, None, None, None, None)
+        return PastisBatch(None, None, None, None)
 
     def fill_empty_from_dict(self, dictionary: dict):
         """Fill an empty dataclass instance from dictionary"""
