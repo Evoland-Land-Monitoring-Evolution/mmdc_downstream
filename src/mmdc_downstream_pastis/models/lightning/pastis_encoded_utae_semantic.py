@@ -2,32 +2,30 @@
 # Copyright: (c) 2024 CESBIO / Centre National d'Etudes Spatiales
 """ Lightning module for lai regression prediction """
 
+import logging
 from typing import Any
 
-import torch
-from mmdc_singledate.datamodules.datatypes import MMDCBatch
+from mmdc_downstream_pastis.models.lightning.pastis_utae_semantic import (
+    MMDCPastisUTAE,
+    to_class_label,
+)
 
 from ..components.losses import compute_losses
-from ..torch.dataclass import OutUTAEForward
 from ..torch.utae import UTAE
-from .base import MMDCPastisBaseLitModule
+
+# Configure logging
+NUMERIC_LEVEL = getattr(logging, "INFO", None)
+logging.basicConfig(
+    level=NUMERIC_LEVEL, format="%(asctime)-15s %(levelname)s: %(message)s"
+)
+logging.getLogger(__name__).setLevel(logging.INFO)
 
 
-def to_class_label(logits: torch.Tensor) -> torch.Tensor:
-    """Get class labels from logits"""
-    soft = torch.nn.Softmax()
-    probs = soft(logits)
-    pred = probs.max(1).indices
-    return pred
-
-
-class MMDCPastisUTAE(MMDCPastisBaseLitModule):
+class MMDCPastisEncodedUTAE(MMDCPastisUTAE):
     """
-    LAI regression lightning module.
+    Pastis lightning module.
     Attributes:
-        model: regression model
-        model_snap: Fixed weights SNAP model for LAI GT computation
-        model_mmdc: Pretrained MMDC model for latent representations
+
     """
 
     def __init__(
@@ -38,21 +36,15 @@ class MMDCPastisUTAE(MMDCPastisBaseLitModule):
         lr: float = 0.001,
         resume_from_checkpoint: str | None = None,
     ):
-        super().__init__(model, lr, resume_from_checkpoint)
-
-        self.losses_list = losses_list
-        self.metrics_list = metrics_list
-
-        self.model = model
+        super().__init__(model, metrics_list, losses_list, lr, resume_from_checkpoint)
 
     def step(self, batch: Any, stage: str = "train") -> Any:
         """
         One step.
-        We produce GT LAI with SNAP.
-        We generate regression input depending on the task.
+        We compute logits and data classes for encoded PASTIS
         """
-        (x, dates), gt, mask, patch_id = batch
-
+        x, data_masks, dates, gt, mask, patch_id = batch
+        # batch_dict, data_masks_dict, doys_dict, target, mask, id_patch
         gt = gt.long()
         # out: OutUTAEForward = self.forward(x, batch_positions=dates)
         # logits = out.seg_map
@@ -63,87 +55,6 @@ class MMDCPastisUTAE(MMDCPastisBaseLitModule):
             mask=(gt == -1),
             losses_list=self.losses_list,
         )
-
-        self.iou_meter.add(to_class_label(logits), gt)
+        self.iou_meter[stage].add(to_class_label(logits), gt)
 
         return losses
-
-    def training_step(  # pylint: disable=arguments-differ
-        self,
-        batch: Any,
-        batch_idx: int,  # pylint: disable=unused-argument
-    ) -> dict[str, Any]:
-        """Training step. Step and return loss."""
-        torch.autograd.set_detect_anomaly(True)
-        losses = self.step(batch)
-        for loss_name, loss_value in losses.items():
-            self.log(
-                f"train/{loss_name}",
-                loss_value,
-                on_step=False,
-                on_epoch=True,
-                prog_bar=False,
-            )
-
-        return {"loss": sum(losses.values())}
-
-    def validation_step(  # pylint: disable=arguments-differ
-        self,
-        batch: Any,
-        batch_idx: int,  # pylint: disable=unused-argument
-        prefix: str = "val",
-    ) -> dict[str, Any]:
-        """Validation step. Step and return loss."""
-        losses = self.step(batch, stage=prefix)
-
-        for loss_name, loss_value in losses.items():
-            self.log(
-                f"{prefix}/{loss_name}",
-                loss_value,
-                on_step=False,
-                on_epoch=True,
-                prog_bar=False,
-            )
-
-        return {"loss": sum(losses.values())}
-
-    def test_step(  # pylint: disable=arguments-differ
-        self,
-        batch: Any,
-        batch_idx: int,  # pylint: disable=unused-argument
-    ) -> dict[str, Any]:
-        """Test step. Step and return loss. Delegate to validation step"""
-        return self.validation_step(batch, batch_idx, prefix="test")
-
-    def forward(self, data: Any, batch_positions: torch.Tensor) -> Any:
-        """Forward step"""
-        return self.model.forward(data, batch_positions=batch_positions)
-
-    def predict(self, batch: MMDCBatch) -> OutUTAEForward:
-        """Predict classification map"""
-        self.model.eval()
-        return self.model.forward(batch)
-
-    def configure_optimizers(self) -> dict[str, Any]:
-        """A single optimizer with a LR scheduler"""
-        optimizer = torch.optim.Adam(
-            params=self.model.parameters(), lr=self.learning_rate  # , weight_decay=0.01
-        )
-
-        # training_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-        #     optimizer, T_0=4, T_mult=2, eta_min=0, last_epoch=-1)
-        # training_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        #     optimizer, mode="min", factor=0.9, patience=200, threshold=0.01
-        # )
-        #
-        # scheduler = {
-        #     # "scheduler": training_scheduler,
-        #     "interval": "step",
-        #     "monitor": f"val/{self.losses_list[0]}",
-        #     "frequency": 1,
-        #     "strict": False,
-        # }
-        return {
-            "optimizer": optimizer,
-            # "lr_scheduler": scheduler,
-        }

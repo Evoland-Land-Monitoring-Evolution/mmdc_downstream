@@ -17,8 +17,7 @@ NUMERIC_LEVEL = getattr(logging, "INFO", None)
 logging.basicConfig(
     level=NUMERIC_LEVEL, format="%(asctime)-15s %(levelname)s: %(message)s"
 )
-
-logger = logging.getLogger(__name__)
+logging.getLogger(__name__).setLevel(logging.INFO)
 
 
 class MMDCPastisBaseLitModule(LightningModule):  # pylint: disable=too-many-ancestors
@@ -43,11 +42,15 @@ class MMDCPastisBaseLitModule(LightningModule):  # pylint: disable=too-many-ance
 
         self.learning_rate = lr
 
-        self.iou_meter = IoU(
-            num_classes=model.num_classes,
-            ignore_index=-1,
-            cm_device="cuda",
-        )
+        self.iou_meter = {
+            stage: IoU(
+                num_classes=model.num_classes,
+                ignore_index=-1,
+                cm_device="cuda",
+            )
+            for stage in ("train", "val", "test")
+        }
+        logging.info(self.iou_meter)
 
     @abstractmethod
     def step(self, batch: Any) -> Any:
@@ -111,11 +114,16 @@ class MMDCPastisBaseLitModule(LightningModule):  # pylint: disable=too-many-ance
         return {"loss": loss}
 
     def on_train_epoch_start(self) -> None:
-        self.iou_meter.reset()
+        """On train epoch start"""
+        # Otherwise reset does not work
+        meter = self.iou_meter["train"]
+        meter.reset()
+        self.iou_meter.update({"train": meter})
 
     def on_train_epoch_end(self) -> None:
-        logger.info("Ended traning epoch %s", self.trainer.current_epoch)
-        miou, acc = self.iou_meter.get_miou_acc()
+        """On train epoch end"""
+        logging.info("Ended traning epoch %s", self.trainer.current_epoch)
+        miou, acc = self.iou_meter["train"].get_miou_acc()
         self.log(
             "train/mIoU",
             miou,
@@ -132,11 +140,16 @@ class MMDCPastisBaseLitModule(LightningModule):  # pylint: disable=too-many-ance
         )
 
     def on_validation_epoch_start(self) -> None:
-        self.iou_meter.reset()
+        """On validation epoch start"""
+        # Otherwise reset does not work
+        meter = self.iou_meter["val"]
+        meter.reset()
+        self.iou_meter.update({"val": meter})
 
     def on_validation_epoch_end(self) -> None:
-        logger.info("Ended validation epoch %s", self.trainer.current_epoch)
-        miou, acc = self.iou_meter.get_miou_acc()
+        """On validation epoch end"""
+        logging.info("Ended validation epoch %s", self.trainer.current_epoch)
+        miou, acc = self.iou_meter["val"].get_miou_acc()
         self.log(
             "val/mIoU",
             miou,
@@ -152,12 +165,9 @@ class MMDCPastisBaseLitModule(LightningModule):  # pylint: disable=too-many-ance
             prog_bar=False,
         )
 
-    def on_test_epoch_start(self) -> None:
-        self.iou_meter.reset()
-
     def on_test_epoch_end(self) -> None:
         """Callback after a test epoch"""
-        miou, acc = self.iou_meter.get_miou_acc()
+        miou, acc = self.iou_meter["test"].get_miou_acc()
         self.log(
             "test/mIoU",
             miou,
@@ -178,7 +188,7 @@ class MMDCPastisBaseLitModule(LightningModule):  # pylint: disable=too-many-ance
         On fit start, load pretrained MMDC model if its path is set.
         The scales are already set in the loaded model
         """
-        logger.info("On fit start")
+        logging.info("On fit start")
         if self.resume_from_checkpoint is None:
             self.model.apply(weight_init)
 

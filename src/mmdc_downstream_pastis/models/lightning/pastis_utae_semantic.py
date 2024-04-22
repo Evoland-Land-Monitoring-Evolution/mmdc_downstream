@@ -48,8 +48,7 @@ class MMDCPastisUTAE(MMDCPastisBaseLitModule):
     def step(self, batch: Any, stage: str = "train") -> Any:
         """
         One step.
-        We produce GT LAI with SNAP.
-        We generate regression input depending on the task.
+        We compute logits and data classes for PASTIS
         """
         (x, dates), gt = batch
         gt = gt.long()
@@ -62,8 +61,7 @@ class MMDCPastisUTAE(MMDCPastisBaseLitModule):
             mask=(gt == -1),
             losses_list=self.losses_list,
         )
-
-        self.iou_meter.add(to_class_label(logits), gt)
+        self.iou_meter[stage].add(to_class_label(logits), gt)
 
         return losses
 
