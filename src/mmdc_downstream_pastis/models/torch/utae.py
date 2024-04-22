@@ -68,7 +68,8 @@ class UTAE(nn.Module):
             padding_mode (str): Spatial padding strategy for convolutional layers (passed to nn.Conv2d).
         """
         super().__init__()
-        self.num_classes = out_conv[-1]
+        if not encoder:
+            self.num_classes = out_conv[-1]
         self.n_stages = len(encoder_widths)
         self.return_maps = return_maps
         self.encoder_widths = encoder_widths
@@ -131,9 +132,10 @@ class UTAE(nn.Module):
             d_k=d_k,
         )
         self.temporal_aggregator = Temporal_Aggregator(mode=agg_mode)
-        self.out_conv = ConvBlock(
-            nkernels=[decoder_widths[0]] + out_conv, padding_mode=padding_mode
-        )
+        if not encoder:
+            self.out_conv = ConvBlock(
+                nkernels=[decoder_widths[0]] + out_conv, padding_mode=padding_mode
+            )
 
     def forward(self, input, batch_positions=None, return_att=False):
         pad_mask = (
