@@ -45,8 +45,8 @@ class PASTISDataset(tdata.Dataset):
         self,
         options: PASTISOptions,
         reference_date: str = "2018-10-01",
-        sats=["S2"],
-        crop_size=64,
+        sats: list[str] = ["S2"],
+        crop_size: int | None = 64,
         # s2_band=None,
         # dict_classes=None,
         crop_type: Literal["Center", "Random"] = "Random",
@@ -135,7 +135,11 @@ class PASTISDataset(tdata.Dataset):
         # self.dict_classes = dict_classes if dict_classes is not None else LABEL_PASTIS
         self.dict_classes = LABEL_PASTIS
 
+        self.patch_size = None
+
         self.labels = list(self.dict_classes.values())
+
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
         logger.info("Done.")
 
@@ -199,10 +203,6 @@ class PASTISDataset(tdata.Dataset):
         """
 
         valid_patches = []
-        for satellite in self.sats:
-            valid = self.get_one_satellite_patches(satellite)
-            if len(self.sats) == 1:
-                return valid
 
         if len(self.sats) == 1:
             return self.get_one_satellite_patches(self.sats[0])
@@ -245,7 +245,7 @@ class PASTISDataset(tdata.Dataset):
                     assume_unique=True,
                 )
 
-    def get_metadata(self, check_patches: bool = True) -> gpd.GeoDataFrame:
+    def get_metadata(self) -> gpd.GeoDataFrame:
         """Return a GeoDatFrame with the patch metadata"""
         logger.info("Reading patch metadata . . .")
         meta_patch = gpd.read_file(
@@ -261,19 +261,19 @@ class PASTISDataset(tdata.Dataset):
             )
 
         # We only keep patches with all modalities available
-        if check_patches:
-            meta_patch = meta_patch[meta_patch.ID_PATCH.isin(self.patches_to_keep())]
+        meta_patch = meta_patch[meta_patch.ID_PATCH.isin(self.patches_to_keep())]
         return meta_patch
 
     def __len__(self):
         return self.len
 
-    @staticmethod
-    def load_file(path: str):
+    def load_file(self, path: str):
         """Load file if exists"""
-        # if len(self.sats) == 1 or (np.sort(self.sats) == ["S1_ASC", "S2"]).all()
-        # or (np.sort(self.sats) == ["S1_DESC", "S2"]).all() or self.strict_s1:
-        return torch.load(path) if Path(path).exists() else None
+        return (
+            torch.load(path, map_location=torch.device("cpu"))
+            if Path(path).exists()
+            else None
+        )
 
     def read_data_from_disk(
         self,
@@ -294,6 +294,8 @@ class PASTISDataset(tdata.Dataset):
         data: dict[str, MMDCDataStruct] = {}
         for satellite in self.sats:
             data_all = data_pastis[satellite]
+            if self.patch_size is None:
+                self.patch_size = data_all.sits.shape[-1]
             if data_all is not None:
                 dem = self.load_file(
                     os.path.join(
@@ -308,7 +310,6 @@ class PASTISDataset(tdata.Dataset):
                     "angles": data_all.angles.nan_to_num(),
                     "dem": dem.nan_to_num(),
                 }
-
                 data_one_sat.update(
                     {
                         f"meteo_{k}": self.load_file(
@@ -373,18 +374,23 @@ class PASTISDataset(tdata.Dataset):
             if self.options.mem16:
                 data = {k: v.casting(torch.float32) for k, v in data.items()}
 
-        t, c, h, w = data[self.sats[0]].data.img.shape
-        y, x = self.get_crop_idx(
-            rows=h, cols=w
-        )  # so that same crop for all the bands of a sits
-
-        target = target[y : y + self.crop_size, x : x + self.crop_size]
+        if self.crop_size is not None:
+            t, c, h, w = data[self.sats[0]].data.img.shape
+            y, x = self.get_crop_idx(
+                rows=h, cols=w
+            )  # so that same crop for all the bands of a sits
+            output = {
+                sat: self.return_one_satellite(data, true_doys, sat, [x, y])
+                for sat in self.sats
+            }
+            target = target[y : y + self.crop_size, x : x + self.crop_size]
+        else:
+            output = {
+                sat: self.return_one_satellite(data, true_doys, sat)
+                for sat in self.sats
+            }
         target[target == 19] = 0  # merge background and void class
         mask = (target != 0) & (target != 19)
-        output = {
-            sat: self.return_one_satellite(data, true_doys, sat, [x, y])
-            for sat in self.sats
-        }
 
         return output, target, mask, id_patch
 
@@ -392,17 +398,21 @@ class PASTISDataset(tdata.Dataset):
         """
         Transform date to day of interest relative to ref date
         """
-        return torch.Tensor(
-            (pd.to_datetime(true_doys) - pd.to_datetime(self.reference_date)).days
-        )
+        if not torch.is_tensor(true_doys):
+            return torch.Tensor(
+                (pd.to_datetime(true_doys) - pd.to_datetime(self.reference_date)).days
+            )
+        return true_doys
 
-    def return_one_satellite(self, data, true_doy, sat, crop_xy):
+    def return_one_satellite(self, data, true_doys, sat, crop_xy: list[int] = None):
         if (sits := data[sat]) is not None:
             t, c, h, w = sits.data.img.shape
-            x, y = crop_xy
 
-            sits = sits.crop(x, y, self.crop_size)
+            if crop_xy is not None:
+                x, y = crop_xy
 
+                sits = sits.crop(x, y, self.crop_size)
+            true_doy = true_doys[sat]
             # if self.transform is not None:
             #     my_logger.debug("Apply transform per SITS")
             #     sits = rearrange(sits, "t c h w -> c t h w")
@@ -423,7 +433,7 @@ class PASTISDataset(tdata.Dataset):
             )
         return OneSatellitePatch(
             sits=MMDCDataStruct.init_empty_zeros_s1(
-                self.max_len, self.crop_size, self.crop_size
+                self.max_len, self.patch_size, self.patch_size
             ),
             padd_index=torch.full([self.max_len], True),
             padd_val=torch.tensor(self.max_len),
@@ -503,7 +513,6 @@ def custom_collate_classif(
 
             elif getattr(item[0], key) is None:
                 dict_collate[key] = None
-
         batch_dict[sat] = PastisBatch.init_empty().fill_empty_from_dict(dict_collate)
     return batch_dict, target, mask, id_patch
 
@@ -529,7 +538,7 @@ class PastisDataModule(LightningDataModule):
         reference_date: str = "2018-10-01",
         task: Literal["semantic"] = "semantic",
         batch_size: int = 2,
-        crop_size=64,
+        crop_size: int | None = 64,
         crop_type: Literal["Center", "Random"] = "Random",
         num_workers: int = 1,
         # path_dir_csv: str | None = None,
