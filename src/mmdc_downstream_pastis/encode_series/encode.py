@@ -2,6 +2,7 @@
 # Copyright: (c) 2023 CESBIO / Centre National d'Etudes Spatiales
 
 import logging
+import os
 from pathlib import Path
 
 import numpy as np
@@ -10,18 +11,21 @@ import torch
 from mmdc_singledate.models.datatypes import VAELatentSpace
 
 from mmdc_downstream_pastis.datamodule.pastis_oe import PastisDataModule
+from mmdc_downstream_pastis.mmdc_model.model import PretrainedMMDCPastis
 from mmdc_downstream_pastis.utils.utils import MMDCPartialBatch
 
 log = logging.getLogger(__name__)
 
 
-def back_to_date(days_int, ref_date):
+def back_to_date(days_int: torch.Tensor, ref_date: str) -> list[np.array]:
     return [
-        pd.to_datetime(
-            [
-                pd.Timedelta(dd, "d") + pd.to_datetime(ref_date)
-                for dd in days_int.numpy()[d]
-            ]
+        np.asarray(
+            pd.to_datetime(
+                [
+                    pd.Timedelta(dd, "d") + pd.to_datetime(ref_date)
+                    for dd in days_int.numpy()[d]
+                ]
+            )
         )
         for d in range(len(days_int))
     ]
@@ -39,6 +43,7 @@ def build_dm(
         task="semantic",
         batch_size=1,
         max_len=0,
+        crop_size=None,
     )
 
 
@@ -46,7 +51,6 @@ def fill_batch_s1(
     batch_s1: MMDCPartialBatch, asc_ind, desc_ind, batch_asc, batch_desc
 ) -> MMDCPartialBatch:
     only_in_desc = desc_ind[~np.in1d(desc_ind, asc_ind)]
-
     if len(asc_ind) > 0:
         batch_s1.img[:, asc_ind, :3, :, :] = batch_asc.img
         batch_s1.angles[:, asc_ind, :1, :, :] = batch_asc.angles
@@ -197,18 +201,56 @@ def encode_one_batch(
     return latents1, latents1_asc, latents1_desc, latents2, batch_s1_mask, days_s1
 
 
-def encode_series(mmdc_model, dataset_path_oe, dataset_path_pastis, sats):
+def encode_series(
+    mmdc_model: PretrainedMMDCPastis,
+    dataset_path_oe: str | Path,
+    dataset_path_pastis: str | Path,
+    sats: list[str],
+    output_path: str | Path,
+):
+    """Encode PASTIS SITS into S1 and S2 latent embeddings"""
     dm = build_dm(dataset_path_oe, dataset_path_pastis, sats)
 
     dataset = dm.instanciate_dataset(fold=None)
     loader = dm.instanciate_data_loader(dataset, shuffle=False, drop_last=False)
+    log.info("Loader is ready")
     for batch_dict, target, mask, id_patch in loader:
-        print(id_patch)
-        (
-            latents1,
-            latents1_asc,
-            latents1_desc,
-            latents2,
-            batch_s1_mask,
-            days_s1,
-        ) = encode_one_batch(mmdc_model, batch_dict, ref_date=dm.reference_date)
+        log.info(id_patch)
+        if not (
+            Path(os.path.join(output_path, "S1", f"S1_{id_patch[0]}.pt")).exists()
+            and Path(os.path.join(output_path, "S2", f"S2_{id_patch[0]}.pt"))
+        ):
+            log.info(id_patch)
+
+            (
+                latents1,
+                latents1_asc,
+                latents1_desc,
+                latents2,
+                batch_s1_mask,
+                days_s1,
+            ) = encode_one_batch(mmdc_model, batch_dict, ref_date=dm.reference_date)
+            encoded_pastis_s1 = {
+                "latents": VAELatentSpace(
+                    latents1.mean.squeeze(0), latents1.logvar.squeeze(0)
+                ),
+                "mask": batch_s1_mask.squeeze(0),
+                "dates": days_s1,
+            }
+
+            encoded_pastis_s2 = {
+                "latents": VAELatentSpace(
+                    latents2.mean.squeeze(0), latents2.logvar.squeeze(0)
+                ),
+                "mask": batch_dict["S2"].sits.data.mask.squeeze(0),
+                "dates": back_to_date(batch_dict["S2"].true_doy, dm.reference_date)[0],
+            }
+
+            torch.save(
+                encoded_pastis_s1,
+                os.path.join(output_path, "S1", f"S1_{id_patch[0]}.pt"),
+            )
+            torch.save(
+                encoded_pastis_s2,
+                os.path.join(output_path, "S2", f"S2_{id_patch[0]}.pt"),
+            )

@@ -3,6 +3,7 @@
 import argparse
 import logging
 import os
+from pathlib import Path
 
 from mmdc_downstream_pastis.encode_series.encode import encode_series
 from mmdc_downstream_pastis.mmdc_model.model import PretrainedMMDCPastis
@@ -32,7 +33,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--dataset_path_oe",
         type=str,
         help="OE data folder",
-        default=f"{os.environ['WORK']}/scratch_data/PASTIS_OE"
+        default=f"{os.environ['SCRATCH']}/scratch_data/Pastis_OE"
         # required=True
     )
 
@@ -40,7 +41,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--dataset_path_pastis",
         type=str,
         help="Original Pastis data folder",
-        default=f"{os.environ['WORK']}/scratch_data/PASTIS"
+        default=f"{os.environ['SCRATCH']}/scratch_data/Pastis"
         # required=True
     )
 
@@ -52,13 +53,13 @@ def get_parser() -> argparse.ArgumentParser:
         # required=True
     )
 
-    # arg_parser.add_argument(
-    #     "--output_path",
-    #     type=str,
-    #     help="output folder",
-    #     default="/work/CESBIO/projects/DeepChange/Ekaterina/MMDC_OE"
-    #     # required=True
-    # )
+    arg_parser.add_argument(
+        "--output_path",
+        type=str,
+        help="output folder",
+        default=f"{os.environ['WORK']}/results/Pastis_encoded"
+        # required=True
+    )
 
     arg_parser.add_argument(
         "--pretrained_path",
@@ -85,15 +86,6 @@ def get_parser() -> argparse.ArgumentParser:
         # required=False,
     )
 
-    arg_parser.add_argument(
-        "--variables",
-        type=str,
-        nargs="+",
-        help="list of variables to compute",
-        default=["lai"]
-        # required=False,
-    )
-
     return arg_parser
 
 
@@ -117,4 +109,14 @@ if __name__ == "__main__":
         args.pretrained_path, args.model_name, args.model_type
     )
 
-    encode_series(mmdc_model, args.dataset_path_oe, args.dataset_path_pastis, args.sats)
+    output_path = os.path.join(args.output_path, args.pretrained_path.split("/")[-1])
+    Path(os.path.join(output_path, "S1")).mkdir(exist_ok=True, parents=True)
+    Path(os.path.join(output_path, "S2")).mkdir(exist_ok=True, parents=True)
+
+    encode_series(
+        mmdc_model,
+        args.dataset_path_oe,
+        args.dataset_path_pastis,
+        args.sats,
+        output_path,
+    )
