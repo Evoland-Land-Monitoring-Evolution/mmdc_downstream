@@ -1,14 +1,14 @@
 _target_: mmdc_downstream_pastis.datamodule.pastis_oe_only_satellite.PastisDataModule
 
-data_folder: "/work/CESBIO/projects/MAESTRIA/PASTIS/PASTIS-R"
-data_folder_oe: "/work/CESBIO/projects/DeepChange/Ekaterina/Pastis_OE"
+data_folder: ${oc.env:SCRATCH}/scratch_data/Pastis
+data_folder_oe: ${oc.env:SCRATCH}/scratch_data/Pastis
 
 task:
   _target_: mmdc_downstream_pastis.datamodule.pastis_oe_only_satellite.PASTISTask
 #  target:
 #    _target_: mtan_s1s2_classif.datamodules.pastis_dataset.PASTISTarget
 #    name: SEMANTIC
-  reference_date: "2018-10-01"
+  reference_date: "2018-09-01"
   class_mapping: null
   mono_date: null
   sats: [ "S2" ]
@@ -20,4 +20,3 @@ folds:
   test: [5]
 
 batch_size: 4
-crop_size: 64

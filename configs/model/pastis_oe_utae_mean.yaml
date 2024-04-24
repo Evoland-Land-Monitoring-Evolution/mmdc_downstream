@@ -1,14 +1,16 @@
 
-_target_: mmdc_downstream_pastis.models.lightning.pastis_encoded_utae_semantic.MMDCPastisEncodedUTAE
+_target_: mmdc_downstream_pastis.models.lightning.pastis_utae_semantic.PastisUTAE
 lr: 0.001
 resume_from_checkpoint: null #/work/scratch/data/kalinie/MMDC/results/pastis/checkpoints/pastis_utae/2024-02-20_16-30-23/epoch_098.ckpt
 
 model:
   _target_: mmdc_downstream_pastis.models.torch.utae_fusion.UTAEFusion
   input_dim:
-    S1: 12
-    S2: 12
+    S2: 10
+    S1_ASC: 3
+    S1_DESC: 3
   fusion: mean
+  satellites: [ "S2", "S1_ASC", "S1_DESC" ]
 
 metrics_list : ["cross_entropy"]
 

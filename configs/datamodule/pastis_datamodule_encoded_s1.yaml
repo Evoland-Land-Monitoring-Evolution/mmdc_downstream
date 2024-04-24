@@ -14,4 +14,4 @@ folds:
   test: [5]
 
 batch_size: 4
-crop_size: 64
+crop_size: null

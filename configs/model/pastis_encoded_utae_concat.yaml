@@ -5,9 +5,9 @@ resume_from_checkpoint: null #/work/scratch/data/kalinie/MMDC/results/pastis/che
 
 model:
   _target_: mmdc_downstream_pastis.models.torch.utae_fusion.UTAEFusion
-#  in_channels: 10
-#  num_classes: 20
-  input_dim: 12
+  input_dim:
+    S1: 12
+    S2: 12
   fusion: concat
 
 metrics_list : ["cross_entropy"]
