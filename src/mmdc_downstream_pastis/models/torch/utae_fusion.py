@@ -16,7 +16,7 @@ from mmdc_downstream_pastis.models.torch.utae import UTAE, ConvBlock, DownConvBl
 class UTAEFusion(nn.Module):
     def __init__(
         self,
-        input_dim: int,
+        input_dim: dict[str, int] = {"S1": 12, "S2": 12},
         encoder_widths: list[int] = [64, 64, 64, 128],
         decoder_widths: list[int] = [32, 32, 64, 128],
         out_conv: list[int] = [32, 20],
@@ -31,6 +31,7 @@ class UTAEFusion(nn.Module):
         pad_value: int = 0,
         padding_mode: int = "reflect",
         fusion: Literal["mean", "concat"] = "mean",
+        satellites: list[str] = ("S1", "S2"),
     ):
         """
         U-TAE architecture for spatio-temporal encoding of satellite image time series.
@@ -79,43 +80,29 @@ class UTAEFusion(nn.Module):
                 nkernels=[decoder_widths[0] * 2] + out_conv, padding_mode=padding_mode
             )
 
-        self.encoder_s1 = UTAE(
-            input_dim,
-            encoder_widths,
-            decoder_widths,
-            out_conv,
-            str_conv_k,
-            str_conv_s,
-            str_conv_p,
-            agg_mode,
-            encoder_norm,
-            n_head,
-            d_model,
-            d_k,
-            encoder=True,
-            return_maps=True,
-            pad_value=pad_value,
-            padding_mode="reflect",
-        )
+        self.satellites = satellites
 
-        self.encoder_s2 = UTAE(
-            input_dim,
-            encoder_widths,
-            decoder_widths,
-            out_conv,
-            str_conv_k,
-            str_conv_s,
-            str_conv_p,
-            agg_mode,
-            encoder_norm,
-            n_head,
-            d_model,
-            d_k,
-            encoder=True,
-            return_maps=True,
-            pad_value=pad_value,
-            padding_mode="reflect",
-        )
+        self.encoders = {
+            sat: UTAE(
+                input_dim[sat],
+                encoder_widths,
+                decoder_widths,
+                out_conv,
+                str_conv_k,
+                str_conv_s,
+                str_conv_p,
+                agg_mode,
+                encoder_norm,
+                n_head,
+                d_model,
+                d_k,
+                encoder=True,
+                return_maps=True,
+                pad_value=pad_value,
+                padding_mode="reflect",
+            )
+            for sat in satellites
+        }
 
     def forward(
         self,
@@ -124,15 +111,25 @@ class UTAEFusion(nn.Module):
         return_att: bool = False,
     ):
         """Forward pass of multimodal UTAE"""
-        out_s1, _ = self.encoder_s1.forward(
-            input["S1"], batch_positions["S1"], return_att=return_att
-        )
-        out_s2, _ = self.encoder_s2.forward(
-            input["S2"], batch_positions["S2"], return_att=return_att
-        )
+        out = [
+            self.encoder_s1[sat].forward(
+                input[sat], batch_positions[sat], return_att=return_att
+            )[0]
+            for sat in self.satellites
+        ]
         if self.fusion == "mean":
-            fused = (out_s1 + out_s2) / 2
+            fused = torch.sum(torch.stack(out), dim=0)
         else:  # "concat"
-            fused = torch.cat([out_s1, out_s2], 1)
+            fused = torch.cat(out, 1)
+        # out_s1, _ = self.encoder_s1.forward(
+        #     input["S1"], batch_positions["S1"], return_att=return_att
+        # )
+        # out_s2, _ = self.encoder_s2.forward(
+        #     input["S2"], batch_positions["S2"], return_att=return_att
+        # )
+        # if self.fusion == "mean":
+        #     fused = (out_s1 + out_s2) / 2
+        # else:  # "concat"
+        #     fused = torch.cat([out_s1, out_s2], 1)
         out = self.out_conv(fused)
         return out
