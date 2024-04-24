@@ -95,7 +95,7 @@ def get_one_slice(nc_file: str | Path, slice: list[float]) -> xr.Dataset:
         decode_coords="all",
         mask_and_scale=False,
         decode_times=True,
-        engine="h5netcdf",
+        engine="netcdf4",
     ) as file:
         return file.rio.slice_xy(*slice)
 
