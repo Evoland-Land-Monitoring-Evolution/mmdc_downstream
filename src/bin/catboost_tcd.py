@@ -7,7 +7,11 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import rasterio
+import torch
 from catboost import CatBoostRegressor
+from einops import rearrange
+from rasterio.transform import Affine
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
 
@@ -31,7 +35,9 @@ def get_parser() -> argparse.ArgumentParser:
         "--folder_data",
         type=str,
         help="input folder",
-        default="/home/kalinichevae/jeanzay/results/TCD/t32tnt/pure_values/s1"
+        # default="/home/kalinichevae/jeanzay/results/TCD/t32tnt/pure_values/s1"
+        default=f"{os.environ['WORK']}/results/TCD/t32tnt/pure_values/s2"
+        # "/home/kalinichevae/jeanzay/results/TCD/t32tnt/pure_values/s2"
         # default="/home/kalinichevae/jeanzay/results/TCD/t32tnt/encoded"
         # default=f"{os.environ['WORK']}/results/TCD/t32tnt/pure_values/s1"
         # required=True
@@ -49,7 +55,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--n_iter",
         type=int,
         help="number of iterations for bootstrap",
-        default=1500
+        default=150
         # required=False,
     )
 
@@ -65,7 +71,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--depth",
         type=int,
         help="number of features per timestamp",
-        default=12
+        default=8
         # required=False,
     )
 
@@ -73,7 +79,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--months_median",
         type=bool,
         help="if we compute median per months or not",
-        default=True
+        default=False
         # required=False,
     )
 
@@ -89,11 +95,88 @@ def get_parser() -> argparse.ArgumentParser:
         "--satellites",
         type=list[str],
         help="satellites we deal with",
-        default=["s1"]
+        default=["s2"]
+        # required=False,
+    )
+
+    arg_parser.add_argument(
+        "--path_image_tiles",
+        type=str,
+        help="Path to image tiles we are going to predict",
+        default=f"{os.environ['WORK']}/results/TCD/t32tnt/pure_values/S2_full_median/"
+        # "/home/kalinichevae/jeanzay/results/TCD/t32tnt/pure_values/S2_full_median/"
         # required=False,
     )
 
     return arg_parser
+
+
+def encode_image(path_image_tiles: str | Path, model: CatBoostRegressor) -> None:
+    tile_names = [f for f in os.listdir(path_image_tiles) if f.endswith(".pt")]
+    pred_tiles = []
+    pred_coords = []
+    x_min_glob, x_max_glob, y_min_glob, y_max_glob = (
+        torch.inf,
+        -torch.inf,
+        torch.inf,
+        -torch.inf,
+    )
+    for tile_name in tile_names:
+        print(tile_name)
+        tile = torch.load(os.path.join(path_image_tiles, tile_name))
+        img = tile["img"]
+        matrix = tile["matrix"]
+        c, h, w = img.shape
+        img_flat = rearrange(img, "c h w -> (h w) c")
+        pred_flat = model.predict(img_flat.cpu().numpy())
+        pred = rearrange(pred_flat, "(h w) -> h w", h=h, w=w)
+        x_min, x_max, y_min, y_max = (
+            matrix[0].min() - 5,
+            matrix[0].max() + 5,
+            matrix[1].min() - 5,
+            matrix[1].max() + 5,
+        )
+        pred_tiles.append(pred.astype(int))
+        pred_coords.append([x_min, x_max, y_min, y_max])
+        x_min_glob, x_max_glob, y_min_glob, y_max_glob = (
+            min(x_min_glob, x_min),
+            max(x_max_glob, x_max),
+            min(y_min_glob, y_min),
+            max(y_max_glob, y_max),
+        )
+        print(x_min_glob, x_max_glob, y_min_glob, y_max_glob)
+
+    pred_img = np.zeros(
+        (int(y_max_glob - y_min_glob), int(x_max_glob - x_min_glob)), dtype=int
+    )
+
+    x_range = np.arange(x_min_glob, x_max_glob, 10)
+    y_range = np.arange(y_max_glob, y_min_glob, -10)
+
+    for tt in range(len(pred_tiles)):
+        pred_tile = pred_tiles[tt]
+        x_min, x_max, y_min, y_max = pred_coords[tt]
+        idx_x_min, idx_x_max, idx_y_min, idx_y_max = (
+            np.where(x_range == x_min)[0][0],
+            np.where(x_range == (x_max - 10))[0][0],
+            np.where(y_range == y_max)[0][0],
+            np.where(y_range == (y_min + 10))[0][0],
+        )
+        pred_img[idx_y_min : idx_y_max + 1, idx_x_min : idx_x_max + 1] = pred_tile
+
+    profile = {
+        "driver": "GTiff",
+        "width": len(x_range),
+        "height": len(y_range),
+        "count": 1,
+        "dtype": "uint8",
+        "crs": "epsg:32632",
+        "transform": Affine(10.0, 0.0, x_min_glob, 0.0, -10.0, y_max_glob),
+    }
+    with rasterio.open(
+        os.path.join(path_image_tiles, "tdc_pred.tif"), "w", **profile
+    ) as dst:
+        dst.write(pred_img, 1)
 
 
 def open_csv_files_and_combine(
@@ -134,7 +217,11 @@ def open_csv_files_and_combine(
         data = pd.concat(all_df, ignore_index=True)
     log.info(f"Shape of input data {data.shape}")
 
-    days = np.load(os.path.join(csv_folder, f"gt_tcd_t32tnt_days_{sat}.npy"))
+    days = (
+        np.load(os.path.join(csv_folder, f"gt_tcd_t32tnt_days_{sat}.npy"))
+        if Path(os.path.join(csv_folder, f"gt_tcd_t32tnt_days_{sat}.npy")).exists()
+        else None
+    )
 
     return data, days
 
@@ -194,7 +281,7 @@ def get_month_median(
 
 def catboost_algorothm(
     cb_params: CB_params, X_train: np.ndarray, y_train: np.ndarray, X_test: np.ndarray
-) -> np.ndarray:
+) -> tuple[np.ndarray, CatBoostRegressor]:
     """Create model and make a prediction"""
 
     log.info("Getting model")
@@ -215,7 +302,7 @@ def catboost_algorothm(
     log.info(np.round(pred))
     log.info("GT")
     log.info(y_test.flatten())
-    return pred
+    return pred, model_cat
 
 
 def results_scatterplot(
@@ -282,12 +369,16 @@ if __name__ == "__main__":
         )
 
         # Create model, fit and predict
-        pred = catboost_algorothm(
+        pred, model_cat = catboost_algorothm(
             CB_params(args.n_iter, args.leaf, args.depth),
             X_train,
             y_train,
             X_test,
         )
+
+        encode_image(path_image_tiles=args.path_image_tiles, model=model_cat)
+
+        exit()
 
         # Compute error
         rmse = round(
