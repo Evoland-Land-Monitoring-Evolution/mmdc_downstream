@@ -37,7 +37,7 @@ def get_parser() -> argparse.ArgumentParser:
         help="input folder",
         # default="/home/kalinichevae/jeanzay/results/TCD/t32tnt/pure_values/s1"
         default=f"{os.environ['WORK']}/results/TCD/t32tnt/pure_values/s2"
-        # "/home/kalinichevae/jeanzay/results/TCD/t32tnt/pure_values/s2"
+        # default="/home/kalinichevae/jeanzay/results/TCD/t32tnt/pure_values/s2"
         # default="/home/kalinichevae/jeanzay/results/TCD/t32tnt/encoded"
         # default=f"{os.environ['WORK']}/results/TCD/t32tnt/pure_values/s1"
         # required=True
@@ -111,9 +111,77 @@ def get_parser() -> argparse.ArgumentParser:
     return arg_parser
 
 
+# def encode_image(path_image_tiles: str | Path, model: CatBoostRegressor) -> None:
+#     tile_names = [f for f in os.listdir(path_image_tiles) if f.endswith(".pt")]
+#     pred_tiles = []
+#     pred_coords = []
+#     x_min_glob, x_max_glob, y_min_glob, y_max_glob = (
+#         torch.inf,
+#         -torch.inf,
+#         torch.inf,
+#         -torch.inf,
+#     )
+#     for tile_name in tile_names:
+#         print(tile_name)
+#         tile = torch.load(os.path.join(path_image_tiles, tile_name))
+#         img = tile["img"]
+#         matrix = tile["matrix"]
+#         c, h, w = img.shape
+#         img_flat = rearrange(img, "c h w -> (h w) c")
+#         pred_flat = model.predict(img_flat.cpu().numpy())
+#         pred = rearrange(pred_flat, "(h w) -> h w", h=h, w=w)
+#         x_min, x_max, y_min, y_max = (
+#             matrix[0].min() - 5,
+#             matrix[0].max() + 5,
+#             matrix[1].min() - 5,
+#             matrix[1].max() + 5,
+#         )
+#         pred_tiles.append(pred.astype(int))
+#         pred_coords.append([x_min, x_max, y_min, y_max])
+#         x_min_glob, x_max_glob, y_min_glob, y_max_glob = (
+#             min(x_min_glob, x_min),
+#             max(x_max_glob, x_max),
+#             min(y_min_glob, y_min),
+#             max(y_max_glob, y_max),
+#         )
+#         print(x_min_glob, x_max_glob, y_min_glob, y_max_glob)
+#
+#     pred_img = np.zeros(
+#         (int(y_max_glob - y_min_glob), int(x_max_glob - x_min_glob)), dtype=int
+#     )
+#     print(pred_img.shape)
+#
+#     x_range = np.arange(x_min_glob, x_max_glob, 10)
+#     y_range = np.arange(y_max_glob, y_min_glob, -10)
+#
+#     for tt in range(len(pred_tiles)):
+#         pred_tile = pred_tiles[tt]
+#         x_min, x_max, y_min, y_max = pred_coords[tt]
+#         idx_x_min, idx_x_max, idx_y_min, idx_y_max = (
+#             np.where(x_range == x_min)[0][0],
+#             np.where(x_range == (x_max - 10))[0][0],
+#             np.where(y_range == y_max)[0][0],
+#             np.where(y_range == (y_min + 10))[0][0],
+#         )
+#         pred_img[idx_y_min:idx_y_max + 1, idx_x_min:idx_x_max + 1] = pred_tile
+#
+#     profile = {
+#         "driver": "GTiff",
+#         "width": len(x_range),
+#         "height": len(y_range),
+#         "count": 1,
+#         "dtype": "uint8",
+#         "crs": "epsg:32632",
+#         "transform": Affine(10.0, 0.0, x_min_glob, 0.0, -10.0, y_max_glob),
+#     }
+#     with rasterio.open(
+#         os.path.join(path_image_tiles, "tdc_pred.tif"), "w", **profile
+#     ) as dst:
+#         dst.write(pred_img, 1)
+
+
 def encode_image(path_image_tiles: str | Path, model: CatBoostRegressor) -> None:
     tile_names = [f for f in os.listdir(path_image_tiles) if f.endswith(".pt")]
-    pred_tiles = []
     pred_coords = []
     x_min_glob, x_max_glob, y_min_glob, y_max_glob = (
         torch.inf,
@@ -121,22 +189,16 @@ def encode_image(path_image_tiles: str | Path, model: CatBoostRegressor) -> None
         torch.inf,
         -torch.inf,
     )
-    for tile_name in tile_names:
-        print(tile_name)
-        tile = torch.load(os.path.join(path_image_tiles, tile_name))
-        img = tile["img"]
-        matrix = tile["matrix"]
-        c, h, w = img.shape
-        img_flat = rearrange(img, "c h w -> (h w) c")
-        pred_flat = model.predict(img_flat.cpu().numpy())
-        pred = rearrange(pred_flat, "(h w) -> h w", h=h, w=w)
+    for tt in range(len(tile_names)):
+        print(tile_names[tt])
+        matrix = torch.load(os.path.join(path_image_tiles, tile_names[tt]))["matrix"]
+
         x_min, x_max, y_min, y_max = (
             matrix[0].min() - 5,
             matrix[0].max() + 5,
             matrix[1].min() - 5,
             matrix[1].max() + 5,
         )
-        pred_tiles.append(pred.astype(int))
         pred_coords.append([x_min, x_max, y_min, y_max])
         x_min_glob, x_max_glob, y_min_glob, y_max_glob = (
             min(x_min_glob, x_min),
@@ -145,16 +207,28 @@ def encode_image(path_image_tiles: str | Path, model: CatBoostRegressor) -> None
             max(y_max_glob, y_max),
         )
         print(x_min_glob, x_max_glob, y_min_glob, y_max_glob)
-
-    pred_img = np.zeros(
-        (int(y_max_glob - y_min_glob), int(x_max_glob - x_min_glob)), dtype=int
+    x_min_glob, x_max_glob, y_min_glob, y_max_glob = (
+        499970.0,
+        609790.0,
+        5190230.0,
+        5300040.0,
     )
+    pred_img = np.zeros(
+        (int((y_max_glob - y_min_glob) / 10), int((x_max_glob - x_min_glob) / 10)),
+        dtype=int,
+    )
+    print(pred_img.shape)
 
     x_range = np.arange(x_min_glob, x_max_glob, 10)
     y_range = np.arange(y_max_glob, y_min_glob, -10)
 
-    for tt in range(len(pred_tiles)):
-        pred_tile = pred_tiles[tt]
+    # for tt in range(len(pred_coords)):
+    for tt in range(len(tile_names)):
+        img = torch.load(os.path.join(path_image_tiles, tile_names[tt]))["img"]
+        c, h, w = img.shape
+        img_flat = rearrange(img, "c h w -> (h w) c")
+        pred_flat = model.predict(img_flat.cpu().numpy() * 10000)
+        pred_tile = rearrange(pred_flat, "(h w) -> h w", h=h, w=w)
         x_min, x_max, y_min, y_max = pred_coords[tt]
         idx_x_min, idx_x_max, idx_y_min, idx_y_max = (
             np.where(x_range == x_min)[0][0],
@@ -269,6 +343,7 @@ def get_month_median(
                 median_dict[f"{value}_m{month}"] = median
 
     data = pd.concat([data[MAIN_COLS], pd.DataFrame.from_dict(median_dict)], axis=1)
+    print(data[MAIN_COLS])
     data_cols = np.asarray(median_dict.keys())
     # if encoded:
     #     assert data_cols.size * 2 * feat_nb
