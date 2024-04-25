@@ -40,7 +40,7 @@ class PASTISEncodedDataset(PASTISDataset):
         transform: nn.Module | None = None,
         max_len: int = 60,
         allow_padd: bool = True,
-        use_logvar: bool = True,
+        # use_logvar: bool = True,
     ):
         """
         Pytorch Dataset class to load samples from the PASTIS dataset, for semantic and
@@ -200,7 +200,6 @@ class PASTISEncodedDataset(PASTISDataset):
             s: (self.prepare_dates(a["dates"]) if a is not None else None)
             for s, a in data_pastis.items()
         }
-        print(dates)
         masks = {
             s: (a["mask"] if a is not None else None) for s, a in data_pastis.items()
         }
@@ -453,70 +452,71 @@ class PastisEncodedDataModule(PastisDataModule):
         )
 
 
-def build_dm(sats) -> PastisEncodedDataModule:
-    """Builds datamodule"""
-    return PastisEncodedDataModule(
-        dataset_path_oe=dataset_path_oe,
-        dataset_path_pastis=dataset_path_pastis,
-        folds=PastisFolds([1, 2, 3], [4], [5]),
-        sats=sats,
-        task="semantic",
-        batch_size=4,
-    )
-
-
-model = "2024-04-05_14-58-22"
-# dataset_path_oe = f"{os.environ['WORK']}/results/Pastis_encoded"
-# dataset_path_pastis = f"{os.environ['SCRATCH']}/scratch_data/Pastis"
-dataset_path_oe = "/home/kalinichevae/jeanzay/results/Pastis_encoded"
-dataset_path_pastis = "/home/kalinichevae/scratch_jeanzay/scratch_data/Pastis"
-dataset_path_oe = os.path.join(dataset_path_oe, model)
-
-
-def pastisds_dataloader(sats) -> None:
-    """Use a dataloader with PASTIS dataset"""
-    dm = build_dm(sats)
-    dm.setup(stage="fit")
-    # dm.setup(stage="test")
-    assert (
-        hasattr(dm, "train_dataloader")
-        and hasattr(dm, "val_dataloader")
-        # and hasattr(dm, "test_dataloader")
-    )  # type: ignore[truthy-function]
-    for loader in (
-        dm.train_dataloader(),
-        dm.val_dataloader(),
-    ):  # , dm.test_dataloader()):
-        assert loader
-        for (batch_dict, mask_dict, doys_dict, target, mask, id_patch), _ in zip(
-            loader, range(4)
-        ):
-            if len(sats) > 1:
-                assert list(batch_dict.keys()) == sats
-                for sat in sats:
-                    b_s_x, t_s_x, nb_b, p_s_x, _ = batch_dict[sat].shape
-
-                    b_s_imsk, t_s_imsk, nb_b_imsk, p_s_imsk, _ = mask_dict[sat].shape
-
-                    b_s_y, p_s_y, _ = target.shape
-                    b_s_m, p_s_m, _ = mask.shape
-                    b_s_id = len(id_patch)
-
-                    assert b_s_x == b_s_imsk == b_s_y == b_s_m == b_s_id
-                    assert t_s_x == t_s_imsk
-                    assert p_s_x == p_s_imsk == p_s_y == p_s_m
-            else:
-                b_s_x, t_s_x, nb_b, p_s_x, _ = batch_dict.shape
-
-                b_s_imsk, t_s_imsk, nb_b_imsk, p_s_imsk, _ = mask_dict.shape
-
-                b_s_y, p_s_y, _ = target.shape
-                b_s_m, p_s_m, _ = mask.shape
-                b_s_id = len(id_patch)
-
-                assert b_s_x == b_s_imsk == b_s_y == b_s_m == b_s_id
-                assert t_s_x == t_s_imsk
-                assert p_s_x == p_s_imsk == p_s_y == p_s_m
-
-
-pastisds_dataloader(["S1", "S2"])
+#
+# def build_dm(sats) -> PastisEncodedDataModule:
+#     """Builds datamodule"""
+#     return PastisEncodedDataModule(
+#         dataset_path_oe=dataset_path_oe,
+#         dataset_path_pastis=dataset_path_pastis,
+#         folds=PastisFolds([1, 2, 3], [4], [5]),
+#         sats=sats,
+#         task="semantic",
+#         batch_size=4,
+#     )
+#
+#
+# model = "2024-04-05_14-58-22"
+# # dataset_path_oe = f"{os.environ['WORK']}/results/Pastis_encoded"
+# # dataset_path_pastis = f"{os.environ['SCRATCH']}/scratch_data/Pastis"
+# dataset_path_oe = "/home/kalinichevae/jeanzay/results/Pastis_encoded"
+# dataset_path_pastis = "/home/kalinichevae/scratch_jeanzay/scratch_data/Pastis"
+# dataset_path_oe = os.path.join(dataset_path_oe, model)
+#
+#
+# def pastisds_dataloader(sats) -> None:
+#     """Use a dataloader with PASTIS dataset"""
+#     dm = build_dm(sats)
+#     dm.setup(stage="fit")
+#     # dm.setup(stage="test")
+#     assert (
+#         hasattr(dm, "train_dataloader")
+#         and hasattr(dm, "val_dataloader")
+#         # and hasattr(dm, "test_dataloader")
+#     )  # type: ignore[truthy-function]
+#     for loader in (
+#         dm.train_dataloader(),
+#         dm.val_dataloader(),
+#     ):  # , dm.test_dataloader()):
+#         assert loader
+#         for (batch_dict, mask_dict, doys_dict, target, mask, id_patch), _ in zip(
+#             loader, range(4)
+#         ):
+#             if len(sats) > 1:
+#                 assert list(batch_dict.keys()) == sats
+#                 for sat in sats:
+#                     b_s_x, t_s_x, nb_b, p_s_x, _ = batch_dict[sat].shape
+#
+#                     b_s_imsk, t_s_imsk, nb_b_imsk, p_s_imsk, _ = mask_dict[sat].shape
+#
+#                     b_s_y, p_s_y, _ = target.shape
+#                     b_s_m, p_s_m, _ = mask.shape
+#                     b_s_id = len(id_patch)
+#
+#                     assert b_s_x == b_s_imsk == b_s_y == b_s_m == b_s_id
+#                     assert t_s_x == t_s_imsk
+#                     assert p_s_x == p_s_imsk == p_s_y == p_s_m
+#             else:
+#                 b_s_x, t_s_x, nb_b, p_s_x, _ = batch_dict.shape
+#
+#                 b_s_imsk, t_s_imsk, nb_b_imsk, p_s_imsk, _ = mask_dict.shape
+#
+#                 b_s_y, p_s_y, _ = target.shape
+#                 b_s_m, p_s_m, _ = mask.shape
+#                 b_s_id = len(id_patch)
+#
+#                 assert b_s_x == b_s_imsk == b_s_y == b_s_m == b_s_id
+#                 assert t_s_x == t_s_imsk
+#                 assert p_s_x == p_s_imsk == p_s_y == p_s_m
+#
+#
+# pastisds_dataloader(["S1", "S2"])
