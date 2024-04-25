@@ -54,6 +54,18 @@ def get_value_label(path, selected_data, column_names, use_logvar):
     return x, y, x_col
 
 
+def get_mean_std(df: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
+    """Get mean, std"""
+    mean = df.mean()
+    std = df.std()
+    return mean, std
+
+
+def standardize(df: pd.DataFrame, mean: pd.Series, std: pd.Series) -> pd.DataFrame:
+    """Standardize training data"""
+    return (df - mean) / std
+
+
 def select_s1(x_train, x_test, x_val, y_train, y_test, y_val, orbit):
     mask_train = x_train[f"s1_mask_{orbit}"].values.astype(bool)
     mask_test = x_test[f"s1_mask_{orbit}"].values.astype(bool)
@@ -73,7 +85,13 @@ class MLP(nn.Module):
 
     def __init__(self, in_feat=11):
         super().__init__()
-        self.layers = nn.Sequential(nn.Linear(in_feat, 5), nn.Tanh(), nn.Linear(5, 1))
+        self.layers = nn.Sequential(
+            nn.Linear(in_feat, 16),
+            nn.Tanh(),
+            nn.Linear(16, 16),
+            nn.Tanh(),
+            nn.Linear(16, 1),
+        )
 
     def forward(self, x):
         """Forward pass"""
@@ -86,6 +104,8 @@ lai_min = torch.tensor(0.000319182538301)
 lai_max = torch.tensor(14.4675094548)
 
 folder_data = "/work/scratch/data/kalinie/MMDC/jobs"
+folder_data = f"{os.environ['WORK']}/results/LAI/"
+
 
 path_train = os.path.join(
     folder_data, "data_values_baseline_2024-02-27_14-47-18_train.csv"
@@ -120,6 +140,15 @@ logging.info("Opening test df")
 x_test_all, y_test, _ = get_value_label(
     path_test, selected_data, column_names, USE_LOGVAR
 )
+
+mean, std = get_mean_std(x_train_all)
+logging.info(mean)
+logging.info(std)
+
+x_train_all = standardize(x_train_all, mean, std)
+x_val_all = standardize(x_val_all, mean, std)
+x_test_all = standardize(x_test_all, mean, std)
+
 
 results = {}
 y_test_denorm = {}
@@ -156,7 +185,7 @@ for data_type in selected_data:
         )
         train_dl = DataLoader(
             TensorDataset(X_train, y_train),
-            batch_size=200 * 64 * 64,
+            batch_size=10 * 64 * 64,
             shuffle=True,
             num_workers=4,
         )
@@ -179,7 +208,7 @@ for data_type in selected_data:
 
         # loss function and optimizer
         loss_fn = MeanSquaredError(squared=False)  # root mean square error
-        optimizer = optim.Adam(model.parameters(), lr=0.00001)
+        optimizer = optim.Adam(model.parameters(), lr=0.0001)
 
         # training parameters
         n_epochs = 50  # number of epochs to run
@@ -193,7 +222,8 @@ for data_type in selected_data:
 
         path = f"/work/scratch/data/kalinie/MMDC/results/simple_deep/{data_type}"
         folder = (
-            f"bs_{train_dl.batch_size}_lr_{optimizer.param_groups[0]['lr']}_hidden_5"
+            f"bs_{train_dl.batch_size}_lr_"
+            f"{optimizer.param_groups[0]['lr']}_hidden_16_16_norm"
         )
         if USE_LOGVAR:
             folder += "_logvar"
