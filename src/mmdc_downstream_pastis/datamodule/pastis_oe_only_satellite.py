@@ -120,9 +120,9 @@ def pad_collate(
     raise TypeError(f"Format not managed : {elem_type}")
 
 
-SatId: TypeAlias = Literal["S2", "S1A", "S1D", "S2_MSK"]
+SatId: TypeAlias = Literal["S2", "S1_ASC", "S1_DESC"]
 
-PASTIS_BANDS: dict[SatId, int] = {"S2": 10, "S1A": 3, "S1D": 3, "S2_MSK": 1}
+PASTIS_BANDS: dict[SatId, int] = {"S2": 10, "S1_ASC": 3, "S1_DESC": 3}
 
 
 @dataclass
@@ -273,6 +273,7 @@ class PASTISDataset(tdata.Dataset):
         # self.memory_dates: dict[PatchId, dict[SatId, torch.Tensor]] = {}
 
         # Get metadata
+        self.strict_s1 = True
         meta_patch = self.get_metadata()
 
         # Select Fold samples
@@ -291,8 +292,15 @@ class PASTISDataset(tdata.Dataset):
             self.norm = {}
             for sat in self.options.task.sats:
                 if sat != "S2_MSK":
+                    if sat == "S2":
+                        s_name = "S2"
+                    elif sat == "S1_ASC":
+                        s_name = "S1A"
+                    elif sat == "S1_DESC":
+                        s_name = "S1D"
+
                     with open(
-                        os.path.join(self.options.folder, f"NORM_{sat}_patch.json"),
+                        os.path.join(self.options.folder, f"NORM_{s_name}_patch.json"),
                         encoding="utf-8",
                     ) as file:
                         normvals = json.loads(file.read())
@@ -406,6 +414,10 @@ class PASTISDataset(tdata.Dataset):
             s_name = sat
             if sat == "S2_MSK":
                 s_name = "S2"
+            elif sat == "S1_ASC":
+                s_name = "S1A"
+            elif sat == "S1_DESC":
+                s_name = "S1D"
             dates = meta_patch[f"dates-{s_name}"]
             meta_patch = meta_patch[meta_patch.ID_PATCH.isin(self.patches_to_keep())]
 
@@ -462,8 +474,10 @@ class PASTISDataset(tdata.Dataset):
         if self.norm is not None:
             data.update(
                 {
-                    s: (d - self.norm[s][0][None, :, None, None])
-                    / self.norm[s][1][None, :, None, None]
+                    s: (
+                        (d - self.norm[s][0][None, :, None, None])
+                        / self.norm[s][1][None, :, None, None]
+                    ).nan_to_num()
                     for s, d in data.items()
                     if s in self.norm
                 }
@@ -554,9 +568,10 @@ class PASTISDataset(tdata.Dataset):
 
     def __getitem__(
         self, item: int
-    ) -> tuple[
-        tuple[dict[SatId, torch.Tensor], dict[SatId, torch.Tensor]], torch.Tensor
-    ]:
+    ) -> (
+        tuple[tuple[dict[SatId, torch.Tensor], dict[SatId, torch.Tensor]], torch.Tensor]
+        | tuple[torch.Tensor, torch.Tensor, torch.Tensor]
+    ):
         assert self.options.task.sats is not None
         id_patch = self.id_patches[item]
 
@@ -664,7 +679,6 @@ class PastisDataModule(LightningDataModule):
         self.folds = folds
         self.batch_size = batch_size
         self.task = task
-
         self.data: PastisDataSets | None = None
 
     def setup(self, stage: str | None = None) -> None:
@@ -749,3 +763,37 @@ class PastisDataModule(LightningDataModule):
             drop_last=True,
             collate_fn=lambda x: pad_collate(x, pad_value=0),
         )
+
+
+def build_dm(sats: list[SatId]) -> PastisDataModule:
+    """Builds datamodule"""
+    return PastisDataModule(
+        data_folder=DATA_FOLDER,
+        data_folder_oe=DATA_FOLDER_OE,
+        folds=PastisFolds([1, 2, 3], [4], [5]),
+        task=PASTISTask(sats=["S1_ASC", "S1_DESC", "S2"]),
+        batch_size=2,
+    )
+
+
+DATA_FOLDER = "/home/kalinichevae/scratch_jeanzay/scratch_data/Pastis"
+DATA_FOLDER_OE = "/home/kalinichevae/scratch_jeanzay/scratch_data/Pastis_OE"
+
+
+def pastisds_dataloader(sats) -> None:
+    """Use a dataloader with PASTIS dataset"""
+    dm = build_dm(sats)
+    dm.setup(stage="fit")
+    dm.setup(stage="test")
+    assert (
+        hasattr(dm, "train_dataloader")
+        and hasattr(dm, "val_dataloader")
+        and hasattr(dm, "test_dataloader")
+    )  # type: ignore[truthy-function]
+    for loader in (dm.train_dataloader(), dm.val_dataloader(), dm.test_dataloader()):
+        assert loader
+        for ((data, dates), target), _ in zip(loader, range(4)):
+            print(data.keys())
+
+
+pastisds_dataloader(["S1_DESC"])

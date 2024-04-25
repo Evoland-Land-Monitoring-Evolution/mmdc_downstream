@@ -6,12 +6,13 @@ import logging
 from typing import Any
 
 from mmdc_downstream_pastis.models.lightning.pastis_utae_semantic import (
-    MMDCPastisUTAE,
+    PastisUTAE,
     to_class_label,
 )
 
 from ..components.losses import compute_losses
 from ..torch.utae import UTAE
+from ..torch.utae_fusion import UTAEFusion
 
 # Configure logging
 NUMERIC_LEVEL = getattr(logging, "INFO", None)
@@ -21,7 +22,7 @@ logging.basicConfig(
 logging.getLogger(__name__).setLevel(logging.INFO)
 
 
-class MMDCPastisEncodedUTAE(MMDCPastisUTAE):
+class MMDCPastisEncodedUTAE(PastisUTAE):
     """
     Pastis lightning module.
     Attributes:
@@ -30,7 +31,7 @@ class MMDCPastisEncodedUTAE(MMDCPastisUTAE):
 
     def __init__(
         self,
-        model: UTAE,
+        model: UTAE | UTAEFusion,
         metrics_list: list[str] = ["cross"],
         losses_list: list[str] = ["cross"],
         lr: float = 0.001,

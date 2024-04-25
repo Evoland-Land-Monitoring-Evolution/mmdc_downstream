@@ -2,6 +2,7 @@
 # Copyright: (c) 2022 CESBIO / Centre National d'Etudes Spatiales
 """ Lightning module for lai regression prediction """
 
+import logging
 from typing import Any
 
 import torch
@@ -10,7 +11,15 @@ from mmdc_singledate.datamodules.datatypes import MMDCBatch
 from ..components.losses import compute_losses
 from ..torch.dataclass import OutUTAEForward
 from ..torch.utae import UTAE
+from ..torch.utae_fusion import UTAEFusion
 from .base import MMDCPastisBaseLitModule
+
+# Configure logging
+NUMERIC_LEVEL = getattr(logging, "INFO", None)
+logging.basicConfig(
+    level=NUMERIC_LEVEL, format="%(asctime)-15s %(levelname)s: %(message)s"
+)
+logging.getLogger(__name__).setLevel(logging.INFO)
 
 
 def to_class_label(logits: torch.Tensor) -> torch.Tensor:
@@ -21,7 +30,7 @@ def to_class_label(logits: torch.Tensor) -> torch.Tensor:
     return pred
 
 
-class MMDCPastisUTAE(MMDCPastisBaseLitModule):
+class PastisUTAE(MMDCPastisBaseLitModule):
     """
     LAI regression lightning module.
     Attributes:
@@ -32,7 +41,7 @@ class MMDCPastisUTAE(MMDCPastisBaseLitModule):
 
     def __init__(
         self,
-        model: UTAE,
+        model: UTAE | UTAEFusion,
         metrics_list: list[str] = ["cross"],
         losses_list: list[str] = ["cross"],
         lr: float = 0.001,
@@ -51,6 +60,7 @@ class MMDCPastisUTAE(MMDCPastisBaseLitModule):
         We compute logits and data classes for PASTIS
         """
         (x, dates), gt = batch
+        logging.info(x.keys())
         gt = gt.long()
         # out: OutUTAEForward = self.forward(x, batch_positions=dates)
         # logits = out.seg_map
