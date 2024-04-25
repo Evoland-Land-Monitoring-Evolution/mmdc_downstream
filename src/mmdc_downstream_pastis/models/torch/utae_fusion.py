@@ -5,12 +5,20 @@ U-TAE Implementation
 Author: Vivien Sainte Fare Garnot (github/VSainteuf)
 License: MIT
 """
+import logging
 from typing import Literal
 
 import torch
 import torch.nn as nn
 
 from mmdc_downstream_pastis.models.torch.utae import UTAE, ConvBlock, DownConvBlock
+
+# Configure logging
+NUMERIC_LEVEL = getattr(logging, "INFO", None)
+logging.basicConfig(
+    level=NUMERIC_LEVEL, format="%(asctime)-15s %(levelname)s: %(message)s"
+)
+logger = logging.getLogger(__name__)
 
 
 class UTAEFusion(nn.Module):
@@ -69,6 +77,8 @@ class UTAEFusion(nn.Module):
             padding_mode (str): Spatial padding strategy for convolutional layers (passed to nn.Conv2d).
         """
         super().__init__()
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
         self.num_classes = out_conv[-1]
         self.fusion = fusion
         if self.fusion == "mean":
@@ -82,27 +92,29 @@ class UTAEFusion(nn.Module):
 
         self.satellites = satellites
 
-        self.encoders = {
-            sat: UTAE(
-                input_dim[sat],
-                encoder_widths,
-                decoder_widths,
-                out_conv,
-                str_conv_k,
-                str_conv_s,
-                str_conv_p,
-                agg_mode,
-                encoder_norm,
-                n_head,
-                d_model,
-                d_k,
-                encoder=True,
-                return_maps=True,
-                pad_value=pad_value,
-                padding_mode="reflect",
-            )
-            for sat in satellites
-        }
+        self.encoders = nn.ModuleDict(
+            {
+                sat: UTAE(
+                    input_dim[sat],
+                    encoder_widths,
+                    decoder_widths,
+                    out_conv,
+                    str_conv_k,
+                    str_conv_s,
+                    str_conv_p,
+                    agg_mode,
+                    encoder_norm,
+                    n_head,
+                    d_model,
+                    d_k,
+                    encoder=True,
+                    return_maps=True,
+                    pad_value=pad_value,
+                    padding_mode="reflect",
+                )
+                for sat in satellites
+            }
+        )
 
     def forward(
         self,
@@ -111,8 +123,9 @@ class UTAEFusion(nn.Module):
         return_att: bool = False,
     ):
         """Forward pass of multimodal UTAE"""
+
         out = [
-            self.encoder_s1[sat].forward(
+            self.encoders[sat].forward(
                 input[sat], batch_positions[sat], return_att=return_att
             )[0]
             for sat in self.satellites
@@ -121,15 +134,6 @@ class UTAEFusion(nn.Module):
             fused = torch.sum(torch.stack(out), dim=0)
         else:  # "concat"
             fused = torch.cat(out, 1)
-        # out_s1, _ = self.encoder_s1.forward(
-        #     input["S1"], batch_positions["S1"], return_att=return_att
-        # )
-        # out_s2, _ = self.encoder_s2.forward(
-        #     input["S2"], batch_positions["S2"], return_att=return_att
-        # )
-        # if self.fusion == "mean":
-        #     fused = (out_s1 + out_s2) / 2
-        # else:  # "concat"
-        #     fused = torch.cat([out_s1, out_s2], 1)
+
         out = self.out_conv(fused)
         return out
