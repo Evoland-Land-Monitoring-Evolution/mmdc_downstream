@@ -123,7 +123,7 @@ selected_data = ["exp_lat", "s1_lat", "s2_lat", "s1_asc", "s1_desc", "s1_mask"]
 # train_data = \
 #     ["s2_input", "exp_lat", "s1_lat", "s2_lat", 's1_asc', "s1_desc", "s1_mask"]
 
-selected_data = ["s2_lat"]
+selected_data = ["s1_lat"]
 
 USE_LOGVAR = True
 
@@ -185,7 +185,7 @@ for data_type in selected_data:
         )
         train_dl = DataLoader(
             TensorDataset(X_train, y_train),
-            batch_size=10 * 64 * 64,
+            batch_size=64 * 64,
             shuffle=True,
             num_workers=4,
         )
@@ -220,7 +220,9 @@ for data_type in selected_data:
 
         loss_epochs = []
 
-        path = f"/work/scratch/data/kalinie/MMDC/results/simple_deep/{data_type}"
+        # path = f"/work/scratch/data/kalinie/MMDC/results/simple_deep/{data_type}"
+        path = f"{os.environ['WORK']}/results/MMDC/results/simple_deep/{data_type}"
+
         folder = (
             f"bs_{train_dl.batch_size}_lr_"
             f"{optimizer.param_groups[0]['lr']}_hidden_16_16_norm"
