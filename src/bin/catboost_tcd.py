@@ -453,8 +453,6 @@ if __name__ == "__main__":
 
         encode_image(path_image_tiles=args.path_image_tiles, model=model_cat)
 
-        exit()
-
         # Compute error
         rmse = round(
             mean_squared_error(y_test.flatten(), np.round(pred), squared=False), 2
