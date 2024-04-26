@@ -51,6 +51,7 @@ def fill_batch_s1(
     batch_s1: MMDCPartialBatch, asc_ind, desc_ind, batch_asc, batch_desc
 ) -> MMDCPartialBatch:
     only_in_desc = desc_ind[~np.in1d(desc_ind, asc_ind)]
+
     if len(asc_ind) > 0:
         batch_s1.img[:, asc_ind, :3, :, :] = batch_asc.img
         batch_s1.angles[:, asc_ind, :1, :, :] = batch_asc.angles

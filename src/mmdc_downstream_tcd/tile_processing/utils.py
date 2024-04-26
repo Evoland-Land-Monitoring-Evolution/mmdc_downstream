@@ -20,7 +20,12 @@ METEO_DAYS_AFTER = 1
 BANDS_S2 = ["B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B11", "B12"]
 
 
-def get_index(tcd_values: pd.DataFrame, xy_matrix: np.ndarray) -> np.ndarray:
+def get_index(
+    tcd_values: pd.DataFrame, xy_matrix: np.ndarray
+) -> tuple[np.ndarray, pd.DataFrame]:
+    """
+    Get index of GT points, their coords and TCD values for the tile
+    """
     tcd_values_sliced = tcd_values[
         (tcd_values["x_round"] >= xy_matrix[0].min())
         & (tcd_values["x_round"] <= xy_matrix[0].max())

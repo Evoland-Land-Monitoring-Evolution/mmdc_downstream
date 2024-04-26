@@ -1,6 +1,7 @@
 import argparse
 import logging
 import os
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -17,6 +18,8 @@ from mmdc_downstream_tcd.tile_processing.utils import (
     get_tcd_gt,
     rearrange_ts,
 )
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 log = logging.getLogger(__name__)
 
@@ -102,8 +105,8 @@ def combine_s1_asc_desc(
     height, width = data["s1_asc"]["img"].shape[-2:]
     times = len(days_s1)
 
-    img = torch.zeros(times, 6, height, width)
-    angles = torch.zeros(times, 2, height, width)
+    img = torch.zeros(times, 6, height, width).to(torch.float32)
+    angles = torch.zeros(times, 2, height, width).to(torch.float32)
     mask = torch.ones(times, 2, height, width).to(torch.int8)
 
     if len(asc_ind) > 0:
@@ -180,7 +183,7 @@ def get_s1_gt(
                     t=slice(temp_slice[0], temp_slice[1])
                 )
 
-                images, data, dates = get_s1(
+                _, data, dates = get_s1(
                     temp_slice, data, images, sliced_modality_selected, sat
                 )
                 del sliced_modality
@@ -226,7 +229,7 @@ def get_s1_gt(
             values_df = pd.DataFrame(
                 data=gt_ref_values,
                 columns=[
-                    b + "_" + str(dd) for dd in range(len(days_s1)) for b in BANDS_S1
+                    b + "_d" + str(dd) for dd in range(len(days_s1)) for b in BANDS_S1
                 ],
             )
 
@@ -260,4 +263,4 @@ if __name__ == "__main__":
         args.output_folder,
         args.gt_path,
     )
-    gt_df.to_csv(os.path.join(args.output_folder, "gt_tcd_t32tnt_all.csv"))
+    gt_df.to_csv(os.path.join(args.output_folder, "gt_tcd_t32tnt_pure_s1_all.csv"))
