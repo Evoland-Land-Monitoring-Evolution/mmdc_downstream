@@ -6,10 +6,8 @@ import logging
 from typing import Any
 
 import torch
-from mmdc_singledate.datamodules.datatypes import MMDCBatch
 
 from ..components.losses import compute_losses
-from ..torch.dataclass import OutUTAEForward
 from ..torch.utae import UTAE
 from ..torch.utae_fusion import UTAEFusion
 from .base import MMDCPastisBaseLitModule
@@ -126,10 +124,10 @@ class PastisUTAE(MMDCPastisBaseLitModule):
         """Forward step"""
         return self.model.forward(data, batch_positions=batch_positions)
 
-    def predict(self, batch: MMDCBatch) -> OutUTAEForward:
+    def predict(self, batch: Any) -> torch.Tensor:
         """Predict classification map"""
         self.model.eval()
-        return self.model.forward(batch)
+        return to_class_label(self.model.forward(batch))
 
     def configure_optimizers(self) -> dict[str, Any]:
         """A single optimizer with a LR scheduler"""
