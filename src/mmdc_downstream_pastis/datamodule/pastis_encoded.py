@@ -32,7 +32,7 @@ class PASTISEncodedDataset(PASTISDataset):
     def __init__(
         self,
         options: PASTISOptions,
-        reference_date: str = "2018-10-01",
+        reference_date: str = "2018-09-01",
         sats=["S2"],
         crop_size=64,
         # dict_classes=None,
@@ -40,7 +40,7 @@ class PASTISEncodedDataset(PASTISDataset):
         transform: nn.Module | None = None,
         max_len: int = 60,
         allow_padd: bool = True,
-        # use_logvar: bool = True,
+        use_logvar: bool = True,  # TODO Add choosing logvar option
     ):
         """
         Pytorch Dataset class to load samples from the PASTIS dataset, for semantic and
@@ -401,7 +401,7 @@ class PastisEncodedDataModule(PastisDataModule):
         dataset_path_pastis: str,
         folds: PastisFolds | None,
         sats: list[str] = ["S2"],
-        reference_date: str = "2018-10-01",
+        reference_date: str = "2018-09-01",
         task: Literal["semantic"] = "semantic",
         batch_size: int = 2,
         crop_size: int | None = 64,
