@@ -36,9 +36,10 @@ def get_parser() -> argparse.ArgumentParser:
         type=str,
         help="input folder",
         # default="/home/kalinichevae/jeanzay/results/TCD/t32tnt/pure_values/s1"
-        default=f"{os.environ['WORK']}/results/TCD/t32tnt/pure_values/s2"
+        # default=f"{os.environ['WORK']}/results/TCD/t32tnt/pure_values/s2"
         # "/home/kalinichevae/jeanzay/results/TCD/t32tnt/pure_values/s2"
-        # default="/home/kalinichevae/jeanzay/results/TCD/t32tnt/encoded"
+        default="/home/kalinichevae/jeanzay/results/TCD/t32tnt/encoded"
+        # f"{os.environ['WORK']}/results/TCD/t32tnt/encoded"
         # default=f"{os.environ['WORK']}/results/TCD/t32tnt/pure_values/s1"
         # required=True
     )
@@ -48,14 +49,14 @@ def get_parser() -> argparse.ArgumentParser:
         type=str,
         help="Name of encoded model, only if we work with encoded data",
         # default="res_2024-04-05_14-58-22"
-        default=None,
+        default="res_checkpoint_best",
     )
 
     arg_parser.add_argument(
         "--n_iter",
         type=int,
         help="number of iterations for bootstrap",
-        default=150
+        default=400
         # required=False,
     )
 
@@ -71,7 +72,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--depth",
         type=int,
         help="number of features per timestamp",
-        default=8
+        default=11
         # required=False,
     )
 
@@ -87,7 +88,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--encoded_data",
         type=bool,
         help="if we work with encoded data or raw one",
-        default=False
+        default=True
         # required=False,
     )
 
@@ -95,7 +96,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--satellites",
         type=list[str],
         help="satellites we deal with",
-        default=["s2"]
+        default=["s2", "s1"]
         # required=False,
     )
 
@@ -103,7 +104,8 @@ def get_parser() -> argparse.ArgumentParser:
         "--path_image_tiles",
         type=str,
         help="Path to image tiles we are going to predict",
-        default=f"{os.environ['WORK']}/results/TCD/t32tnt/pure_values/S2_full_median/"
+        # default=f"{os.environ['WORK']}/results/TCD/t32tnt/encoded/res_checkpoint_best"
+        default=None
         # "/home/kalinichevae/jeanzay/results/TCD/t32tnt/pure_values/S2_full_median/"
         # required=False,
     )
@@ -376,7 +378,7 @@ if __name__ == "__main__":
             X_test,
         )
 
-        encode_image(path_image_tiles=args.path_image_tiles, model=model_cat)
+        # encode_image(path_image_tiles=args.path_image_tiles, model=model_cat)
 
         # Compute error
         rmse = round(
@@ -397,5 +399,5 @@ if __name__ == "__main__":
             final_folder += "_median"
         img_name = f"{final_folder}_{sat}.png"
         folder = os.path.join(args.folder_data, "results", final_folder)
-        Path(folder).mkdir(exist_ok=True)
+        Path(folder).mkdir(exist_ok=True, parents=True)
         results_scatterplot(np.round(pred), y_test.flatten(), rmse, folder, img_name)
