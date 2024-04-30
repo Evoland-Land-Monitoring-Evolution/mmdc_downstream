@@ -31,10 +31,19 @@ from mmdc_downstream.snap.lai_snap import BVNET, normalize
 from mmdc_downstream.utils import get_logger
 
 TILES_CONFIG_DIR = (
-    "/work/CESBIO/projects/DeepChange/Ekaterina/MMDC_OE/tiles_conf_training/LAI_micro/"
+    f"{os.environ['SCRATCH']}/scratch_data/MMDC_OE/tiles_conf_training/LAI_micro/"
 )
-DATASET_DIR = "/work/CESBIO/projects/DeepChange/Ekaterina/MMDC_OE/"
+DATASET_DIR = f"{os.environ['SCRATCH']}/scratch_data/MMDC_OE/"
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+results_path = f"{os.environ['WORK']}/results/MMDC"
+# model_folder = "latent/checkpoints/mmdc_full/2024-02-27_14-47-18"
+model_folder = "checkpoint_best"
+
+pretrained_path = os.path.join(results_path, model_folder)
+model_name = "epoch_141"
+model_type = "baseline"
+
 log = get_logger(__name__)
 
 MMDCDataComponents = Literal[
@@ -124,13 +133,7 @@ def get_stats(stats: MMDCDataStats) -> MMDCShiftScales:
 
 
 dlc, dm = build_data_loader()
-results_path = "/work/scratch/data/kalinie/MMDC/results"
-# model_folder = "latent/checkpoints/mmdc_full/2024-02-27_14-47-18"
-model_folder = "latent/checkpoints/mmdc_full_tiny/2024-04-02_21-33-55"
 
-pretrained_path = os.path.join(results_path, model_folder)
-model_name = "last"
-model_type = "baseline"
 
 model_mmdc = PretrainedMMDC(
     pretrained_path=os.path.join(results_path, model_folder),
