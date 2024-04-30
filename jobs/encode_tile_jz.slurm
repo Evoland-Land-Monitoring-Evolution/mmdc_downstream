@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=pastis_oe_utae_concat
+#SBATCH --job-name=encode
 #SBATCH --output=outputfile-%j.out
 #SBATCH --error=errorfile-%j.err
 #SBATCH -A ttd@a100
@@ -8,8 +8,7 @@
 #SBATCH --gres=gpu:1                # number of gpus
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=12
-#SBATCH --time=12:00:00             # Walltime 24h
-
+#SBATCH --time=5:00:00             # Walltime 24h
 
 # be sure no modules loaded
 module purge
@@ -21,4 +20,4 @@ export WORKING_DIR=$WORK/results/MMDC/jobs
 cd ${WORKING_DIR}
 source ${MMDC_INIT}
 
-HYDRA_FULL_ERROR=1 python   ${SRCDIR}/train.py experiment=pastis_oe_utae_concat >> output_$SLURM_JOBID.log
+HYDRA_FULL_ERROR=1 python   ${SRCDIR}/src/bin/encode_tcd.py  >> output_$SLURM_JOBID.log

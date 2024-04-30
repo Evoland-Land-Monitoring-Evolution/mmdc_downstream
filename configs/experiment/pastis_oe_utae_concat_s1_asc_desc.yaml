@@ -1,0 +1,20 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=pastis_encoded
+
+defaults:
+  - override /datamodule: pastis_datamodule_oe_only_satellite_S1_ASC_DESC.yaml
+  - override /model: pastis_oe_utae_concat_s1_asc_desc.yaml
+  - override /callbacks: default.yaml
+  - override /trainer: default.yaml
+
+output_dir: ${oc.env:WORK}/results/MMDC/results/pastis
+
+
+# all parameters bellow will be merged with parameters from default configurations set above
+# this allows you overwrite only specified parameters
+
+tags: ["pastis_oe_concat_utae_s1_asc_desc"]
+
+name: "pastis_oe_concat_utae_s1_asc_desc"
