@@ -765,35 +765,36 @@ class PastisDataModule(LightningDataModule):
         )
 
 
-def build_dm(sats: list[SatId]) -> PastisDataModule:
-    """Builds datamodule"""
-    return PastisDataModule(
-        data_folder=DATA_FOLDER,
-        data_folder_oe=DATA_FOLDER_OE,
-        folds=PastisFolds([1, 2, 3], [4], [5]),
-        task=PASTISTask(sats=["S1_ASC", "S1_DESC", "S2"]),
-        batch_size=2,
-    )
-
-
-DATA_FOLDER = "/home/kalinichevae/scratch_jeanzay/scratch_data/Pastis"
-DATA_FOLDER_OE = "/home/kalinichevae/scratch_jeanzay/scratch_data/Pastis_OE"
-
-
-def pastisds_dataloader(sats) -> None:
-    """Use a dataloader with PASTIS dataset"""
-    dm = build_dm(sats)
-    dm.setup(stage="fit")
-    dm.setup(stage="test")
-    assert (
-        hasattr(dm, "train_dataloader")
-        and hasattr(dm, "val_dataloader")
-        and hasattr(dm, "test_dataloader")
-    )  # type: ignore[truthy-function]
-    for loader in (dm.train_dataloader(), dm.val_dataloader(), dm.test_dataloader()):
-        assert loader
-        for ((data, dates), target), _ in zip(loader, range(4)):
-            print(data.keys())
-
-
-pastisds_dataloader(["S1_DESC"])
+#
+# def build_dm(sats: list[SatId]) -> PastisDataModule:
+#     """Builds datamodule"""
+#     return PastisDataModule(
+#         data_folder=DATA_FOLDER,
+#         data_folder_oe=DATA_FOLDER_OE,
+#         folds=PastisFolds([1, 2, 3], [4], [5]),
+#         task=PASTISTask(sats=["S1_ASC", "S1_DESC", "S2"]),
+#         batch_size=2,
+#     )
+#
+#
+# DATA_FOLDER = "/home/kalinichevae/scratch_jeanzay/scratch_data/Pastis"
+# DATA_FOLDER_OE = "/home/kalinichevae/scratch_jeanzay/scratch_data/Pastis_OE"
+#
+#
+# def pastisds_dataloader(sats) -> None:
+#     """Use a dataloader with PASTIS dataset"""
+#     dm = build_dm(sats)
+#     dm.setup(stage="fit")
+#     dm.setup(stage="test")
+#     assert (
+#         hasattr(dm, "train_dataloader")
+#         and hasattr(dm, "val_dataloader")
+#         and hasattr(dm, "test_dataloader")
+#     )  # type: ignore[truthy-function]
+#     for loader in (dm.train_dataloader(), dm.val_dataloader(), dm.test_dataloader()):
+#         assert loader
+#         for ((data, dates), target), _ in zip(loader, range(4)):
+#             print(data.keys())
+#
+#
+# pastisds_dataloader(["S1_DESC"])
