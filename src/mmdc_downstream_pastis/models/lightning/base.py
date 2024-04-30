@@ -113,6 +113,9 @@ class MMDCPastisBaseLitModule(LightningModule):  # pylint: disable=too-many-ance
 
         return {"loss": loss}
 
+    def predict(self, batch: Any, **kwargs) -> Any:  # pylint: disable=arguments-differ
+        """Generic prediction of the model. Just delegate to the Pytorch model."""
+
     def on_train_epoch_start(self) -> None:
         """On train epoch start"""
         # Otherwise reset does not work

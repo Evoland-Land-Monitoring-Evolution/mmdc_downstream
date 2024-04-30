@@ -44,7 +44,7 @@ class PASTISDataset(tdata.Dataset):
     def __init__(
         self,
         options: PASTISOptions,
-        reference_date: str = "2018-10-01",
+        reference_date: str = "2018-09-01",
         sats: list[str] = ["S2"],
         crop_size: int | None = 64,
         # s2_band=None,
@@ -143,31 +143,9 @@ class PASTISDataset(tdata.Dataset):
 
         logger.info("Done.")
 
-        # TODO change norm
-        # # Get normalisation values
-        # if norm:
-        #     self.norm = {}
-        #     for s in self.sats:
-        #         with open(
-        #             os.path.join(dataset_path_pastis, f"NORM_{s}_patch.json"),
-        #         ) as file:
-        #             normvals = json.loads(file.read())
-        #         selected_folds = folds if folds is not None else range(1, 6)
-        #         means = [normvals[f"Fold_{f}"]["mean"] for f in selected_folds]
-        #         stds = [normvals[f"Fold_{f}"]["std"] for f in selected_folds]
-        #         self.norm[s] = np.stack(means).mean(axis=0), np.stack(
-        #             stds
-        #         ).mean(axis=0)
-        #         self.norm[s] = (
-        #             torch.from_numpy(self.norm[s][0]).float(),
-        #             torch.from_numpy(self.norm[s][1]).float(),
-        #         )
-        # else:
-        #     self.norm = None
-
         print("Dataset ready.")
 
-    def get_one_satellite_patches(self, satellite: str) -> np.array:
+    def get_one_satellite_patches(self, satellite: str) -> np.array:  # TODO change
         """
         For each satellite, we check that all the modalities are available for a patch
         """
@@ -175,20 +153,31 @@ class PASTISDataset(tdata.Dataset):
         sat_patches = [
             int(file[:-3].split("_")[-1])
             for file in os.listdir(os.path.join(path, satellite))
+            if file.endswith(".pt")
         ]
+        meteo_patches = {
+            m: [
+                int(file[:-3].split("_")[-1])
+                for file in os.listdir(os.path.join(path, f"{satellite}_METEO"))
+                if m in file and file.endswith(".pt")
+            ]
+            for m in METEO_BANDS
+        }
 
-        meteo_patches = [
-            int(file[:-3].split("_")[-1])
-            for file in os.listdir(os.path.join(path, f"{satellite}_METEO"))
+        valid_meteo_patches = [
+            patch
+            for patch in meteo_patches[list(meteo_patches.keys())[0]]
+            if all(patch in mp for mp in meteo_patches.values())
         ]
 
         dem_patches = [
             int(file[:-3].split("_")[-1])
             for file in os.listdir(os.path.join(path, "DEM"))
+            if file.endswith(".pt")
         ]
 
         return np.intersect1d(
-            np.intersect1d(sat_patches, meteo_patches, assume_unique=False),
+            np.intersect1d(sat_patches, valid_meteo_patches, assume_unique=False),
             dem_patches,
             assume_unique=True,
         )
@@ -262,6 +251,9 @@ class PASTISDataset(tdata.Dataset):
 
         # We only keep patches with all modalities available
         meta_patch = meta_patch[meta_patch.ID_PATCH.isin(self.patches_to_keep())]
+        meta_patch = meta_patch[
+            (meta_patch.ID_PATCH >= 20000) & (meta_patch.ID_PATCH < 30000)
+        ]
         return meta_patch
 
     def __len__(self):
@@ -269,6 +261,7 @@ class PASTISDataset(tdata.Dataset):
 
     def load_file(self, path: str):
         """Load file if exists"""
+        logger.info(path)
         return (
             torch.load(path, map_location=torch.device("cpu"))
             if Path(path).exists()
@@ -421,7 +414,7 @@ class PASTISDataset(tdata.Dataset):
             if self.max_len == 0:
                 padd_index = torch.full([len(true_doy)], False)
             else:
-                sits, doy, padd_index, true_doys = apply_padding(
+                sits, true_doy, padd_index = apply_padding(
                     self.allow_pad, self.max_len, t, sits, true_doy
                 )
 
@@ -535,7 +528,7 @@ class PastisDataModule(LightningDataModule):
         dataset_path_pastis: str,
         folds: PastisFolds | None,
         sats: list[str] = ["S2"],
-        reference_date: str = "2018-10-01",
+        reference_date: str = "2018-09-01",
         task: Literal["semantic"] = "semantic",
         batch_size: int = 2,
         crop_size: int | None = 64,
@@ -655,12 +648,12 @@ class PastisDataModule(LightningDataModule):
 #         folds=PastisFolds([1, 2, 3], [4], [5]),
 #         sats=sats,
 #         task="semantic",
-#         batch_size=4,
+#         batch_size=1,
 #     )
 #
 #
-# dataset_path_oe = "/work/CESBIO/projects/DeepChange/Ekaterina/Pastis_OE"
-# dataset_path_pastis = "/work/CESBIO/projects/DeepChange/Iris/PASTIS"
+# dataset_path_oe = "/home/kalinichevae/scratch_jeanzay/scratch_data/Pastis_OE"
+# dataset_path_pastis = "/home/kalinichevae/scratch_jeanzay/scratch_data/Pastis"
 #
 #
 # def pastisds_dataloader(sats) -> None:
@@ -692,7 +685,6 @@ class PastisDataModule(LightningDataModule):
 #                 b_s_y, p_s_y, _ = target.shape
 #                 b_s_m, p_s_m, _ = mask.shape
 #                 b_s_id = len(id_patch)
-#                 assert t_s_d > 2
 #                 assert nb_b_dem == 4
 #                 assert nb_b_meteo == 48
 #                 assert (
@@ -701,12 +693,11 @@ class PastisDataModule(LightningDataModule):
 #                     == b_s_imsk
 #                     == b_s_dem
 #                     == b_s_meteo
-#                     == b_s_d
 #                     == b_s_y
 #                     == b_s_m
 #                     == b_s_id
 #                 )
-#                 assert t_s_x == t_s_ang == t_s_imsk == t_s_meteo == t_s_d
+#                 assert t_s_x == t_s_ang == t_s_imsk == t_s_meteo
 #                 # assert nb_b == PASTIS_BANDS[sat]
 #                 assert (
 #                     p_s_x
@@ -719,4 +710,4 @@ class PastisDataModule(LightningDataModule):
 #                 )
 #
 #
-# pastisds_dataloader(["S1_ASC", "S1_DESC", "S2"])
+# pastisds_dataloader(["S1_ASC", "S1_DESC"])
