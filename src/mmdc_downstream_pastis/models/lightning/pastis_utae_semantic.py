@@ -64,9 +64,9 @@ class PastisUTAE(MMDCPastisBaseLitModule):
         # logits = out.seg_map
         logits = self.forward(x, batch_positions=dates)
         losses = compute_losses(
-            preds=logits,
-            target=gt,
-            mask=(gt == -1),
+            preds=logits[:, 32:-32, 32:-32],
+            target=gt[:, 32:-32, 32:-32],
+            mask=(gt[:, 32:-32, 32:-32] == -1),
             losses_list=self.losses_list,
         )
         self.iou_meter[stage].add(to_class_label(logits), gt)
