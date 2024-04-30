@@ -17,7 +17,9 @@ from mmdc_downstream_pastis.utils.utils import MMDCPartialBatch
 log = logging.getLogger(__name__)
 
 
-def back_to_date(days_int: torch.Tensor, ref_date: str) -> list[np.array]:
+def back_to_date(
+    days_int: torch.Tensor, ref_date: str = "2018-09-01"
+) -> list[np.array]:
     return [
         np.asarray(
             pd.to_datetime(
