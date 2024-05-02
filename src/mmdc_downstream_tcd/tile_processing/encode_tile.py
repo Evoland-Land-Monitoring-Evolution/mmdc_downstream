@@ -212,6 +212,7 @@ def encode_tile(
                     )
                     tcd_batch = PastisBatch(
                         sits=sits,
+                        input_doy=None,
                         true_doy=dates_meteo[sat][f"date_{sat}"].values[None, :],
                         padd_val=torch.Tensor([]),
                         padd_index=torch.Tensor([]),

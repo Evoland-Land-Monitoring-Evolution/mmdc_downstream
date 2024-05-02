@@ -68,7 +68,7 @@ class PastisBatch:
     sits: MMDCDataStruct
     padd_val: torch.Tensor
     padd_index: torch.Tensor
-    true_doy: torch.Tensor = None
+    true_doy: torch.Tensor | np.ndarray = None
 
     def w(self):
         return self.sits.data.img.shape[-1]

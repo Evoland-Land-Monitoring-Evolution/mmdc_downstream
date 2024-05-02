@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=predict_tile
+#SBATCH --job-name=s1_tcd
 #SBATCH --output=outputfile-%j.out
 #SBATCH --error=errorfile-%j.err
 #SBATCH -A ttd@a100
@@ -9,7 +9,6 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=24
 #SBATCH --time=2:00:00             # Walltime 24h
-#SBATCH --qos=qos_gpu-dev
 
 
 # be sure no modules loaded
@@ -19,7 +18,8 @@ export SRCDIR=$WORK/src/MMDC/mmdc-downstream
 export MMDC_INIT=${SRCDIR}/mmdc_init_jz.sh
 export WORKING_DIR=$WORK/results/MMDC/jobs
 
+
 cd ${WORKING_DIR}
 source ${MMDC_INIT}
 
-HYDRA_FULL_ERROR=1 python   ${SRCDIR}/src/bin/catboost_tcd.py >> output_$SLURM_JOBID.log
+HYDRA_FULL_ERROR=1 python   ${SRCDIR}/src/bin/catboost_tcd.py  >> output_$SLURM_JOBID.log
