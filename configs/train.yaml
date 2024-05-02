@@ -4,7 +4,7 @@
 defaults:
   - _self_
   - datamodule: mmdc_lai_datamodule.yaml
-  - model: lai_reg_latent_experts.yaml
+  - model: lai_reg_s2.yaml
   - callbacks: default.yaml
   - logger: default.yaml
   - trainer: default.yaml

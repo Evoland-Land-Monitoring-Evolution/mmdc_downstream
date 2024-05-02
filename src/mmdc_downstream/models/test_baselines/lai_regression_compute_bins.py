@@ -10,14 +10,18 @@ from mmdc_singledate.datamodules.mmdc_datamodule import destructure_batch
 from mmdc_singledate.utils.train_utils import standardize_data
 
 from mmdc_downstream.mmdc_model.model import PretrainedMMDC
-from mmdc_downstream.models.lightning.base import MMDCDownstreamBaseLitModule
+
+from ...snap.components.compute_bio_var import (
+    predict_variable_from_tensors,
+    prepare_s2_image,
+    process_output,
+)
+from ...snap.lai_snap import BVNET, denormalize, normalize
 from ..components.losses import compute_losses
 from ..components.metrics import compute_val_metrics
 from ..datatypes import OutputLAI
 from ..torch.lai_regression import MMDCDownstreamRegressionModule
-from ...snap.components.compute_bio_var import \
-    predict_variable_from_tensors, prepare_s2_image, process_output
-from ...snap.lai_snap import BVNET, normalize, denormalize
+from .base import MMDCDownstreamBaseLitModule
 
 
 class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
@@ -30,17 +34,17 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
     """
 
     def __init__(
-            self,
-            model: MMDCDownstreamRegressionModule,
-            model_snap: BVNET,
-            metrics_list: list[str] = ["RSE", "R2", "MAE", "MAPE"],
-            losses_list: list[str] = ["MSE"],
-            model_mmdc: PretrainedMMDC | None = None,
-            input_data: str = "experts",
-            lr: float = 0.001,
-            resume_from_checkpoint: str | None = None,
-            histogram_path: str | None = None,
-            stats_path: str = None
+        self,
+        model: MMDCDownstreamRegressionModule,
+        model_snap: BVNET,
+        metrics_list: list[str] = ["RSE", "R2", "MAE", "MAPE"],
+        losses_list: list[str] = ["MSE"],
+        model_mmdc: PretrainedMMDC | None = None,
+        input_data: str = "experts",
+        lr: float = 0.001,
+        resume_from_checkpoint: str | None = None,
+        histogram_path: str | None = None,
+        stats_path: str = None,
     ):
         super().__init__(model, model_mmdc, lr, resume_from_checkpoint, stats_path)
 
@@ -51,11 +55,14 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
         self.losses_list = losses_list
         self.metrics_list = metrics_list
 
-        self.margin = self.model_mmdc.model_mmdc.nb_cropped_hw if self.model_mmdc is not None else 0
+        self.margin = (
+            self.model_mmdc.model_mmdc.nb_cropped_hw
+            if self.model_mmdc is not None
+            else 0
+        )
 
         # self.hist = torch.zeros(150).to("cuda")
         self.bin_weights = self.compute_bin_weights(histogram_path)
-
 
     @staticmethod
     def compute_bin_weights(histogram_path):
@@ -64,7 +71,7 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
         hist_bins = torch.load(histogram_path)
         hist_bins_norm = hist_bins / hist_bins.sum()
         a = -10
-        weight = torch.exp((hist_bins_norm ** 0.5) * a)
+        weight = torch.exp((hist_bins_norm**0.5) * a)
         weights_norm = weight / weight.sum()
         return weights_norm.to(torch.float16)
 
@@ -78,21 +85,24 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
         if self.input_data == "experts":
             return self.model_mmdc.get_latent_mmdc(batch).latent_experts_mu
         if self.input_data == "lat_S1":
-            return self.model_mmdc.get_latent_mmdc(batch).latent_s1_mu
+            return self.model_mmdc.get_latent_mmdc(batch).latent_S1_mu
         if self.input_data == "lat_S2":
-            return self.model_mmdc.get_latent_mmdc(batch).latent_s2_mu
+            return self.model_mmdc.get_latent_mmdc(batch).latent_S2_mu
         if self.input_data == "lat_S1_mulogvar":
             latent = self.model_mmdc.get_latent_mmdc(batch)
-            return torch.cat((latent.latent_s1_mu, latent.latent_s1_logvar), 1)
+            return torch.cat((latent.latent_S1_mu, latent.latent_S1_logvar), 1)
         if self.input_data == "lat_S2_mulogvar":
             latent = self.model_mmdc.get_latent_mmdc(batch)
-            return torch.cat((latent.latent_s2_mu, latent.latent_s2_logvar), 1)
+            return torch.cat((latent.latent_S2_mu, latent.latent_S2_logvar), 1)
         if self.input_data == "S2":
-            data = prepare_s2_image(batch.s2_x / 10000, batch.s2_a, reshape=False).nan_to_num()
-            return normalize(data,
-                             self.model_snap.input_min.reshape(1, data.shape[1], 1, 1),
-                             self.model_snap.input_max.reshape(1, data.shape[1], 1, 1)
-                             )
+            data = prepare_s2_image(
+                batch.s2_x / 10000, batch.s2_a, reshape=False
+            ).nan_to_num()
+            return normalize(
+                data,
+                self.model_snap.input_min.reshape(1, data.shape[1], 1, 1),
+                self.model_snap.input_max.reshape(1, data.shape[1], 1, 1),
+            )
             # s2_x = standardize_data(
             #     batch.s2_x,
             #     shift=self.stats.sen2.shift.type_as(
@@ -103,10 +113,8 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
         if "S1" in self.input_data:
             s1_x = standardize_data(
                 batch.s1_x,
-                shift=self.stats.sen1.shift.type_as(
-                    batch.s1_x),
-                scale=self.stats.sen1.shift.type_as(
-                    batch.s1_x),
+                shift=self.stats.sen1.shift.type_as(batch.s1_x),
+                scale=self.stats.sen1.shift.type_as(batch.s1_x),
             )
             if self.input_data == "S1":
                 return torch.cat((s1_x, batch.s1_a), 1)
@@ -131,30 +139,37 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
             margin=self.margin,
             losses_list=self.losses_list,
             bin_weights=self.bin_weights,
-            denorm_min_max=(self.model_snap.variable_min, self.model_snap.variable_max)
+            denorm_min_max=(self.model_snap.variable_min, self.model_snap.variable_max),
         )
 
         # # Fit in histogram
-        # lai_gt_denorm = denormalize(lai_gt, self.model_snap.variable_min, self.model_snap.variable_max)
+        # lai_gt_denorm = denormalize(lai_gt,
+        #                             self.model_snap.variable_min,
+        #                             self.model_snap.variable_max)
         # self.hist += torch.histc(lai_gt_denorm.reshape(-1), bins=150, min=0, max=15)
 
         if stage != "train":
             metrics = compute_val_metrics(
-                preds=denormalize(lai_pred, self.model_snap.variable_min, self.model_snap.variable_max),
-                target=denormalize(lai_gt, self.model_snap.variable_min, self.model_snap.variable_max),
+                preds=denormalize(
+                    lai_pred, self.model_snap.variable_min, self.model_snap.variable_max
+                ),
+                target=denormalize(
+                    lai_gt, self.model_snap.variable_min, self.model_snap.variable_max
+                ),
                 # unstand_lai(lai_pred),
                 # unstand_lai(lai_gt),
                 mask=batch.s2_m,
                 margin=self.margin,
-                metrics_list=self.metrics_list)
+                metrics_list=self.metrics_list,
+            )
             return losses, metrics
 
         return losses
 
     def training_step(  # pylint: disable=arguments-differ
-            self,
-            batch: Any,
-            batch_idx: int,  # pylint: disable=unused-argument
+        self,
+        batch: Any,
+        batch_idx: int,  # pylint: disable=unused-argument
     ) -> dict[str, Any]:
         """Training step. Step and return loss."""
         torch.autograd.set_detect_anomaly(True)
@@ -171,10 +186,10 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
         return {"loss": sum(losses.values())}
 
     def validation_step(  # pylint: disable=arguments-differ
-            self,
-            batch: Any,
-            batch_idx: int,  # pylint: disable=unused-argument
-            prefix: str = "val",
+        self,
+        batch: Any,
+        batch_idx: int,  # pylint: disable=unused-argument
+        prefix: str = "val",
     ) -> dict[str, Any]:
         """Validation step. Step and return loss."""
         losses, metrics = self.step(batch, stage=prefix)
@@ -199,9 +214,9 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
         return {"loss": sum(losses.values())}
 
     def test_step(  # pylint: disable=arguments-differ
-            self,
-            batch: Any,
-            batch_idx: int,  # pylint: disable=unused-argument
+        self,
+        batch: Any,
+        batch_idx: int,  # pylint: disable=unused-argument
     ) -> dict[str, Any]:
         """Test step. Step and return loss. Delegate to validation step"""
         return self.validation_step(batch, batch_idx, prefix="test")
@@ -209,10 +224,10 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
     def forward(self, data: torch.Tensor) -> torch.Tensor:
         """Forward step"""
         data_prep = data.permute(0, 2, 3, 1).reshape(-1, data.size(1))
-        return process_output(self.model.forward(data_prep),
-                              torch.Size([data.size(0), 1,
-                                          data.size(2),
-                                          data.size(3)]))
+        return process_output(
+            self.model.forward(data_prep),
+            torch.Size([data.size(0), 1, data.size(2), data.size(3)]),
+        )
 
     def predict(self, batch: MMDCBatch) -> OutputLAI:
         """Predict LAI"""
@@ -220,39 +235,31 @@ class MMDCDownstreamRegressionLitModule(MMDCDownstreamBaseLitModule):
         lai_gt = self.compute_gt(batch, stand=False)
         reg_input = self.get_regression_input(batch)
         # lai_pred = unstand_lai(self.forward(reg_input))
-        lai_pred = denormalize(self.forward(reg_input), self.model_snap.variable_min,
-                               self.model_snap.variable_max)
+        lai_pred = denormalize(
+            self.forward(reg_input),
+            self.model_snap.variable_min,
+            self.model_snap.variable_max,
+        )
         return OutputLAI(lai_pred, reg_input, lai_gt)
 
     def compute_gt(self, batch: MMDCBatch, stand: bool = True) -> torch.Tensor:
         """Compute LAI GT data wiht standardisation or not"""
-        gt = predict_variable_from_tensors(batch.s2_x, batch.s2_a, batch.s2_m,
-                                           self.model_snap)
+        gt = predict_variable_from_tensors(
+            batch.s2_x, batch.s2_a, batch.s2_m, self.model_snap
+        )
         if stand:
             # return stand_lai(gt)
-            return normalize(gt, self.model_snap.variable_min, self.model_snap.variable_max)
+            return normalize(
+                gt, self.model_snap.variable_min, self.model_snap.variable_max
+            )
         return gt
 
     def configure_optimizers(self) -> dict[str, Any]:
         """A single optimizer with a LR scheduler"""
-        optimizer = torch.optim.Adam(params=self.model.parameters(),
-                                     lr=self.learning_rate, weight_decay=0.01)
+        optimizer = torch.optim.Adam(
+            params=self.model.parameters(), lr=self.learning_rate, weight_decay=0.01
+        )
 
-        # training_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-        #     optimizer, T_0=4, T_mult=2, eta_min=0, last_epoch=-1)
-        training_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,
-                                                                        mode='min',
-                                                                        factor=0.9,
-                                                                        patience=200,
-                                                                        threshold=0.01)
-
-        scheduler = {
-            # "scheduler": training_scheduler,
-            "interval": "step",
-            "monitor": f"val/{self.losses_list[0]}",
-            "frequency": 1,
-            "strict": False
-        }
         return {
             "optimizer": optimizer,
             # "lr_scheduler": scheduler,

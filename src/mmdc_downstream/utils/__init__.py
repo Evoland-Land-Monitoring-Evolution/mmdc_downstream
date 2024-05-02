@@ -24,13 +24,13 @@ with suppress(ModuleNotFoundError):
         # otherwise logs would get multiplied for each
         # GPU process in multi-GPU setup
         for level in (
-                "debug",
-                "info",
-                "warning",
-                "error",
-                "exception",
-                "fatal",
-                "critical",
+            "debug",
+            "info",
+            "warning",
+            "error",
+            "exception",
+            "fatal",
+            "critical",
         ):
             setattr(logger, level, rank_zero_only(getattr(logger, level)))
 
@@ -48,14 +48,12 @@ with suppress(ModuleNotFoundError):
 
         # disable python warnings if <config.ignore_warnings=True>
         if config.get("ignore_warnings"):
-            log.info(
-                "Disabling python warnings! <config.ignore_warnings=True>")
+            log.info("Disabling python warnings! <config.ignore_warnings=True>")
             warnings.filterwarnings("ignore")
 
         # pretty print config tree using Rich library if <config.print_config=True>
         if config.get("print_config"):
-            log.info(
-                "Printing config tree with Rich! <config.print_config=True>")
+            log.info("Printing config tree with Rich! <config.print_config=True>")
             print_config(config, resolve=True)
 
     @rank_zero_only
@@ -87,7 +85,8 @@ with suppress(ModuleNotFoundError):
 
         for p_field in print_order:
             queue.append(p_field) if p_field in config else log.info(
-                "Field '%s' not found in config", p_field)
+                "Field '%s' not found in config", p_field
+            )
 
         for c_field in config:
             assert isinstance(c_field, str)
@@ -99,8 +98,7 @@ with suppress(ModuleNotFoundError):
 
             config_group = config[p_field]
             if isinstance(config_group, DictConfig):
-                branch_content = OmegaConf.to_yaml(config_group,
-                                                   resolve=resolve)
+                branch_content = OmegaConf.to_yaml(config_group, resolve=resolve)
             else:
                 branch_content = str(config_group)
 
@@ -112,8 +110,9 @@ with suppress(ModuleNotFoundError):
             rich.print(tree, file=file)
 
     @rank_zero_only
-    def log_hyperparameters(config: DictConfig, model: pl.LightningModule,
-                            trainer: pl.Trainer) -> None:
+    def log_hyperparameters(
+        config: DictConfig, model: pl.LightningModule, trainer: pl.Trainer
+    ) -> None:
         """Controls which config parts are saved by Lightning loggers.
 
         Additionaly saves:
@@ -126,13 +125,13 @@ with suppress(ModuleNotFoundError):
         hparams["model"] = config["model"]
 
         # save number of model parameters
-        hparams["model/params/total"] = sum(p.numel()
-                                            for p in model.parameters())
-        hparams["model/params/trainable"] = sum(p.numel()
-                                                for p in model.parameters()
-                                                if p.requires_grad)
+        hparams["model/params/total"] = sum(p.numel() for p in model.parameters())
+        hparams["model/params/trainable"] = sum(
+            p.numel() for p in model.parameters() if p.requires_grad
+        )
         hparams["model/params/non_trainable"] = sum(
-            p.numel() for p in model.parameters() if not p.requires_grad)
+            p.numel() for p in model.parameters() if not p.requires_grad
+        )
 
         hparams["datamodule"] = config["datamodule"]
         hparams["trainer"] = config["trainer"]

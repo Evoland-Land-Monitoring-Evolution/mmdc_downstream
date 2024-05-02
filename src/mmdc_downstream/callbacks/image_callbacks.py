@@ -14,12 +14,16 @@ from mmdc_singledate.datamodules.mmdc_datamodule import destructure_batch
 from pytorch_lightning.callbacks import Callback
 from sensorsio.utils import rgb_render
 
-from ..models.lightning.lai_regression import MMDCDownstreamRegressionLitModule, OutputLAI
+from ..models.lightning.lai_regression import (
+    MMDCDownstreamRegressionLitModule,
+    OutputLAI,
+)
 
 # Configure logging
 NUMERIC_LEVEL = getattr(logging, "INFO", None)
-logging.basicConfig(level=NUMERIC_LEVEL,
-                    format="%(asctime)-15s %(levelname)s: %(message)s")
+logging.basicConfig(
+    level=NUMERIC_LEVEL, format="%(asctime)-15s %(levelname)s: %(message)s"
+)
 
 logger = logging.getLogger(__name__)
 
@@ -40,9 +44,9 @@ class MMDCLAIExpertsCallback(Callback):
     """
 
     def __init__(
-            self,
-            save_dir: str,
-            n_samples: int = 5,
+        self,
+        save_dir: str,
+        n_samples: int = 5,
     ):
         self.save_dir = save_dir
         self.n_samples = n_samples
@@ -74,16 +78,19 @@ class MMDCLAIExpertsCallback(Callback):
 
         for samp_idx in range(self.n_samples):  # We iterate through samples to plot
             data_to_plot = self.prepare_sample(prepared_data, samp_idx)
-            for col, label in enumerate(self.labels):     # We plot each image of the sample
-                axes[samp_idx, col].imshow(data_to_plot[col],
-                                           interpolation="bicubic")
+            for col, label in enumerate(
+                self.labels
+            ):  # We plot each image of the sample
+                axes[samp_idx, col].imshow(data_to_plot[col], interpolation="bicubic")
                 axes[samp_idx, col].set_title(label)
 
         del prepared_data
 
         # export name
-        image_basename = (f"LAI_val_ep_{sample.current_epoch:03}_samples_"
-                          f"0-{self.n_samples:01}_{sample.batch_idx}")
+        image_basename = (
+            f"LAI_val_ep_{sample.current_epoch:03}_samples_"
+            f"0-{self.n_samples:01}_{sample.batch_idx}"
+        )
         image_name = Path(f"{self.save_dir}/{image_basename}.png")
         fig.savefig(image_name)
 
@@ -96,17 +103,20 @@ class MMDCLAIExpertsCallback(Callback):
         """
         We clip and select bands from images
         """
-        s1, s2 = sen_data   # pylint: disable=C0103
+        s1, s2 = sen_data  # pylint: disable=C0103
 
-        s1_asc = s1[:self.n_samples, :3, margin:-margin, margin:-margin]
-        s1_desc = s1[:self.n_samples, 3:, margin:-margin, margin:-margin]
-        s2_rgb = s2[:self.n_samples, [2, 1, 0], margin:-margin, margin:-margin]
-        latent_mu = pred.latent.clone()[:self.n_samples, [0, 1, 2],
-                                        margin:-margin, margin:-margin]
-        lai_gt = pred.lai_gt.clone()[:self.n_samples, [0, 0, 0],
-                                     margin:-margin, margin:-margin]
-        lai_pred = pred.lai_pred.clone()[:self.n_samples, [0, 0, 0],
-                                         margin:-margin, margin:-margin]
+        s1_asc = s1[: self.n_samples, :3, margin:-margin, margin:-margin]
+        s1_desc = s1[: self.n_samples, 3:, margin:-margin, margin:-margin]
+        s2_rgb = s2[: self.n_samples, [2, 1, 0], margin:-margin, margin:-margin]
+        latent_mu = pred.latent.clone()[
+            : self.n_samples, [0, 1, 2], margin:-margin, margin:-margin
+        ]
+        lai_gt = pred.lai_gt.clone()[
+            : self.n_samples, [0, 0, 0], margin:-margin, margin:-margin
+        ]
+        lai_pred = pred.lai_pred.clone()[
+            : self.n_samples, [0, 0, 0], margin:-margin, margin:-margin
+        ]
         return s1_asc, s1_desc, s2_rgb, latent_mu, lai_gt, lai_pred
 
     def prepare_sample(
@@ -118,26 +128,27 @@ class MMDCLAIExpertsCallback(Callback):
         Sample rendering for matplotlib
         """
         s1_asc, s1_desc, s2_rgb, latent_mu, lai_gt, lai_pred = prepared_data
-        render_s1_asc, _, _ = rgb_render(
-            s1_asc[samp_idx].cpu().detach().numpy())
-        render_s1_desc, _, _ = rgb_render(
-            s1_desc[samp_idx].cpu().detach().numpy())
+        render_s1_asc, _, _ = rgb_render(s1_asc[samp_idx].cpu().detach().numpy())
+        render_s1_desc, _, _ = rgb_render(s1_desc[samp_idx].cpu().detach().numpy())
         render_s2, _, _ = rgb_render(s2_rgb[samp_idx].cpu().detach().numpy())
-        render_lat, _, _ = rgb_render(
-            latent_mu[samp_idx].cpu().detach().numpy())
-        _, min_lai, max_lai = rgb_render(
-            lai_gt[samp_idx].cpu().detach().numpy())
+        render_lat, _, _ = rgb_render(latent_mu[samp_idx].cpu().detach().numpy())
+        _, min_lai, max_lai = rgb_render(lai_gt[samp_idx].cpu().detach().numpy())
         lai_gt = lai_gt.nan_to_num()
         render_lai_gt, _, _ = rgb_render(
-            lai_gt[samp_idx].cpu().detach().numpy(),
-            dmin=min_lai,
-            dmax=max_lai)
+            lai_gt[samp_idx].cpu().detach().numpy(), dmin=min_lai, dmax=max_lai
+        )
         render_lai_pred, _, _ = rgb_render(
-            lai_pred[samp_idx].cpu().detach().numpy(),
-            dmin=min_lai,
-            dmax=max_lai)
+            lai_pred[samp_idx].cpu().detach().numpy(), dmin=min_lai, dmax=max_lai
+        )
 
-        return render_s1_asc, render_s1_desc, render_s2, render_lat, render_lai_gt, render_lai_pred
+        return (
+            render_s1_asc,
+            render_s1_desc,
+            render_s2,
+            render_lat,
+            render_lai_gt,
+            render_lai_pred,
+        )
 
     def lai_gt_pred_scatterplots(
         self,
@@ -147,27 +158,34 @@ class MMDCLAIExpertsCallback(Callback):
     ) -> None:
         """Save the PNG image of the scatterplots of the latent space of
         a sample of the batch"""
-        (pred, gt) = lai    # pylint: disable=C0103
+        (pred, gt) = lai  # pylint: disable=C0103
         image_basename = (
             f"MMDC_val_ep_{sample.current_epoch:03}_scat_pred_gt_"
-            f"0-{self.n_samples:03}_{sample.batch_idx}")
+            f"0-{self.n_samples:03}_{sample.batch_idx}"
+        )
         image_name = Path(f"{self.save_dir}/{image_basename}.png")
-        gt = gt.nan_to_num()    # pylint: : disable=C0103
+        gt = gt.nan_to_num()  # pylint: : disable=C0103
         plt.close()
-        fig, axes = plt.subplots(nrows=1,
-                                 ncols=self.n_samples,
-                                 sharex=False,
-                                 sharey=False,
-                                 figsize=((self.n_samples + 1) * 3, 8))
+        fig, axes = plt.subplots(
+            nrows=1,
+            ncols=self.n_samples,
+            sharex=False,
+            sharey=False,
+            figsize=((self.n_samples + 1) * 3, 8),
+        )
         fig.suptitle(f"LAI {sample.current_epoch = }", fontsize=20)
         for i, axis in enumerate(axes.flatten()):
             axis.set_title("LAI")
             axis.set_xlabel("Pred")
             axis.set_ylabel("GT")
-            axis.scatter(pred[i][~mask[i].bool()].detach().cpu().numpy().flatten(),
-                         gt[i][~mask[i].bool()].detach().cpu().numpy().flatten())
-            axis.plot(gt[i].detach().cpu().numpy().flatten(),
-                      gt[i].detach().cpu().numpy().flatten())
+            axis.scatter(
+                pred[i][~mask[i].bool()].detach().cpu().numpy().flatten(),
+                gt[i][~mask[i].bool()].detach().cpu().numpy().flatten(),
+            )
+            axis.plot(
+                gt[i].detach().cpu().numpy().flatten(),
+                gt[i].detach().cpu().numpy().flatten(),
+            )
         fig.savefig(image_name)
 
     def on_validation_batch_end(  # pylint: disable=too-many-arguments
@@ -181,7 +199,7 @@ class MMDCLAIExpertsCallback(Callback):
     ) -> None:
         """Method called from the validation loop"""
         if batch_idx < 2:
-            debatch = destructure_batch(batch)[:self.n_samples]
+            debatch = destructure_batch(batch)[: self.n_samples]
 
             patch_margin = pl_module.margin
             assert isinstance(patch_margin, int)
@@ -194,8 +212,7 @@ class MMDCLAIExpertsCallback(Callback):
             self.save_image_grid(
                 (s1_x, s2_x),
                 pred,
-                SampleInfo(batch_idx, batch_size, patch_margin,
-                           trainer.current_epoch),
+                SampleInfo(batch_idx, batch_size, patch_margin, trainer.current_epoch),
             )
             self.lai_gt_pred_scatterplots(
                 (pred.lai_pred, pred.lai_gt),
@@ -208,10 +225,11 @@ class MMDCLAIS2Callback(MMDCLAIExpertsCallback):
     """
     Image callback for LAI prediction from S2 images
     """
+
     def __init__(
-            self,
-            save_dir: str,
-            n_samples: int = 5,
+        self,
+        save_dir: str,
+        n_samples: int = 5,
     ):
         super().__init__(save_dir, n_samples)
         self.labels = ["S2", "LAI GT", "LAI Pred"]
@@ -225,11 +243,11 @@ class MMDCLAIS2Callback(MMDCLAIExpertsCallback):
         """
         We select bands from images.
         """
-        _, s2 = sen_data   # pylint: disable=C0103
+        _, s2 = sen_data  # pylint: disable=C0103
 
-        s2_rgb = s2[:self.n_samples, [2, 1, 0], :, :]
-        lai_gt = pred.lai_gt.clone()[:self.n_samples, [0, 0, 0], :, :]
-        lai_pred = pred.lai_pred.clone()[:self.n_samples, [0, 0, 0], :, :]
+        s2_rgb = s2[: self.n_samples, [2, 1, 0], :, :]
+        lai_gt = pred.lai_gt.clone()[: self.n_samples, [0, 0, 0], :, :]
+        lai_pred = pred.lai_pred.clone()[: self.n_samples, [0, 0, 0], :, :]
         return s2_rgb, lai_gt, lai_pred
 
     def prepare_sample(
@@ -242,16 +260,13 @@ class MMDCLAIS2Callback(MMDCLAIExpertsCallback):
         """
         s2_rgb, lai_gt, lai_pred = prepared_data
         render_s2, _, _ = rgb_render(s2_rgb[samp_idx].cpu().detach().numpy())
-        _, min_lai, max_lai = rgb_render(
-            lai_gt[samp_idx].cpu().detach().numpy())
+        _, min_lai, max_lai = rgb_render(lai_gt[samp_idx].cpu().detach().numpy())
         lai_gt = lai_gt.nan_to_num()
         render_lai_gt, _, _ = rgb_render(
-            lai_gt[samp_idx].cpu().detach().numpy(),
-            dmin=min_lai,
-            dmax=max_lai)
+            lai_gt[samp_idx].cpu().detach().numpy(), dmin=min_lai, dmax=max_lai
+        )
         render_lai_pred, _, _ = rgb_render(
-            lai_pred[samp_idx].cpu().detach().numpy(),
-            dmin=min_lai,
-            dmax=max_lai)
+            lai_pred[samp_idx].cpu().detach().numpy(), dmin=min_lai, dmax=max_lai
+        )
 
         return render_s2, render_lai_gt, render_lai_pred

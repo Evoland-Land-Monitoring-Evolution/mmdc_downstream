@@ -2,7 +2,7 @@
 
 import torch
 from mmdc_singledate.models.components.losses import mask_and_flatten
-from torchmetrics import MeanSquaredError, MeanAbsoluteError
+from torchmetrics import MeanAbsoluteError, MeanSquaredError
 
 from ...snap.lai_snap import denormalize
 
@@ -22,21 +22,26 @@ def weighted_mae_loss(pred, target, weight):
     return (weight * torch.abs(pred - target)).sum() / weight.sum()
 
 
-def compute_losses(preds: torch.Tensor,
-                   target: torch.Tensor,
-                   mask: torch.Tensor,
-                   losses_list: list[str],
-                   margin: int = 0,
-                   bin_weights: torch.Tensor | None = None,
-                   denorm_min_max: tuple[torch.Tensor, torch.Tensor] = None,
-                   ) -> dict[str, torch.Tensor]:
+def compute_losses(
+    preds: torch.Tensor,
+    target: torch.Tensor,
+    mask: torch.Tensor,
+    losses_list: list[str],
+    margin: int = 0,
+    bin_weights: torch.Tensor | None = None,
+    denorm_min_max: tuple[torch.Tensor, torch.Tensor] = None,
+) -> dict[str, torch.Tensor]:
     """Computes regression losses"""
-    H, W = preds.shape[-2:]     # pylint: : disable=C0103
+    H, W = preds.shape[-2:]  # pylint: : disable=C0103
 
-    mask = mask[:, :, margin:H - margin, margin:W - margin]
+    mask = mask[:, :, margin : H - margin, margin : W - margin]
 
-    preds = mask_and_flatten(preds[:, :, margin:H - margin, margin:W - margin], mask)
-    target = mask_and_flatten(target[:, :, margin:H - margin, margin:W - margin], mask)
+    preds = mask_and_flatten(
+        preds[:, :, margin : H - margin, margin : W - margin], mask
+    )
+    target = mask_and_flatten(
+        target[:, :, margin : H - margin, margin : W - margin], mask
+    )
 
     losses_dict = {}
 
@@ -59,21 +64,20 @@ def compute_losses(preds: torch.Tensor,
 
         return losses_dict
 
-
     if "MSE" in losses_list or "mse" in losses_list:
         mse = MeanSquaredError().to(preds.device)
         losses_dict["MSE"] = mse(preds, target)  # pylint: disable=E1102
 
     if "RMSE" in losses_list or "rmse" in losses_list:
         rmse = MeanSquaredError(squared=False).to(preds.device)
-        losses_dict["RMSE"] = rmse(preds, target)   # pylint: disable=E1102
+        losses_dict["RMSE"] = rmse(preds, target)  # pylint: disable=E1102
 
     if "L1" in losses_list or "MAE" in losses_list or "mae" in losses_list:
         mae = MeanAbsoluteError().to(preds.device)
-        losses_dict["MAE"] = mae(preds, target)     # pylint: disable=E1102
+        losses_dict["MAE"] = mae(preds, target)  # pylint: disable=E1102
 
     if "Huber" in losses_list:
         huber = torch.nn.HuberLoss().to(preds.device)
-        losses_dict["Huber"] = huber(preds, target)     # pylint: disable=E1102
+        losses_dict["Huber"] = huber(preds, target)  # pylint: disable=E1102
 
     return losses_dict

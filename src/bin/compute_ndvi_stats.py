@@ -57,17 +57,31 @@ def get_parser() -> argparse.ArgumentParser:
         nargs="+",
         help="list of available tiles",
         # default=["30TXT"]
-        default=["30TXT", "31TDL", "31TEN", "32UMB", "32TPT", "32TPQ", "32UQD", "33TVM", "33UXR", "33TYJ", "34UEC", "34TFR"]
+        default=[
+            "30TXT",
+            "31TDL",
+            "31TEN",
+            "32UMB",
+            "32TPT",
+            "32TPQ",
+            "32UQD",
+            "33TVM",
+            "33UXR",
+            "33TYJ",
+            "34UEC",
+            "34TFR",
+        ]
         # required=False,
     )
 
-    arg_parser.add_argument("--variables",
-                            type=str,
-                            nargs="+",
-                            help="list of variables to compute",
-                            default=["lai"]
-                            # required=False,
-                            )
+    arg_parser.add_argument(
+        "--variables",
+        type=str,
+        nargs="+",
+        help="list of variables to compute",
+        default=["lai"]
+        # required=False,
+    )
 
     return arg_parser
 
@@ -89,8 +103,9 @@ if __name__ == "__main__":
     )
 
     if not os.path.isdir(args.output_path):
-        logging.info("The directory is not present. Creating a new one.. %s",
-                     args.output_path)
+        logging.info(
+            "The directory is not present. Creating a new one.. %s", args.output_path
+        )
         Path(os.path.join(args.output_path)).mkdir()
 
     logging.info("Starting the computation")
@@ -98,4 +113,5 @@ if __name__ == "__main__":
     # creating dataset
     compute_variables(
         DatasetPaths(input_path=args.input_path, output_path=args.output_path),
-        args.input_tile_list)
+        args.input_tile_list,
+    )

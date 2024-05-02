@@ -61,13 +61,14 @@ def get_parser() -> argparse.ArgumentParser:
         # required=False,
     )
 
-    arg_parser.add_argument("--variables",
-                            type=str,
-                            nargs="+",
-                            help="list of variables to compute",
-                            default=["lai"]
-                            # required=False,
-                            )
+    arg_parser.add_argument(
+        "--variables",
+        type=str,
+        nargs="+",
+        help="list of variables to compute",
+        default=["lai"]
+        # required=False,
+    )
 
     return arg_parser
 
@@ -89,8 +90,9 @@ if __name__ == "__main__":
     )
 
     if not os.path.isdir(args.output_path):
-        logging.info("The directory is not present. Creating a new one.. %s",
-                     args.output_path)
+        logging.info(
+            "The directory is not present. Creating a new one.. %s", args.output_path
+        )
         Path(os.path.join(args.output_path)).mkdir()
 
     logging.info("Starting the computation")
@@ -98,4 +100,6 @@ if __name__ == "__main__":
     # creating dataset
     compute_variables(
         DatasetPaths(input_path=args.input_path, output_path=args.output_path),
-        args.input_tile_list, args.variables)
+        args.input_tile_list,
+        args.variables,
+    )
