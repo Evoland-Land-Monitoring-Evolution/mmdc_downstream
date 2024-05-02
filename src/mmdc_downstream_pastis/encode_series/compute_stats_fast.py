@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from einops import rearrange
 
-model = "2024-04-05_14-58-22"
+model = "checkpoint_best"
 dataset_path_oe = f"{os.environ['WORK']}/results/Pastis_encoded"
 # dataset_path_oe = "/home/kalinichevae/jeanzay/results/Pastis_encoded"
 feat_nb = 6

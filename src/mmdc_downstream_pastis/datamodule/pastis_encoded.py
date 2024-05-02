@@ -126,12 +126,12 @@ class PASTISEncodedDataset(PASTISDataset):
 
         self.labels = list(self.dict_classes.values())
 
-        self.norm: dict[
-            str, dict[str, tuple[torch.Tensor, torch.Tensor]]
-        ] = self.get_stats()
-
-        logger.info("Normalization values")
-        logger.info(self.norm)
+        # self.norm: dict[
+        #     str, dict[str, tuple[torch.Tensor, torch.Tensor]]
+        # ] = self.get_stats()
+        #
+        # logger.info("Normalization values")
+        # logger.info(self.norm)
 
         logger.info("Done.")
         print("Dataset ready.")
@@ -184,17 +184,17 @@ class PASTISEncodedDataset(PASTISDataset):
         data = {
             s: (a["latents"] if a is not None else None) for s, a in data_pastis.items()
         }
-        data.update(
-            {
-                s: VAELatentSpace(
-                    (a.mean - self.norm[s]["mu"][0][None, :, None, None])
-                    / self.norm[s]["mu"][1][None, :, None, None],
-                    (a.logvar - self.norm[s]["logvar"][0][None, :, None, None])
-                    / self.norm[s]["logvar"][1][None, :, None, None],
-                )
-                for s, a in data.items()
-            }
-        )
+        # data.update(
+        #     {
+        #         s: VAELatentSpace(
+        #             (a.mean - self.norm[s]["mu"][0][None, :, None, None])
+        #             / self.norm[s]["mu"][1][None, :, None, None],
+        #             (a.logvar - self.norm[s]["logvar"][0][None, :, None, None])
+        #             / self.norm[s]["logvar"][1][None, :, None, None],
+        #         )
+        #         for s, a in data.items()
+        #     }
+        # )
 
         dates = {
             s: (self.prepare_dates(a["dates"]) if a is not None else None)

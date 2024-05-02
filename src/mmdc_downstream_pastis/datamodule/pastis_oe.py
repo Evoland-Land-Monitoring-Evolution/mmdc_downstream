@@ -638,8 +638,6 @@ class PastisDataModule(LightningDataModule):
         )
 
 
-#
-#
 # def build_dm(sats) -> PastisDataModule:
 #     """Builds datamodule"""
 #     return PastisDataModule(
@@ -649,6 +647,7 @@ class PastisDataModule(LightningDataModule):
 #         sats=sats,
 #         task="semantic",
 #         batch_size=1,
+#         max_len=0
 #     )
 #
 #
