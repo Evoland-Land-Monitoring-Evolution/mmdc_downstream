@@ -45,51 +45,8 @@ test_one_fail_no_slow:
 	$(CONDA) && pytest -vv -m "not slow" -x test/
 
 
-test_architecture:
-	$(CONDA) && pytest -vv test/test_architecture.py
 
-
-test_datamodule:
-	$(CONDA) && pytest -vv test/test_mmdc_datamodule.py
-
-test_stats:
-	$(CONDA) && pytest -vv test/test_stats.py
-
-test_gends:
-	$(CONDA) && pytest -vv test/test_generate_mmdc_ds.py
-
-test_pix2pix:
-	$(CONDA) && pytest -vv test/test_pix2pix.py
-
-test_translation:
-	$(CONDA) && pytest -vv test/test_translation_s1_s2.py
-
-test_modtranslation:
-	$(CONDA) && pytest -vv -x test/test_modular_translation.py
-
-test_full:
-	$(CONDA) && pytest -vv -x test/test_mmdc_full_module.py
-
-test_no_translation:
-	$(CONDA) && pytest -vv test/ -k 'not translation'
-
-test_no_PIL:
-	$(CONDA) && pytest -vv test/ -k 'not callbacks and not visu'
-
-test_mask_loss:
-	$(CONDA) && pytest -vv test/test_masked_losses.py
-
-test_despeckle:
-	$(CONDA) && pytest -vv test/test_filters.py
-
-test_iota2:
-	$(CONDA) && pytest -vv test/test_iota2.py
-
-test_inference:
-	$(CONDA) && pytest -vv test/test_inference.py
-
-
-PYLINT_IGNORED = "miou.py, weight_init.py"
+PYLINT_IGNORED = "write_csv.py,lai_regression_compute_bins.py,lai_snap.py"
 #.PHONY:
 pylint:
 	$(CONDA) && pylint --ignore=$(PYLINT_IGNORED) src/
