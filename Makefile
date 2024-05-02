@@ -89,7 +89,7 @@ test_inference:
 	$(CONDA) && pytest -vv test/test_inference.py
 
 
-PYLINT_IGNORED = "pix2pix.py,pix2pix_networks.py,mmdc_residual_module.py,chunk_processing.py,python_features.py,translation.py"
+PYLINT_IGNORED = "miou.py, weight_init.py"
 #.PHONY:
 pylint:
 	$(CONDA) && pylint --ignore=$(PYLINT_IGNORED) src/
