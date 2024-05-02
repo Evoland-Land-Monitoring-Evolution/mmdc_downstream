@@ -65,8 +65,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--pretrained_path",
         type=str,
         help="list of available tiles",
-        default=f"{os.environ['WORK']}/results/MMDC/results/latent/checkpoints/"
-        "mmdc_full_tiny/2024-04-05_14-58-22"
+        default=f"{os.environ['WORK']}/results/MMDC/checkpoint_best"
         # required=False,
     )
 
@@ -74,7 +73,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--model_name",
         type=str,
         help="Name of the pretrained model (last or epoch_XXX)",
-        default="epoch_129"
+        default="epoch_141"
         # required=False,
     )
 
