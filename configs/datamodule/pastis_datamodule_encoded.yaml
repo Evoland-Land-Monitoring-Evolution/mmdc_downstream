@@ -1,6 +1,6 @@
 _target_: mmdc_downstream_pastis.datamodule.pastis_encoded.PastisEncodedDataModule
 
-dataset_path_oe: ${oc.env:WORK}/results/Pastis_encoded/2024-04-05_14-58-22
+dataset_path_oe: ${oc.env:WORK}/results/Pastis_encoded/checkpoint_best
 dataset_path_pastis: ${oc.env:SCRATCH}/scratch_data/Pastis
 
 reference_date: "2018-09-01"
