@@ -50,12 +50,14 @@ class MMDCPastisEncodedUTAE(PastisUTAE):
         # out: OutUTAEForward = self.forward(x, batch_positions=dates)
         # logits = out.seg_map
         logits = self.forward(x, batch_positions=dates)
+        logits_clip = logits[:, :, 32:-32, 32:-32].contiguous()
+        gt_clip = gt[:, 32:-32, 32:-32].contiguous()
         losses = compute_losses(
-            preds=logits[:, 32:-32, 32:-32],
-            target=gt[:, 32:-32, 32:-32],
-            mask=(gt[:, 32:-32, 32:-32] == -1),
+            preds=logits_clip,
+            target=gt_clip,
+            mask=(gt_clip == -1),
             losses_list=self.losses_list,
         )
-        self.iou_meter[stage].add(to_class_label(logits), gt)
+        self.iou_meter[stage].add(to_class_label(logits_clip), gt_clip)
 
         return losses
