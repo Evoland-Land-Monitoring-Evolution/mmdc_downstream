@@ -55,7 +55,7 @@ class MMDCPastisEncodedUTAE(PastisUTAE):
         losses = compute_losses(
             preds=logits_clip,
             target=gt_clip,
-            mask=(gt_clip == -1),
+            mask=(gt_clip == 0),
             losses_list=self.losses_list,
         )
         self.iou_meter[stage].add(to_class_label(logits_clip), gt_clip)

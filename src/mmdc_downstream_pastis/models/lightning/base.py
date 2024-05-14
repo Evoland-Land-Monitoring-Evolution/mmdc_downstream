@@ -45,7 +45,7 @@ class MMDCPastisBaseLitModule(LightningModule):  # pylint: disable=too-many-ance
         self.iou_meter = {
             stage: IoU(
                 num_classes=model.num_classes,
-                ignore_index=-1,
+                ignore_index=0,
                 cm_device="cuda",
             )
             for stage in ("train", "val", "test")
@@ -113,7 +113,7 @@ class MMDCPastisBaseLitModule(LightningModule):  # pylint: disable=too-many-ance
 
         return {"loss": loss}
 
-    def predict(self, batch: Any, **kwargs) -> Any:  # pylint: disable=arguments-differ
+    def predict(self, batch: Any, batch_positions: torch.Tensor) -> torch.Tensor:
         """Generic prediction of the model. Just delegate to the Pytorch model."""
 
     def on_train_epoch_start(self) -> None:

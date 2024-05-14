@@ -68,7 +68,7 @@ class PastisUTAE(MMDCPastisBaseLitModule):
         losses = compute_losses(
             preds=logits_clip,
             target=gt_clip,
-            mask=(gt_clip == -1),
+            mask=(gt_clip == 0) | (gt_clip == 19),
             losses_list=self.losses_list,
         )
         self.iou_meter[stage].add(to_class_label(logits_clip), gt_clip)
@@ -126,10 +126,12 @@ class PastisUTAE(MMDCPastisBaseLitModule):
         """Forward step"""
         return self.model.forward(data, batch_positions=batch_positions)
 
-    def predict(self, batch: Any) -> torch.Tensor:
+    def predict(self, batch: Any, batch_positions: torch.Tensor) -> torch.Tensor:
         """Predict classification map"""
         self.model.eval()
-        return to_class_label(self.model.forward(batch))
+        return to_class_label(
+            self.model.forward(batch, batch_positions=batch_positions)
+        )
 
     def configure_optimizers(self) -> dict[str, Any]:
         """A single optimizer with a LR scheduler"""
@@ -154,3 +156,28 @@ class PastisUTAE(MMDCPastisBaseLitModule):
             "optimizer": optimizer,
             # "lr_scheduler": scheduler,
         }
+
+    # def configure_optimizers(self) -> dict[str, Any]:
+    #     """A single optimizer with a LR scheduler"""
+    #     optimizer = torch.optim.Adam(
+    #         params=self.model.parameters(),
+    #         lr=self.learning_rate  # , weight_decay=0.01
+    #     )
+    #
+    #     training_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+    #         optimizer, T_0=4, T_mult=2, eta_min=0, last_epoch=-1)
+    #     # training_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+    #     #     optimizer, mode="min", factor=0.9, patience=200, threshold=0.01
+    #     # )
+    #
+    #     scheduler = {
+    #         "scheduler": training_scheduler,
+    #         "interval": "step",
+    #         "monitor": f"val/{self.losses_list[0]}",
+    #         "frequency": 1,
+    #         "strict": False,
+    #     }
+    #     return {
+    #         "optimizer": optimizer,
+    #         "lr_scheduler": scheduler,
+    #     }
