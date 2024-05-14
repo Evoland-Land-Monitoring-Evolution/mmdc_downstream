@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=pastis_encoded_utae_mean
+#SBATCH --job-name=encode
 #SBATCH --output=outputfile-%j.out
 #SBATCH --error=errorfile-%j.err
 #SBATCH -A ttd@a100
@@ -18,7 +18,8 @@ export SRCDIR=$WORK/src/MMDC/mmdc-downstream
 export MMDC_INIT=${SRCDIR}/mmdc_init_jz.sh
 export WORKING_DIR=$WORK/results/MMDC/jobs
 
+
 cd ${WORKING_DIR}
 source ${MMDC_INIT}
 
-HYDRA_FULL_ERROR=1 python   ${SRCDIR}/train.py experiment=pastis_encoded_utae_mean >> output_$SLURM_JOBID.log
+HYDRA_FULL_ERROR=1 python   ${SRCDIR}/src/bin/encode_tcd_for_prediction.py  >> output_$SLURM_JOBID.log

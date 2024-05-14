@@ -6,7 +6,7 @@
 defaults:
   - override /datamodule: pastis_datamodule_encoded.yaml
   - override /model: pastis_encoded_utae_mean.yaml
-  - override /callbacks: default.yaml
+  - override /callbacks: pastis.yaml
   - override /trainer: default.yaml
 
 output_dir: ${oc.env:WORK}/results/MMDC/results/pastis

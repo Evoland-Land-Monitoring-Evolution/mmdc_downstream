@@ -7,7 +7,7 @@
 #SBATCH -N 1                        # number of nodes ( or --nodes=1)
 #SBATCH --gres=gpu:1                # number of gpus
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=12
+#SBATCH --cpus-per-task=24
 #SBATCH --time=12:00:00             # Walltime 24h
 
 

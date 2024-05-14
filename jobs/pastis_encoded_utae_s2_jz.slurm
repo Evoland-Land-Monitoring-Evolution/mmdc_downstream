@@ -8,7 +8,7 @@
 #SBATCH --gres=gpu:1                # number of gpus
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=24
-#SBATCH --time=5:00:00             # Walltime 24h
+#SBATCH --time=12:00:00             # Walltime 24h
 
 # be sure no modules loaded
 module purge
