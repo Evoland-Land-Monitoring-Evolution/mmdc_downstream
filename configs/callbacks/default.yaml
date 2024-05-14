@@ -25,13 +25,3 @@ model_summary:
 
 rich_progress_bar:
   _target_: pytorch_lightning.callbacks.RichProgressBar
-
-timer:
-  _target_: pytorch_lightning.callbacks.Timer
-  duration: 00:72:00:00
-
-
-laiimage:
-  _target_: mmdc_downstream.callbacks.image_callbacks.MMDCLAIS2Callback
-  save_dir: ${hydra:run.dir}
-  n_samples: 6
