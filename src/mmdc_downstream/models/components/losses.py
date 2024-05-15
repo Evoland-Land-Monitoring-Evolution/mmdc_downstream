@@ -81,3 +81,31 @@ def compute_losses(
         losses_dict["Huber"] = huber(preds, target)  # pylint: disable=E1102
 
     return losses_dict
+
+
+def compute_losses_flat(
+    preds: torch.Tensor,
+    target: torch.Tensor,
+    losses_list: list[str],
+) -> dict[str, torch.Tensor]:
+    """Computes regression losses"""
+
+    losses_dict = {}
+
+    if "MSE" in losses_list or "mse" in losses_list:
+        mse = MeanSquaredError().to(preds.device)
+        losses_dict["MSE"] = mse(preds, target)  # pylint: disable=E1102
+
+    if "RMSE" in losses_list or "rmse" in losses_list:
+        rmse = MeanSquaredError(squared=False).to(preds.device)
+        losses_dict["RMSE"] = rmse(preds, target)  # pylint: disable=E1102
+
+    if "L1" in losses_list or "MAE" in losses_list or "mae" in losses_list:
+        mae = MeanAbsoluteError().to(preds.device)
+        losses_dict["MAE"] = mae(preds, target)  # pylint: disable=E1102
+
+    if "Huber" in losses_list:
+        huber = torch.nn.HuberLoss().to(preds.device)
+        losses_dict["Huber"] = huber(preds, target)  # pylint: disable=E1102
+
+    return losses_dict
