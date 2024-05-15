@@ -40,6 +40,7 @@ class PASTISEncodedDataset(PASTISDataset):
         transform: nn.Module | None = None,
         max_len: int = 60,
         allow_padd: bool = True,
+        norm: bool = False,
         use_logvar: bool = True,  # TODO Add choosing logvar option
     ):
         """
@@ -126,12 +127,15 @@ class PASTISEncodedDataset(PASTISDataset):
 
         self.labels = list(self.dict_classes.values())
 
-        # self.norm: dict[
-        #     str, dict[str, tuple[torch.Tensor, torch.Tensor]]
-        # ] = self.get_stats()
-        #
-        # logger.info("Normalization values")
-        # logger.info(self.norm)
+        if norm:
+            self.norm: dict[
+                str, dict[str, tuple[torch.Tensor, torch.Tensor]]
+            ] = self.get_stats()
+        else:
+            self.norm = None
+
+        logger.info("Normalization values")
+        logger.info(self.norm)
 
         logger.info("Done.")
         print("Dataset ready.")
@@ -184,17 +188,18 @@ class PASTISEncodedDataset(PASTISDataset):
         data = {
             s: (a["latents"] if a is not None else None) for s, a in data_pastis.items()
         }
-        # data.update(
-        #     {
-        #         s: VAELatentSpace(
-        #             (a.mean - self.norm[s]["mu"][0][None, :, None, None])
-        #             / self.norm[s]["mu"][1][None, :, None, None],
-        #             (a.logvar - self.norm[s]["logvar"][0][None, :, None, None])
-        #             / self.norm[s]["logvar"][1][None, :, None, None],
-        #         )
-        #         for s, a in data.items()
-        #     }
-        # )
+        if self.norm is not None:
+            data.update(
+                {
+                    s: VAELatentSpace(
+                        (a.mean - self.norm[s]["mu"][0][None, :, None, None])
+                        / self.norm[s]["mu"][1][None, :, None, None],
+                        (a.logvar - self.norm[s]["logvar"][0][None, :, None, None])
+                        / self.norm[s]["logvar"][1][None, :, None, None],
+                    )
+                    for s, a in data.items()
+                }
+            )
 
         dates = {
             s: (self.prepare_dates(a["dates"]) if a is not None else None)
@@ -407,6 +412,7 @@ class PastisEncodedDataModule(PastisDataModule):
         crop_size: int | None = 64,
         crop_type: Literal["Center", "Random"] = "Random",
         num_workers: int = 1,
+        norm: bool = False,
         use_logvar: bool = True,
     ):
         super().__init__(
@@ -421,7 +427,8 @@ class PastisEncodedDataModule(PastisDataModule):
             crop_type,
             num_workers,
         )
-        self.use_logvar = True
+        self.use_logvar = use_logvar
+        self.norm = norm
 
     def instanciate_dataset(self, fold: list[int] | None) -> PASTISDataset:
         return PASTISEncodedDataset(
@@ -436,6 +443,7 @@ class PastisEncodedDataModule(PastisDataModule):
             crop_size=self.crop_size,
             crop_type=self.crop_type,
             use_logvar=self.use_logvar,
+            norm=self.norm,
         )
 
     def instanciate_data_loader(
