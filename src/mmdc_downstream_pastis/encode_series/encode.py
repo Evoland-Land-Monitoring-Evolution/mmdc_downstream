@@ -25,7 +25,7 @@ def back_to_date(
             pd.to_datetime(
                 [
                     pd.Timedelta(dd, "d") + pd.to_datetime(ref_date)
-                    for dd in days_int.numpy()[d]
+                    for dd in days_int.cpu().numpy()[d]
                 ]
             )
         )
