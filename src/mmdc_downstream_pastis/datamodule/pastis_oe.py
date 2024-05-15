@@ -251,9 +251,6 @@ class PASTISDataset(tdata.Dataset):
 
         # We only keep patches with all modalities available
         meta_patch = meta_patch[meta_patch.ID_PATCH.isin(self.patches_to_keep())]
-        meta_patch = meta_patch[
-            (meta_patch.ID_PATCH >= 20000) & (meta_patch.ID_PATCH < 30000)
-        ]
         return meta_patch
 
     def __len__(self):
@@ -261,7 +258,7 @@ class PASTISDataset(tdata.Dataset):
 
     def load_file(self, path: str):
         """Load file if exists"""
-        logger.info(path)
+        # logger.info(path)
         return (
             torch.load(path, map_location=torch.device("cpu"))
             if Path(path).exists()
