@@ -93,7 +93,9 @@ def rearrange_ts(ts: torch.Tensor) -> torch.Tensor:
     return rearrange(ts, "t c h w ->  (t c) h w")
 
 
-def get_one_slice(nc_file: str | Path, slice: list[float]) -> xr.Dataset:
+def get_one_slice(
+    nc_file: str | Path, slice: tuple[float, float, float, float]
+) -> xr.Dataset:
     """Get one slice for one month"""
     with xr.open_dataset(
         nc_file,
@@ -108,7 +110,7 @@ def get_one_slice(nc_file: str | Path, slice: list[float]) -> xr.Dataset:
 def get_sliced_modality(
     months: list[str],
     folder: str | Path,
-    slice: list[float],
+    slice: tuple[float, float, float, float],
     modality: str,
     meteo: bool = False,
     dates: np.ndarray = None,

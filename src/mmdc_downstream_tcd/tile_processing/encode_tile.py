@@ -36,11 +36,175 @@ from mmdc_downstream_tcd.tile_processing.utils import (
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-
 log = logging.getLogger(__name__)
 
 satellites = ["s2", "s1_asc", "s1_desc"]
 meteo_modalities = METEO_BANDS.keys()
+
+
+def get_encoded_patch(
+    folder_data: str | Path,
+    months_folders: list[str | int],
+    mmdc_model: PretrainedMMDCPastis,
+    xy_matrix: np.ndarray,
+    sliced: tuple[float, float, float, float],
+    margin: int,
+    s2_dates: np.array,
+    s1_dates_asc: np.array,
+    s1_dates_desc: np.array,
+    dates_meteo: np.array,
+    s1_join: bool = True,
+) -> dict[str, torch.Tensor]:
+    encoded_patch = {}
+
+    log.info(f"Slice {sliced}")
+    images = {}
+    data = {sat: {} for sat in satellites}
+    for sat in satellites:
+        t_slice = [
+            f"2018-{months_folders[0]}-05",
+            f"2018-{months_folders[-1]}-30",
+        ]
+
+        if sat == "s2":
+            modality = "Sentinel2"
+            log.info(f"Slicing {modality}")
+            sliced_modality = get_sliced_modality(
+                months_folders,
+                folder_data,
+                sliced,
+                modality,
+                meteo=False,
+                dates=s2_dates,
+            )
+            log.info(f"Sliced {modality}")
+            sliced_modality = sliced_modality.sel(t=slice(t_slice[0], t_slice[1]))
+
+            # create_netcdf_s2_one_date(
+            #     xy_matrix, sliced_modality, margin, enum, date=2)
+
+            images, data, dates = get_s2(
+                s2_dates, t_slice, data, images, sliced_modality
+            )
+        else:
+            modality = (
+                "Sentinel1_ASCENDING" if sat == "s1_asc" else "Sentinel1_DESCENDING"
+            )
+            log.info(f"Slicing {modality}")
+            sliced_modality = get_sliced_modality(
+                months_folders,
+                folder_data,
+                sliced,
+                modality,
+                meteo=False,
+                dates=s1_dates_asc if sat == "s1_asc" else s1_dates_desc,
+            )
+            log.info(f"Sliced {modality}")
+            sliced_modality = sliced_modality.sel(t=slice(t_slice[0], t_slice[1]))
+
+            images, data, dates = get_s1(t_slice, data, images, sliced_modality, sat)
+            del sliced_modality
+
+        if sat not in dates_meteo:
+            dates_meteo[sat] = get_meteo_dates_modality(dates, sat)
+
+    for modality in meteo_modalities:
+        log.info(modality)
+        sliced_meteo = get_sliced_modality(
+            months_folders,
+            folder_data,
+            sliced,
+            modality.upper(),
+            meteo=True,
+        )
+        for sat, dates_sat in dates_meteo.items():
+            # print(modality)
+            data[sat][f"meteo_{modality}"] = build_meteo(
+                images, sliced_meteo, dates_sat, modality
+            )[modality].unsqueeze(0)
+    del images, sliced_meteo
+    # DEM
+    nc_file = os.path.join(folder_data, "DEM", "openEO.nc")
+    dem_slice = get_one_slice(nc_file, sliced)
+    dem_dataset = torch.tensor(dem_slice.DEM.values)
+    # We deal with the special case,
+    # when dem band contains 2 dates and one of them is nan
+    # So we choose the date with less nans than the other
+    if len(dem_dataset) > 0:
+        dem_dataset = dem_dataset[torch.argmin(torch.isnan(dem_dataset).sum((1, 2)))]
+    dem = dem_height_aspect(dem_dataset.squeeze(0))
+    for sat in data:
+        data[sat]["dem"] = dem.unsqueeze(0)
+    del dem
+    batch_dict = {}
+    for sat in data:
+        sits = (
+            MMDCDataStruct.init_empty().fill_empty_from_dict(data[sat]).concat_meteo()
+        )
+        setattr(
+            sits,
+            "meteo",
+            torch.flatten(getattr(sits, "meteo"), start_dim=2, end_dim=3),
+        )
+        tcd_batch = PastisBatch(
+            sits=sits,
+            true_doy=dates_meteo[sat][f"date_{sat}"].values[None, :],
+            padd_val=torch.Tensor([]),
+            padd_index=torch.Tensor([]),
+        )
+        batch_dict[sat.upper()] = tcd_batch
+        encoded_patch[f"{sat}_doy"] = dates_meteo[sat][f"date_{sat}"].values
+        encoded_patch[f"{sat}_mask"] = sits.data.mask[
+            0, :, :, margin:-margin, margin:-margin
+        ]
+    log.info("encoding")
+
+    del data, tcd_batch
+
+    (
+        latents1,
+        latents1_asc,
+        latents1_desc,
+        latents2,
+        mask_s1,
+        days_s1,
+    ) = encode_one_batch(mmdc_model, batch_dict)
+    encoded_patch["matrix"] = xy_matrix
+    encoded_patch["s2_lat_mu"] = latents2.mean[0, :, :, margin:-margin, margin:-margin]
+    encoded_patch["s2_lat_logvar"] = latents2.logvar[
+        0, :, :, margin:-margin, margin:-margin
+    ]
+
+    if s1_join:
+        encoded_patch["s1_lat_mu"] = latents1.mean[
+            0, :, :, margin:-margin, margin:-margin
+        ]
+        encoded_patch["s1_lat_logvar"] = latents1.logvar[
+            0, :, :, margin:-margin, margin:-margin
+        ]
+        encoded_patch["s1_mask"] = mask_s1[0, :, :, margin:-margin, margin:-margin]
+        encoded_patch["s1_doy"] = days_s1
+    else:
+        encoded_patch["s1_asc_lat_mu"] = latents1_asc.mean[
+            0, :, :, margin:-margin, margin:-margin
+        ]
+        encoded_patch["s1_asc_lat_logvar"] = latents1_asc.logvar[
+            0, :, :, margin:-margin, margin:-margin
+        ]
+        encoded_patch["s1_desc_lat_mu"] = latents1_desc.mean[
+            0, :, :, margin:-margin, margin:-margin
+        ]
+        encoded_patch["s1_desc_lat_logvar"] = latents1_desc.logvar[
+            0, :, :, margin:-margin, margin:-margin
+        ]
+    del (
+        latents1,
+        latents1_asc,
+        latents1_desc,
+        latents2,
+        batch_dict,
+    )
+    return encoded_patch
 
 
 def encode_tile(
@@ -107,165 +271,19 @@ def encode_tile(
                 ind, tcd_values_sliced = get_index(tcd_values, xy_matrix)
 
             if tcd_values is None or (tcd_values is not None and ind.size > 0):
-                encoded_patch = {}
-
-                log.info(f"Slice {sliced}")
-                images = {}
-                data = {sat: {} for sat in satellites}
-                for sat in satellites:
-                    t_slice = [
-                        f"2018-{months_folders[0]}-05",
-                        f"2018-{months_folders[-1]}-30",
-                    ]
-
-                    if sat == "s2":
-                        modality = "Sentinel2"
-                        log.info(f"Slicing {modality}")
-                        sliced_modality = get_sliced_modality(
-                            months_folders,
-                            folder_data,
-                            sliced,
-                            modality,
-                            meteo=False,
-                            dates=s2_dates,
-                        )
-                        log.info(f"Sliced {modality}")
-                        sliced_modality = sliced_modality.sel(
-                            t=slice(t_slice[0], t_slice[1])
-                        )
-
-                        # create_netcdf_s2_one_date(
-                        #     xy_matrix, sliced_modality, margin, enum, date=2)
-
-                        images, data, dates = get_s2(
-                            s2_dates, t_slice, data, images, sliced_modality
-                        )
-                    else:
-                        modality = (
-                            "Sentinel1_ASCENDING"
-                            if sat == "s1_asc"
-                            else "Sentinel1_DESCENDING"
-                        )
-                        log.info(f"Slicing {modality}")
-                        sliced_modality = get_sliced_modality(
-                            months_folders,
-                            folder_data,
-                            sliced,
-                            modality,
-                            meteo=False,
-                            dates=s1_dates_asc if sat == "s1_asc" else s1_dates_desc,
-                        )
-                        log.info(f"Sliced {modality}")
-                        sliced_modality = sliced_modality.sel(
-                            t=slice(t_slice[0], t_slice[1])
-                        )
-
-                        images, data, dates = get_s1(
-                            t_slice, data, images, sliced_modality, sat
-                        )
-                        del sliced_modality
-
-                    if sat not in dates_meteo:
-                        dates_meteo[sat] = get_meteo_dates_modality(dates, sat)
-
-                for modality in meteo_modalities:
-                    log.info(modality)
-                    sliced_meteo = get_sliced_modality(
-                        months_folders,
-                        folder_data,
-                        sliced,
-                        modality.upper(),
-                        meteo=True,
-                    )
-                    for sat, dates_sat in dates_meteo.items():
-                        # print(modality)
-                        data[sat][f"meteo_{modality}"] = build_meteo(
-                            images, sliced_meteo, dates_sat, modality
-                        )[modality].unsqueeze(0)
-                del images, sliced_meteo
-                # DEM
-                nc_file = os.path.join(folder_data, "DEM", "openEO.nc")
-                dem_slice = get_one_slice(nc_file, sliced)
-                dem_dataset = torch.tensor(dem_slice.DEM.values)
-                # We deal with the special case,
-                # when dem band contains 2 dates and one of them is nan
-                # So we choose the date with less nans than the other
-                if len(dem_dataset) > 0:
-                    dem_dataset = dem_dataset[
-                        torch.argmin(torch.isnan(dem_dataset).sum((1, 2)))
-                    ]
-                dem = dem_height_aspect(dem_dataset.squeeze(0))
-                for sat in data:
-                    data[sat]["dem"] = dem.unsqueeze(0)
-                del dem
-                batch_dict = {}
-                for sat in data:
-                    sits = (
-                        MMDCDataStruct.init_empty()
-                        .fill_empty_from_dict(data[sat])
-                        .concat_meteo()
-                    )
-                    setattr(
-                        sits,
-                        "meteo",
-                        torch.flatten(getattr(sits, "meteo"), start_dim=2, end_dim=3),
-                    )
-                    tcd_batch = PastisBatch(
-                        sits=sits,
-                        input_doy=None,
-                        true_doy=dates_meteo[sat][f"date_{sat}"].values[None, :],
-                        padd_val=torch.Tensor([]),
-                        padd_index=torch.Tensor([]),
-                    )
-                    batch_dict[sat.upper()] = tcd_batch
-                    encoded_patch[f"{sat}_doy"] = dates_meteo[sat][f"date_{sat}"].values
-                    encoded_patch[f"{sat}_mask"] = sits.data.mask[
-                        0, :, :, margin:-margin, margin:-margin
-                    ]
-                log.info("encoding")
-
-                del data, tcd_batch
-
-                (
-                    latents1,
-                    latents1_asc,
-                    latents1_desc,
-                    latents2,
-                    mask_s1,
-                    days_s1,
-                ) = encode_one_batch(mmdc_model, batch_dict)
-                encoded_patch["matrix"] = xy_matrix
-                encoded_patch["s2_lat_mu"] = latents2.mean[
-                    0, :, :, margin:-margin, margin:-margin
-                ]
-                encoded_patch["s2_lat_logvar"] = latents2.logvar[
-                    0, :, :, margin:-margin, margin:-margin
-                ]
-
-                if s1_join:
-                    encoded_patch["s1_lat_mu"] = latents1.mean[
-                        0, :, :, margin:-margin, margin:-margin
-                    ]
-                    encoded_patch["s1_lat_logvar"] = latents1.logvar[
-                        0, :, :, margin:-margin, margin:-margin
-                    ]
-                    encoded_patch["s1_mask"] = mask_s1[
-                        0, :, :, margin:-margin, margin:-margin
-                    ]
-                    encoded_patch["s1_doy"] = days_s1
-                else:
-                    encoded_patch["s1_asc_lat_mu"] = latents1_asc.mean[
-                        0, :, :, margin:-margin, margin:-margin
-                    ]
-                    encoded_patch["s1_asc_lat_logvar"] = latents1_asc.logvar[
-                        0, :, :, margin:-margin, margin:-margin
-                    ]
-                    encoded_patch["s1_desc_lat_mu"] = latents1_desc.mean[
-                        0, :, :, margin:-margin, margin:-margin
-                    ]
-                    encoded_patch["s1_desc_lat_logvar"] = latents1_desc.logvar[
-                        0, :, :, margin:-margin, margin:-margin
-                    ]
+                encoded_patch = get_encoded_patch(
+                    folder_data,
+                    months_folders,
+                    mmdc_model,
+                    xy_matrix,
+                    sliced,
+                    margin,
+                    s2_dates,
+                    s1_dates_asc,
+                    s1_dates_desc,
+                    dates_meteo,
+                    s1_join=True,
+                )
 
                 # create_netcdf_encoded(xy_matrix,
                 #                       encoded_patch["s2_lat_mu"].cpu().numpy(),
@@ -359,14 +377,7 @@ def encode_tile(
                 # torch.save(encoded_patch,
                 #            os.path.join(output_folder, f"Encoded_patch_{enum}.pt"))
 
-                del (
-                    latents1,
-                    latents1_asc,
-                    latents1_desc,
-                    latents2,
-                    encoded_patch,
-                    batch_dict,
-                )
+                del (encoded_patch,)
     #
     # for sat in satellites_to_write:
     #     final_df = pd.concat(sliced_gt[sat], ignore_index=True)
