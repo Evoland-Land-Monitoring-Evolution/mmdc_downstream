@@ -9,7 +9,7 @@ defaults:
   - override /callbacks: default.yaml
   - override /trainer: default.yaml
 
-output_dir: /work/scratch/data/${oc.env:USER}/MMDC/results/pastis
+output_dir: ${oc.env:WORK}/results/MMDC/results/pastis
 
 
 # all parameters bellow will be merged with parameters from default configurations set above
