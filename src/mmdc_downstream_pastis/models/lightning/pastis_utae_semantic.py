@@ -58,7 +58,6 @@ class PastisUTAE(MMDCPastisBaseLitModule):
         We compute logits and data classes for PASTIS
         """
         (x, dates), gt = batch
-        logging.info(x.keys())
         gt = gt.long()
         # out: OutUTAEForward = self.forward(x, batch_positions=dates)
         # logits = out.seg_map
