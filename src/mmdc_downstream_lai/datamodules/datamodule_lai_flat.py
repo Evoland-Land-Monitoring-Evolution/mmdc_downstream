@@ -122,7 +122,7 @@ class LAIDataModule(LightningDataModule):
             x_val_all, y_val = self.get_value_label(self.path_data.val)
 
             if self.norm:
-                self.mean, self.std = get_mean_std(x_train_all)
+                self.mean, self.std = get_mean_std(pd.concat([x_train_all, x_val_all]))
                 logging.info(self.mean)
                 logging.info(self.std)
 

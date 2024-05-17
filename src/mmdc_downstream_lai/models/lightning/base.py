@@ -14,7 +14,7 @@ from pytorch_lightning import LightningModule
 from torchmetrics import MinMetric
 from torchutils import metrics
 
-from mmdc_downstream.mmdc_model.model import PretrainedMMDC
+from mmdc_downstream_lai.mmdc_model.model import PretrainedMMDC
 
 from ..torch.base import MMDCDownstreamBaseModule
 

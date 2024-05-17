@@ -6,7 +6,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.tree import DecisionTreeRegressor
 from torch import nn
 
-from mmdc_downstream.snap.lai_snap import denormalize
+from mmdc_downstream_lai.snap.lai_snap import denormalize
 
 lai_min = 0.000319182538301
 lai_max = 14.4675094548

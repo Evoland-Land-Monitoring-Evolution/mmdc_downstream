@@ -8,7 +8,7 @@ import pandas as pd
 from sklearn.metrics import mean_squared_error
 from sklearn.tree import DecisionTreeRegressor
 
-from mmdc_downstream.snap.lai_snap import denormalize
+from mmdc_downstream_lai.snap.lai_snap import denormalize
 
 logging.getLogger().setLevel(logging.INFO)
 np.random.seed(42)

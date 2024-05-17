@@ -6,7 +6,7 @@ from sklearn import neural_network
 from sklearn.model_selection import train_test_split
 from torch import nn
 
-from mmdc_downstream.snap.lai_snap import denormalize, normalize
+from mmdc_downstream_lai.snap.lai_snap import denormalize, normalize
 
 lai_min = 0.000319182538301
 lai_max = 14.4675094548

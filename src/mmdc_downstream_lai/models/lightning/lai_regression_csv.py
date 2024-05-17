@@ -7,9 +7,11 @@ import torch
 from pytorch_lightning import LightningModule
 from torchutils import metrics
 
-from mmdc_downstream.models.components.losses import compute_losses_flat
-from mmdc_downstream.models.torch.lai_regression import MMDCDownstreamRegressionModule
-from mmdc_downstream.snap.lai_snap import BVNET, denormalize
+from mmdc_downstream_lai.models.components.losses import compute_losses_flat
+from mmdc_downstream_lai.models.torch.lai_regression import (
+    MMDCDownstreamRegressionModule,
+)
+from mmdc_downstream_lai.snap.lai_snap import BVNET, denormalize
 
 from ..components.metrics import compute_val_metrics_flat
 

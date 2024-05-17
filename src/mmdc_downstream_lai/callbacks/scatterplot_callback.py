@@ -3,6 +3,7 @@
 """ Lightning image callbacks """
 import logging
 from dataclasses import dataclass
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -11,7 +12,7 @@ import torch
 from pytorch_lightning.callbacks import Callback
 from torchmetrics import MeanSquaredError
 
-from mmdc_downstream.snap.lai_snap import denormalize
+from mmdc_downstream_lai.snap.lai_snap import denormalize
 
 from ..models.lightning.lai_regression_csv import MMDCLAILitModule
 
@@ -34,7 +35,7 @@ class SampleInfo:
     current_epoch: int
 
 
-class MMDCLAIScatterplotCallback(Callback):
+class MMDCLAIScatterplotCallbackEpoch(Callback):
     """
     Callback to inspect the LAI image predicted from Latent Experts
     """
@@ -53,24 +54,44 @@ class MMDCLAIScatterplotCallback(Callback):
         epoch: int,
         lai_min: torch.Tensor,
         lai_max: torch.Tensor,
+        batch_idx: int | None,
     ) -> None:
         """Save the PNG image of the scatterplots of prediction vs gt"""
+        preds, gt, rmse = self.prepare_data(
+            preds,
+            gt,
+            lai_min,
+            lai_max,
+        )
+
+        plt.close()
+        plt.scatter(preds, gt, s=0.1)
+        plt.plot(gt, gt)
+        plt.title("loss=" + str(rmse))
+        plt.xlabel("pred")
+        plt.ylabel("gt")
+
+        if batch_idx is not None:
+            plt.savefig(self.save_dir + f"/mlp_{epoch}_{batch_idx}.png")
+        else:
+            plt.savefig(self.save_dir + f"/mlp_{epoch}.png")
+
+    def prepare_data(
+        self,
+        preds: torch.Tensor,
+        gt: torch.Tensor,
+        lai_min: torch.Tensor,
+        lai_max: torch.Tensor,
+    ) -> tuple[np.ndarray, np.ndarray, float]:
         idx = np.random.choice(len(preds), int(len(preds) * 0.05), replace=False)
         preds = denormalize(preds, lai_min, lai_max)
-        y_val_denorm = denormalize(gt, lai_min, lai_max)
-        print(y_val_denorm)
+        gt = denormalize(gt, lai_min, lai_max)
+        rmse = np.round(self.loss_fn(preds, gt).item(), 2)
 
         logging.info("pred max " + str(preds.max()))
         logging.info("pred min " + str(preds.min()))
 
-        plt.close()
-        plt.scatter(preds[idx].numpy(), y_val_denorm[idx].numpy(), s=0.1)
-        plt.plot(y_val_denorm[idx].numpy(), y_val_denorm[idx].numpy())
-        plt.title("loss=" + str(np.round(self.loss_fn(preds, y_val_denorm).item(), 4)))
-        plt.xlabel("pred")
-        plt.ylabel("gt")
-
-        plt.savefig(self.save_dir + f"/mlp_{epoch}.png")
+        return preds[idx].numpy(), gt[idx].numpy(), rmse
 
     def on_validation_epoch_end(
         self,
@@ -85,4 +106,32 @@ class MMDCLAIScatterplotCallback(Callback):
             trainer.current_epoch,
             pl_module.model_snap.variable_min.cpu(),
             pl_module.model_snap.variable_max.cpu(),
+        )
+
+
+class MMDCLAIScatterplotCallbackStep(MMDCLAIScatterplotCallbackEpoch):
+    def __init__(
+        self,
+        save_dir: str,
+    ):
+        super().__init__(save_dir)
+
+    def on_validation_batch_end(
+        self,
+        trainer: pl.trainer.Trainer,
+        pl_module: MMDCLAILitModule,
+        outputs: Any,
+        batch: torch.Tensor,
+        batch_idx: int,
+        dataloader_idx: int = 0,
+    ) -> None:
+        reg_input, lai_gt = batch
+        lai_pred = pl_module.model.forward(reg_input)
+        self.lai_gt_pred_scatterplots(
+            lai_pred.reshape(-1),
+            lai_gt.reshape(-1),
+            trainer.current_epoch,
+            pl_module.model_snap.variable_min.cpu(),
+            pl_module.model_snap.variable_max.cpu(),
+            batch_idx,
         )

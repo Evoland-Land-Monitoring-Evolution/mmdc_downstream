@@ -11,7 +11,7 @@ from mmdc_singledate.datamodules.components.datamodule_utils import (
     compute_stats,
 )
 
-from mmdc_downstream.snap.lai_snap import BVNET
+from mmdc_downstream_lai.snap.lai_snap import BVNET
 
 DatasetPaths = namedtuple("DatasetPaths", ["input_path", "output_path"])
 
