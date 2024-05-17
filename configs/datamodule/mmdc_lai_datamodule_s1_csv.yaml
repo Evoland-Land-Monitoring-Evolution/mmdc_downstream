@@ -1,17 +1,17 @@
-_target_: mmdc_downstream.datamodules.datamodule_lai_flat.LAIDataModule
+_target_: mmdc_downstream_lai.datamodules.datamodule_lai_flat.LAIDataModule
 
 use_logvar: false
 norm: true
 selected_data: s1_lat # ["exp_lat", "s1_lat", "s2_lat", "s1_asc", "s1_desc", "s1_mask"]
 
 #path_data:
-#  _target_: mmdc_downstream.datamodules.datamodule_lai_flat.DataPath
+#  _target_: mmdc_downstream_lai.datamodules.datamodule_lai_flat.DataPath
 #  train : ${oc.env:WORK}/results/LAI/data_values_baseline_checkpoint_best_train.csv
 #  val : ${oc.env:WORK}/results/LAI/data_values_baseline_checkpoint_best_val.csv
 #  test : ${oc.env:WORK}/results/LAI/data_values_baseline_checkpoint_best_test.csv
 
 path_data:
-  _target_: mmdc_downstream.datamodules.datamodule_lai_flat.DataPath
+  _target_: mmdc_downstream_lai.datamodules.datamodule_lai_flat.DataPath
   train : ${oc.env:WORK}/results/LAI/data_values_baseline_checkpoint_best_train.csv
   val : ${oc.env:WORK}/results/LAI/data_values_baseline_checkpoint_best_val.csv
   test : ${oc.env:WORK}/results/LAI/data_values_baseline_checkpoint_best_test.csv

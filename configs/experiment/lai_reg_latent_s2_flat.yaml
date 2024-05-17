@@ -5,9 +5,9 @@
 
 defaults:
   - override /datamodule: mmdc_lai_datamodule_csv.yaml
-  - override /model: lai_reg_lat_flat.yaml
+  - override /model: lai_reg_lat_s2_flat.yaml
   - override /callbacks: lai_reg_csv.yaml
-  - override /trainer: default.yaml
+  - override /trainer: lai_reg_csv.yaml
 
 output_dir: ${oc.env:WORK}/results/MMDC/results/lai
 

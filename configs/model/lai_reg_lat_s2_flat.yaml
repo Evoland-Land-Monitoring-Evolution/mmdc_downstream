@@ -9,7 +9,7 @@ model:
     _target_: mmdc_downstream_lai.models.datatypes.RegressionConfig
     reg_model:
       hidden_sizes: [ 5 ]
-      input_size: 6
+      input_size: 12
       output_size: 1
 
 

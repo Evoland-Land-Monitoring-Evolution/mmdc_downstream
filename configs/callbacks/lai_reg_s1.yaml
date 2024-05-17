@@ -32,6 +32,6 @@ timer:
 
 
 #laiimage:
-#  _target_: mmdc_downstream.callbacks.image_callbacks.MMDCLAIS2Callback
+#  _target_: mmdc_downstream_lai.callbacks.image_callbacks.MMDCLAIS2Callback
 #  save_dir: ${hydra:run.dir}
 #  n_samples: 6
