@@ -5,25 +5,27 @@ import os
 import pytest
 
 from mmdc_downstream_pastis.datamodule.datatypes import PastisFolds
-from mmdc_downstream_pastis.datamodule.pastis_oe import PastisDataModule
+from mmdc_downstream_pastis.datamodule.pastis_oe import PastisOEDataModule
 
 model = "2024-04-05_14-58-22"
-dataset_path_oe = f"{os.environ['WORK']}/results/Pastis_encoded"
-dataset_path_pastis = f"{os.environ['SCRATCH']}/scratch_data/Pastis"
-# dataset_path_oe = "/home/kalinichevae/jeanzay/results/Pastis_encoded"
+# dataset_path_oe = "/home/kalinichevae/scratch_jeanzay/scratch_data/Pastis_OE"
 # dataset_path_pastis = "/home/kalinichevae/scratch_jeanzay/scratch_data/Pastis"
+
+dataset_path_oe = f"{os.environ['SCRATCH']}/scratch_data/Pastis_OE"
+dataset_path_pastis = f"{os.environ['SCRATCH']}/scratch_data/Pastis"
+
 dataset_path_oe = os.path.join(dataset_path_oe, model)
 
 
-def build_dm(sats) -> PastisDataModule:
+def build_dm(sats) -> PastisOEDataModule:
     """Builds datamodule"""
-    return PastisDataModule(
+    return PastisOEDataModule(
         dataset_path_oe=dataset_path_oe,
         dataset_path_pastis=dataset_path_pastis,
         folds=PastisFolds([1, 2, 3], [4], [5]),
         sats=sats,
         task="semantic",
-        batch_size=2,
+        batch_size=5,
     )
 
 
@@ -47,9 +49,13 @@ def test_pastisds_dataloader(sats) -> None:
     )  # type: ignore[truthy-function]
     for loader in (dm.train_dataloader(), dm.val_dataloader(), dm.test_dataloader()):
         assert loader
-        for (batch_dict, mask_dict, doys_dict, target, mask, id_patch), _ in zip(
-            loader, range(4)
-        ):
+        for batch, _ in zip(loader, range(4)):
+            batch_dict = batch.sits
+            mask_dict = batch.sits_mask
+            mask = batch.gt_mask
+            target = batch.gt
+            id_patch = batch.id_patch
+
             if len(sats) > 1:
                 assert list(batch_dict.keys()) == sats
                 for sat in sats:

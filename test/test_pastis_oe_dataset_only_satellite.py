@@ -4,6 +4,7 @@
 """
 Tests for the datamodules.pastis_dataset module
 """
+import os
 
 import pytest
 from torch.utils import data as tu_data
@@ -19,8 +20,11 @@ from mmdc_downstream_pastis.datamodule.pastis_oe_only_satellite import (
     pad_collate,
 )
 
-DATA_FOLDER = "/work/CESBIO/projects/MAESTRIA/PASTIS/PASTIS-R"
-DATA_FOLDER_OE = "/work/CESBIO/projects/DeepChange/Ekaterina/Pastis_OE"
+# dataset_path_oe = "/home/kalinichevae/scratch_jeanzay/scratch_data/Pastis_OE"
+# dataset_path_pastis = "/home/kalinichevae/scratch_jeanzay/scratch_data/Pastis"
+
+dataset_path_oe = f"{os.environ['SCRATCH']}/scratch_data/Pastis_OE"
+dataset_path_pastis = f"{os.environ['SCRATCH']}/scratch_data/Pastis"
 
 
 def instanciate_data_loader(
@@ -34,7 +38,7 @@ def instanciate_data_loader(
         batch_size=batch_size,
         shuffle=True,
         drop_last=True,
-        collate_fn=lambda x: pad_collate(x, pad_value=2),
+        collate_fn=lambda x: pad_collate(x, pad_value=0),
     )
 
 
@@ -44,7 +48,10 @@ def test_pastisds_instantiate(sats: list[SatId]) -> None:
     """PASTIS dataset instanciation"""
     d_s = PASTISDataset(
         PASTISOptions(
-            PASTISTask(sats=sats), DATA_FOLDER, DATA_FOLDER_OE, folds=[1, 2, 3, 4, 5]
+            PASTISTask(sats=sats),
+            dataset_path_pastis,
+            dataset_path_oe,
+            folds=[1, 2, 3, 4, 5],
         )
     )
     assert d_s is not None
@@ -53,11 +60,11 @@ def test_pastisds_instantiate(sats: list[SatId]) -> None:
 def build_dm(sats: list[SatId]) -> PastisDataModule:
     """Builds datamodule"""
     return PastisDataModule(
-        data_folder=DATA_FOLDER,
-        data_folder_oe=DATA_FOLDER_OE,
+        dataset_path_pastis=dataset_path_pastis,
+        dataset_path_oe=dataset_path_oe,
         folds=PastisFolds([1, 2, 3], [4], [5]),
         task=PASTISTask(sats=sats),
-        batch_size=2,
+        batch_size=5,
     )
 
 
@@ -84,9 +91,12 @@ def test_pastisds_dataloader(sats: list[SatId]) -> None:
     )  # type: ignore[truthy-function]
     for loader in (dm.train_dataloader(), dm.val_dataloader(), dm.test_dataloader()):
         assert loader
-        for ((inputs, dates), labels), _ in zip(loader, range(10)):
+        for batch, _ in zip(loader, range(10)):
+            inputs = batch.sits
+            dates = batch.doy
+            labels = batch.gt
+
             print(inputs)
-            exit()
             assert list(inputs.keys()) == sats
             assert list(dates.keys()) == sats
             for sat in sats:
