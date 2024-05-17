@@ -12,6 +12,8 @@ from mmdc_downstream_pastis.datamodule.pastis_oe import PastisOEDataModule
 
 log = logging.getLogger(__name__)
 
+MAX_SAMPLES_QUANTILE = 16_000_000
+
 
 def build_dm(
     dataset_path_oe: str | Path,
@@ -33,11 +35,20 @@ def build_dm(
     )
 
 
+def get_quantile(
+    data: torch.Tensor, quant: torch.Tensor = torch.Tensor([0.05, 0.5, 0.95])
+) -> torch.Tensor:
+    nbpixels = len(data)
+    if nbpixels > MAX_SAMPLES_QUANTILE:
+        return data[torch.randperm(16_000_000)].quantile(
+            torch.tensor(quant, dtype=torch.float), dim=0
+        )
+
+
 def compute_stats(
     dataset_path_oe: str | Path,
     dataset_path_pastis: str | Path,
     sats: list[str],
-    output_path: str | Path,
     pad_value: int = -9999,
 ):
     """Encode PASTIS SITS into S1 and S2 latent embeddings"""
@@ -78,7 +89,7 @@ def compute_stats(
             indices = torch.randperm(meteo.shape[0])
             indices = indices[: int(0.1 * len(indices))]
             meteo_stats = torch.concat(
-                [meteo_stats, meteo[indices[: int(0.05 * len(indices))]]], 0
+                [meteo_stats, meteo[indices[: int(0.2 * len(indices))]]], 0
             )
 
             if dem_min_med_max is None:
@@ -94,15 +105,15 @@ def compute_stats(
             img = img[~mask_img]
             indices = torch.randperm(img.shape[0])
             img_stats = torch.concat(
-                [img_stats, img[indices[: int(0.05 * len(indices))]]], 0
+                [img_stats, img[indices[: int(0.2 * len(indices))]]], 0
             )
 
-        sat_stats["img"] = img_stats.quantile(torch.Tensor([0.05, 0.5, 0.95]))
+        sat_stats["img"] = get_quantile(img_stats)
 
-        sat_stats["meteo"] = meteo_stats.quantile(torch.Tensor([0.05, 0.5, 0.95]))
+        sat_stats["meteo"] = get_quantile(meteo_stats)
 
         if dem_min_med_max in None:
-            dem_min_med_max = dem_stats.quantile(torch.Tensor([0.05, 0.5, 0.95]))
+            dem_min_med_max = get_quantile(dem_stats)
 
         sat_stats["dem"] = dem_min_med_max
 
@@ -118,7 +129,4 @@ dataset_path_pastis = f"{os.environ['SCRATCH']}/scratch_data/Pastis"
 
 sats = ["S2", "S1_ASC", "S1_DESC"]
 
-output_path = None
-
-
-compute_stats(dataset_path_oe, dataset_path_pastis, sats, output_path)
+compute_stats(dataset_path_oe, dataset_path_pastis, sats)
