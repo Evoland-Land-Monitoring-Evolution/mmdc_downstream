@@ -3,9 +3,9 @@
 
 import torch
 
-from mmdc_downstream.models.components.losses import compute_losses
-from mmdc_downstream.models.components.metrics import compute_val_metrics
-from mmdc_downstream.models.lightning.lai_regression import MMDCBatch
+from mmdc_downstream_lai.models.components.losses import compute_losses
+from mmdc_downstream_lai.models.components.metrics import compute_val_metrics
+from mmdc_downstream_lai.models.lightning.lai_regression import MMDCBatch
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
