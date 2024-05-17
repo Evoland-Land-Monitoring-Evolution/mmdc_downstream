@@ -25,6 +25,8 @@ from pytorch_lightning import LightningDataModule
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
 
+from mmdc_downstream_pastis.datamodule.datatypes import BatchInputUTAE
+
 # Configure logging
 NUMERIC_LEVEL = getattr(logging, "INFO", None)
 logging.basicConfig(
@@ -34,7 +36,12 @@ logger = logging.getLogger(__name__)
 
 
 def pad_tensor(x_t: torch.Tensor, final_size: int, pad_value: int = 0) -> torch.Tensor:
-    """Pad the first dimension of a tensor with to have final_size"""
+    """
+    Pad the first dimension of a tensor with to have final_size,
+    If final size is zero or negative, no padding is done
+    """
+    if final_size <= 0:
+        return x_t
     padlen = final_size - x_t.shape[0]
     padding = [0 for _ in range(2 * len(x_t.shape[1:]))] + [0, padlen]
     return F.pad(x_t, pad=padding, value=pad_value)
@@ -59,6 +66,20 @@ UnpaddedBatch = (
     | tuple[collections.abc.Mapping, ...]
     | tuple[collections.abc.Sequence, ...]
 )
+
+
+def pad_collate_dataclass(
+    batch: UnpaddedBatch,
+    pad_value: int = 0,
+) -> BatchInputUTAE:
+    """
+    Embed collated data into a dataclass
+    """
+    (data, dates), target = pad_collate(batch, pad_value)
+
+    return BatchInputUTAE(
+        sits=data, doy=dates, gt=target, gt_mask=(target == 0) | (target == 19)
+    )
 
 
 def pad_collate(
@@ -469,7 +490,7 @@ class PASTISDataset(tdata.Dataset):
             for satellite in self.options.task.sats
         }  # T x C x H x W arrays
         data = {s: a.sits.to(torch.float32) for s, a in data_all.items()}
-        dates = {s: a.doy - 1643 for s, a in data_all.items()}  # TODO change delta 1643
+        dates = {s: a.doy for s, a in data_all.items()}
 
         if self.norm is not None:
             data.update(
@@ -662,8 +683,8 @@ class PastisDataModule(LightningDataModule):
 
     def __init__(
         self,
-        data_folder: str,
-        data_folder_oe: str,
+        dataset_path_pastis: str,
+        dataset_path_oe: str,
         folds: PastisFolds,
         task: PASTISTask,
         batch_size: int = 2,
@@ -674,8 +695,8 @@ class PastisDataModule(LightningDataModule):
         self.save_hyperparameters(logger=False)
 
         # init different variables
-        self.data_folder = data_folder
-        self.data_folder_oe = data_folder_oe
+        self.dataset_path_pastis = dataset_path_pastis
+        self.dataset_path_oe = dataset_path_oe
         self.folds = folds
         self.batch_size = batch_size
         self.task = task
@@ -698,16 +719,16 @@ class PastisDataModule(LightningDataModule):
                     PASTISOptions(
                         task=self.task,
                         folds=self.folds.train,
-                        folder=self.data_folder,
-                        folder_oe=self.data_folder_oe,
+                        folder=self.dataset_path_pastis,
+                        folder_oe=self.dataset_path_oe,
                     )
                 ),
                 PASTISDataset(
                     PASTISOptions(
                         task=self.task,
                         folds=self.folds.val,
-                        folder=self.data_folder,
-                        folder_oe=self.data_folder_oe,
+                        folder=self.dataset_path_pastis,
+                        folder_oe=self.dataset_path_oe,
                     )
                 ),
             )
@@ -721,8 +742,8 @@ class PastisDataModule(LightningDataModule):
                     PASTISOptions(
                         task=self.task,
                         folds=self.folds.test,
-                        folder=self.data_folder,
-                        folder_oe=self.data_folder_oe,
+                        folder=self.dataset_path_pastis,
+                        folder_oe=self.dataset_path_oe,
                     )
                 ),
             )
@@ -761,16 +782,15 @@ class PastisDataModule(LightningDataModule):
             batch_size=self.batch_size,
             shuffle=shuffle,
             drop_last=True,
-            collate_fn=lambda x: pad_collate(x, pad_value=0),
+            collate_fn=lambda x: pad_collate_dataclass(x, pad_value=0),
         )
 
 
-#
 # def build_dm(sats: list[SatId]) -> PastisDataModule:
 #     """Builds datamodule"""
 #     return PastisDataModule(
-#         data_folder=DATA_FOLDER,
-#         data_folder_oe=DATA_FOLDER_OE,
+#         dataset_path_pastis=DATA_FOLDER,
+#         dataset_path_oe=DATA_FOLDER_OE,
 #         folds=PastisFolds([1, 2, 3], [4], [5]),
 #         task=PASTISTask(sats=["S1_ASC", "S1_DESC", "S2"]),
 #         batch_size=2,
@@ -793,8 +813,8 @@ class PastisDataModule(LightningDataModule):
 #     )  # type: ignore[truthy-function]
 #     for loader in (dm.train_dataloader(), dm.val_dataloader(), dm.test_dataloader()):
 #         assert loader
-#         for ((data, dates), target), _ in zip(loader, range(4)):
-#             print(data.keys())
+#         for batch, _ in zip(loader, range(4)):
+#             print(batch.sits.keys())
 #
 #
-# pastisds_dataloader(["S1_DESC"])
+# pastisds_dataloader(["S1_ASC", "S1_DESC"])

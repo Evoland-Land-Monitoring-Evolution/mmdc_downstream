@@ -57,7 +57,7 @@ class MMDCPastisBaseLitModule(LightningModule):  # pylint: disable=too-many-ance
         """Perform one optimization step"""
 
     @abstractmethod
-    def forward(self, data: Any, **kwargs) -> Any:  # pylint: disable=arguments-differ
+    def forward(self, batch: Any) -> Any:  # pylint: disable=arguments-differ
         """Generic forward pass of the model. Just delegate to the Pytorch model."""
 
     def training_step(  # pylint: disable=arguments-differ
@@ -113,7 +113,7 @@ class MMDCPastisBaseLitModule(LightningModule):  # pylint: disable=too-many-ance
 
         return {"loss": loss}
 
-    def predict(self, batch: Any, batch_positions: torch.Tensor) -> torch.Tensor:
+    def predict(self, batch: Any) -> torch.Tensor:
         """Generic prediction of the model. Just delegate to the Pytorch model."""
 
     def on_train_epoch_start(self) -> None:

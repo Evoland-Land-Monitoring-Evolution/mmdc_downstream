@@ -7,6 +7,7 @@ from typing import Any
 
 import torch
 
+from ...datamodule.datatypes import BatchInputUTAE
 from ..components.losses import compute_losses
 from ..torch.utae import UTAE
 from ..torch.utae_fusion import UTAEFusion
@@ -52,22 +53,26 @@ class PastisUTAE(MMDCPastisBaseLitModule):
 
         self.model = model
 
-    def step(self, batch: Any, stage: str = "train") -> Any:
+    def step(self, batch: BatchInputUTAE, stage: str = "train") -> Any:
         """
         One step.
         We compute logits and data classes for PASTIS
         """
-        (x, dates), gt = batch
-        gt = gt.long()
-        # out: OutUTAEForward = self.forward(x, batch_positions=dates)
-        # logits = out.seg_map
-        logits = self.forward(x, batch_positions=dates)
+        gt = batch.gt.long()
+
+        logits = self.forward(batch)
         logits_clip = logits[:, :, 32:-32, 32:-32].contiguous()
         gt_clip = gt[:, 32:-32, 32:-32].contiguous()
+        gt_mask_clip = (
+            ((gt_clip == 0) | (gt_clip == 19))
+            if batch.gt_mask is None
+            else batch.gt_mask[32:-32, 32:-32].contiguous()
+        )
+
         losses = compute_losses(
             preds=logits_clip,
             target=gt_clip,
-            mask=(gt_clip == 0) | (gt_clip == 19),
+            mask=gt_mask_clip,
             losses_list=self.losses_list,
         )
         self.iou_meter[stage].add(to_class_label(logits_clip), gt_clip)
@@ -121,16 +126,14 @@ class PastisUTAE(MMDCPastisBaseLitModule):
         """Test step. Step and return loss. Delegate to validation step"""
         return self.validation_step(batch, batch_idx, prefix="test")
 
-    def forward(self, data: Any, batch_positions: torch.Tensor) -> Any:
+    def forward(self, batch: BatchInputUTAE) -> torch.Tensor:
         """Forward step"""
-        return self.model.forward(data, batch_positions=batch_positions)
+        return self.model.forward(batch.sits, batch_positions=batch.doy)
 
-    def predict(self, batch: Any, batch_positions: torch.Tensor) -> torch.Tensor:
+    def predict(self, batch: BatchInputUTAE) -> torch.Tensor:
         """Predict classification map"""
         self.model.eval()
-        return to_class_label(
-            self.model.forward(batch, batch_positions=batch_positions)
-        )
+        return to_class_label(self.model.forward(batch))
 
     def configure_optimizers(self) -> dict[str, Any]:
         """A single optimizer with a LR scheduler"""

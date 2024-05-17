@@ -20,10 +20,8 @@ from pytorch_lightning.callbacks import Callback
 from sensorsio.utils import rgb_render
 from torch import Tensor
 
+from mmdc_downstream_pastis.datamodule.datatypes import BatchInputUTAE
 from mmdc_downstream_pastis.encode_series.encode import back_to_date
-from mmdc_downstream_pastis.models.lightning.pastis_encoded_utae_semantic import (
-    MMDCPastisEncodedUTAE,
-)
 from mmdc_downstream_pastis.models.lightning.pastis_utae_semantic import PastisUTAE
 
 # Configure logging
@@ -248,7 +246,6 @@ class PastisCallback(Callback):
                     for im in range(len(latent_mu)):
                         axes[row_counter][im].imshow(latent_mu[im])
                     row_counter += 1
-                    print(row_counter)
                     for im in range(len(latent_mu)):
                         axes[row_counter][im].imshow(latent_logvar[im])
                     row_counter += 1
@@ -470,9 +467,9 @@ class PastisCallback(Callback):
     def on_validation_batch_end(  # pylint: disable=too-many-arguments
         self,
         trainer: pl.trainer.Trainer,
-        pl_module: PastisUTAE | MMDCPastisEncodedUTAE,
+        pl_module: PastisUTAE,
         outputs: Any,
-        batch: torch.Tensor,
+        batch: BatchInputUTAE,
         batch_idx: int,
         dataloader_idx: int = 0,
     ) -> None:
@@ -482,22 +479,21 @@ class PastisCallback(Callback):
         # )  # TODO check it later and integrate
 
         if batch_idx < 2:  # TODO: Add a constraint with nb of images per epoch
-            x, _, dates, gt, mask, patch_id = batch
+            pred: torch.Tensor = pl_module.predict(batch)
 
-            pred: torch.Tensor = pl_module.predict(x, dates)
+            x = batch.sits
 
-            # s2_x, s1_x = debatch.s2_x.nan_to_num(), debatch.s1_x.nan_to_num()
             batch_size = (
                 x.shape[0] if type(x) is torch.Tensor else x[list(x.keys())[0]].shape[0]
             )
-            pred[~mask] = 0
+            pred[~batch.gt_mask] = 0
 
             self.save_image_grid(
                 x,
-                dates,
+                batch.doy,
                 pred,
-                gt,
-                patch_id,
+                batch.gt,
+                batch.id_patch,
                 SampleInfo(batch_idx, batch_size, trainer.current_epoch),
                 sat=trainer.datamodule.sats[0] if x is not dict else None,
             )

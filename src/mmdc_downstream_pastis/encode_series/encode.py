@@ -10,7 +10,7 @@ import pandas as pd
 import torch
 from mmdc_singledate.models.datatypes import VAELatentSpace
 
-from mmdc_downstream_pastis.datamodule.pastis_oe import PastisDataModule
+from mmdc_downstream_pastis.datamodule.pastis_oe import PastisOEDataModule
 from mmdc_downstream_pastis.mmdc_model.model import PretrainedMMDCPastis
 from mmdc_downstream_pastis.utils.utils import MMDCPartialBatch
 
@@ -35,16 +35,15 @@ def back_to_date(
 
 def build_dm(
     dataset_path_oe: str | Path, dataset_path_pastis: str | Path, sats: list[str]
-) -> PastisDataModule:
+) -> PastisOEDataModule:
     """Builds datamodule"""
-    return PastisDataModule(
+    return PastisOEDataModule(
         dataset_path_oe=dataset_path_oe,
         dataset_path_pastis=dataset_path_pastis,
         folds=None,
         sats=sats,
         task="semantic",
         batch_size=1,
-        max_len=0,
         crop_size=None,
     )
 
@@ -217,13 +216,13 @@ def encode_series(
     dataset = dm.instanciate_dataset(fold=None)
     loader = dm.instanciate_data_loader(dataset, shuffle=False, drop_last=False)
     log.info("Loader is ready")
-    for batch_dict, target, mask, id_patch in loader:
-        log.info(id_patch)
+    for batch in loader:
+        log.info(batch.id_patch)
         if not (
-            Path(os.path.join(output_path, "S1", f"S1_{id_patch[0]}.pt")).exists()
-            and Path(os.path.join(output_path, "S2", f"S2_{id_patch[0]}.pt"))
+            Path(os.path.join(output_path, "S1", f"S1_{batch.id_patch[0]}.pt")).exists()
+            and Path(os.path.join(output_path, "S2", f"S2_{batch.id_patch[0]}.pt"))
         ):
-            log.info(id_patch)
+            log.info(batch.id_patch)
 
             (
                 latents1,
@@ -232,7 +231,7 @@ def encode_series(
                 latents2,
                 batch_s1_mask,
                 days_s1,
-            ) = encode_one_batch(mmdc_model, batch_dict, ref_date=dm.reference_date)
+            ) = encode_one_batch(mmdc_model, batch.sits, ref_date=dm.reference_date)
             encoded_pastis_s1 = {
                 "latents": VAELatentSpace(
                     latents1.mean.squeeze(0), latents1.logvar.squeeze(0)
@@ -245,15 +244,15 @@ def encode_series(
                 "latents": VAELatentSpace(
                     latents2.mean.squeeze(0), latents2.logvar.squeeze(0)
                 ),
-                "mask": batch_dict["S2"].sits.data.mask.squeeze(0),
-                "dates": back_to_date(batch_dict["S2"].true_doy, dm.reference_date)[0],
+                "mask": batch.sits["S2"].sits.data.mask.squeeze(0),
+                "dates": back_to_date(batch.sits["S2"].true_doy, dm.reference_date)[0],
             }
 
             torch.save(
                 encoded_pastis_s1,
-                os.path.join(output_path, "S1", f"S1_{id_patch[0]}.pt"),
+                os.path.join(output_path, "S1", f"S1_{batch.id_patch[0]}.pt"),
             )
             torch.save(
                 encoded_pastis_s2,
-                os.path.join(output_path, "S2", f"S2_{id_patch[0]}.pt"),
+                os.path.join(output_path, "S2", f"S2_{batch.id_patch[0]}.pt"),
             )

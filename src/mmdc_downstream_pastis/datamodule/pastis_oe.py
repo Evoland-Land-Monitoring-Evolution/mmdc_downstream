@@ -6,7 +6,7 @@ import os
 from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import geopandas as gpd
 import numpy as np
@@ -20,17 +20,16 @@ from mmdc_downstream_pastis.constant.dataset import S2_BAND  # TODO change
 from mmdc_downstream_pastis.constant.pastis import LABEL_PASTIS
 from mmdc_downstream_pastis.datamodule.datatypes import (
     METEO_BANDS,
+    BatchInputUTAE,
+    MMDCDataStruct,
     OneSatellitePatch,
     PastisBatch,
     PastisDataSets,
     PastisFolds,
     PASTISOptions,
-)
-from mmdc_downstream_pastis.datamodule.utils import (
-    MMDCDataStruct,
-    apply_padding,
     randomcropindex,
 )
+from mmdc_downstream_pastis.datamodule.pastis_oe_only_satellite import pad_tensor
 
 # Configure logging
 NUMERIC_LEVEL = getattr(logging, "INFO", None)
@@ -47,12 +46,10 @@ class PASTISDataset(tdata.Dataset):
         reference_date: str = "2018-09-01",
         sats: list[str] = ["S2"],
         crop_size: int | None = 64,
+        strict_s1: bool = False,
         # s2_band=None,
-        # dict_classes=None,
         crop_type: Literal["Center", "Random"] = "Random",
         transform: nn.Module | None = None,
-        max_len: int = 60,
-        allow_padd: bool = True,
     ):
         """
         Pytorch Dataset class to load samples from the PASTIS dataset, for semantic and
@@ -102,7 +99,6 @@ class PASTISDataset(tdata.Dataset):
 
         super().__init__()
 
-        self.allow_pad = allow_padd
         if sats is None:
             sats = ["S2"]
         # if s2_band is None:
@@ -122,10 +118,9 @@ class PASTISDataset(tdata.Dataset):
         self.memory = {}
         self.memory_dates = {}
 
-        self.max_len = max_len
         self.sats = sats
 
-        self.strict_s1 = False
+        self.strict_s1 = strict_s1
 
         # Get metadata
         meta_patch = self.get_metadata()
@@ -396,11 +391,8 @@ class PASTISDataset(tdata.Dataset):
 
     def return_one_satellite(self, data, true_doys, sat, crop_xy: list[int] = None):
         if (sits := data[sat]) is not None:
-            t, c, h, w = sits.data.img.shape
-
             if crop_xy is not None:
                 x, y = crop_xy
-
                 sits = sits.crop(x, y, self.crop_size)
             true_doy = true_doys[sat]
             # if self.transform is not None:
@@ -408,26 +400,16 @@ class PASTISDataset(tdata.Dataset):
             #     sits = rearrange(sits, "t c h w -> c t h w")
             #     sits = self.transform(sits)
             #     sits = rearrange(sits, "c t h w -> t c h w")
-            if self.max_len == 0:
-                padd_index = torch.full([len(true_doy)], False)
-            else:
-                sits, true_doy, padd_index = apply_padding(
-                    self.allow_pad, self.max_len, t, sits, true_doy
-                )
 
             return OneSatellitePatch(
                 sits=sits,
-                padd_index=padd_index.bool(),
-                padd_val=torch.tensor(self.max_len - t),
                 true_doy=true_doy,
             )
         return OneSatellitePatch(
             sits=MMDCDataStruct.init_empty_zeros_s1(
-                self.max_len, self.patch_size, self.patch_size
+                1, self.patch_size, self.patch_size
             ),
-            padd_index=torch.full([self.max_len], True),
-            padd_val=torch.tensor(self.max_len),
-            true_doy=torch.zeros(self.max_len),
+            true_doy=torch.zeros(1, 1),
         )
 
     def get_crop_idx(self, rows, cols) -> tuple[int, int]:
@@ -461,8 +443,60 @@ class PASTISDataset(tdata.Dataset):
         return df
 
 
+def pad_and_stack(
+    key: str, to_collate: list, pad_value: int = 0, max_size: int = -1
+) -> torch.Tensor:
+    return torch.stack(
+        [pad_tensor(getattr(c, key), max_size, pad_value) for c in to_collate]
+    )
+
+
+def collate(item: Any, pad_value: int = 0) -> dict[str, Any]:
+    dict_collate = {}
+    sizes = [
+        (getattr(e, key)).shape[0] for e in item for key in e.__dict__ if "doy" in key
+    ]
+    max_size = (
+        max(sizes)
+        if (len(sizes) > 1 and not sizes.count(sizes[0]) == len(sizes))
+        else -1
+    )
+    for key in item[0].__dict__:
+        if type(getattr(item[0], key)) is MMDCDataStruct:
+            to_collate = [getattr(b, key) for b in item]
+            sits_col = {}
+            for k in to_collate[0].__dict__:
+                if type(getattr(to_collate[0], k)) is torch.Tensor:
+                    if k == "dem":
+                        sits_col[k] = pad_and_stack(
+                            k, to_collate, pad_value, max_size=-1
+                        )
+                    else:
+                        sits_col[k] = pad_and_stack(k, to_collate, pad_value, max_size)
+                else:
+                    # type is MMDCData
+                    to_collate2 = [getattr(c, k) for c in to_collate]
+                    sits_col.update(
+                        {
+                            k2: pad_and_stack(k2, to_collate2, pad_value, max_size)
+                            for k2 in to_collate2[0].__dict__
+                        }
+                    )
+            dict_collate[
+                key
+            ] = MMDCDataStruct.init_empty_concat_meteo().fill_empty_from_dict(
+                sits_col, flatten_meteo=True
+            )
+        elif type(getattr(item[0], key)) is torch.Tensor:
+            dict_collate[key] = pad_and_stack(key, item, pad_value, max_size)
+        elif getattr(item[0], key) is None:
+            dict_collate[key] = None
+    return dict_collate
+
+
 def custom_collate_classif(
-    batch: Iterable[dict[str, OneSatellitePatch], torch.Tensor, torch.Tensor, int]
+    batch: Iterable[dict[str, OneSatellitePatch], torch.Tensor, torch.Tensor, int],
+    pad_value: int = 0,
 ) -> (dict[str, PastisBatch], torch.Tensor, torch.Tensor, list[int]):
     batch_dict = {}
 
@@ -470,44 +504,14 @@ def custom_collate_classif(
     target = torch.stack(target, 0)
     mask = torch.stack(mask, 0)
 
-    # TODO add padding here
     for sat in sat_dict[0]:
         item = [v[sat] for v in sat_dict]
-        dict_collate = {}
-        for key in item[0].__dict__:
-            if type(getattr(item[0], key)) is MMDCDataStruct:
-                to_collate = [getattr(b, key) for b in item]
-                sits_col = {}
-                for k in to_collate[0].__dict__:
-                    if type(getattr(to_collate[0], k)) is torch.Tensor:
-                        sits_col[k] = torch.stack([getattr(c, k) for c in to_collate])
-                    else:
-                        # type is MMDCData
-                        to_collate2 = [getattr(c, k) for c in to_collate]
-                        # sits_col[k] = {k2: torch.stack([getattr(c, k2)
-                        # for c in to_collate2])
-                        #                for k2 in to_collate2[0].__dict__}
-                        sits_col.update(
-                            {
-                                k2: torch.stack([getattr(c, k2) for c in to_collate2])
-                                for k2 in to_collate2[0].__dict__
-                            }
-                        )
-                dict_collate[
-                    key
-                ] = MMDCDataStruct.init_empty_concat_meteo().fill_empty_from_dict(
-                    sits_col, flatten_meteo=True
-                )
-            elif type(getattr(item[0], key)) is torch.Tensor:
-                dict_collate[key] = torch.stack([getattr(b, key) for b in item])
-
-            elif getattr(item[0], key) is None:
-                dict_collate[key] = None
+        dict_collate = collate(item, pad_value)
         batch_dict[sat] = PastisBatch.init_empty().fill_empty_from_dict(dict_collate)
-    return batch_dict, target, mask, id_patch
+    return BatchInputUTAE(sits=batch_dict, gt=target, gt_mask=mask, id_patch=id_patch)
 
 
-class PastisDataModule(LightningDataModule):
+class PastisOEDataModule(LightningDataModule):
     """
     A DataModule implements 4 key methods:
         - setup (things to do on every accelerator in distributed mode)
@@ -528,11 +532,11 @@ class PastisDataModule(LightningDataModule):
         reference_date: str = "2018-09-01",
         task: Literal["semantic"] = "semantic",
         batch_size: int = 2,
-        crop_size: int | None = 64,
+        strict_s1: bool | None = None,
+        crop_size: int | None = None,
         crop_type: Literal["Center", "Random"] = "Random",
         num_workers: int = 1,
-        # path_dir_csv: str | None = None,
-        max_len: int = 100,
+        pad_value: int = 0,
     ):
         super().__init__()
 
@@ -552,10 +556,13 @@ class PastisDataModule(LightningDataModule):
         self.batch_size = batch_size
         self.task = task
 
+        self.strict_s1 = strict_s1
+
         self.sats = sats
 
         self.num_workers = num_workers
-        self.max_len = max_len
+
+        self.pad_value = pad_value
 
         self.data: PastisDataSets | None = None
 
@@ -618,7 +625,7 @@ class PastisDataModule(LightningDataModule):
             reference_date=self.reference_date,
             crop_size=self.crop_size,
             crop_type=self.crop_type,
-            max_len=self.max_len,
+            strict_s1=self.strict_s1,
         )
 
     def instanciate_data_loader(
@@ -631,7 +638,7 @@ class PastisDataModule(LightningDataModule):
             batch_size=self.batch_size,
             shuffle=shuffle,
             drop_last=drop_last,
-            collate_fn=custom_collate_classif,
+            collate_fn=lambda x: custom_collate_classif(x, pad_value=self.pad_value),
         )
 
 

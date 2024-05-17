@@ -15,8 +15,15 @@ from torch import nn
 from torch.nn import functional as F
 
 from mmdc_downstream_pastis.constant.pastis import LABEL_PASTIS
-from mmdc_downstream_pastis.datamodule.datatypes import PastisFolds, PASTISOptions
-from mmdc_downstream_pastis.datamodule.pastis_oe import PastisDataModule, PASTISDataset
+from mmdc_downstream_pastis.datamodule.datatypes import (
+    BatchInputUTAE,
+    PastisFolds,
+    PASTISOptions,
+)
+from mmdc_downstream_pastis.datamodule.pastis_oe import (
+    PASTISDataset,
+    PastisOEDataModule,
+)
 
 # Configure logging
 NUMERIC_LEVEL = getattr(logging, "INFO", None)
@@ -38,8 +45,6 @@ class PASTISEncodedDataset(PASTISDataset):
         # dict_classes=None,
         crop_type: Literal["Center", "Random"] = "Random",
         transform: nn.Module | None = None,
-        max_len: int = 60,
-        allow_padd: bool = True,
         norm: bool = False,
         use_logvar: bool = True,  # TODO Add choosing logvar option
     ):
@@ -94,13 +99,10 @@ class PASTISEncodedDataset(PASTISDataset):
             reference_date,
             sats,
             crop_size,
-            crop_type,
-            transform,
-            max_len,
-            allow_padd,
+            crop_type=crop_type,
+            transform=transform,
         )
 
-        self.allow_pad = allow_padd
         if sats is None:
             sats = ["S2"]
 
@@ -114,7 +116,6 @@ class PASTISEncodedDataset(PASTISDataset):
         self.memory = {}
         self.memory_dates = {}
 
-        self.max_len = max_len
         self.sats = sats
 
         # Get metadata
@@ -334,14 +335,7 @@ def pad_collate_vae(
         torch.Tensor,
         int,
     ]
-) -> (
-    dict[str, torch.Tensor],
-    dict[str, torch.Tensor],
-    dict[str, torch.Tensor],
-    torch.Tensor,
-    torch.Tensor,
-    list[int],
-):
+) -> BatchInputUTAE:
     batch_dict = {}
     data_masks_dict = {}
     doys_dict = {}
@@ -376,19 +370,26 @@ def pad_collate_vae(
             dim=-3,
         )
     if len(sats) == 1:
-        return (
-            batch_dict[sats[0]],
-            data_masks_dict[sats[0]],
-            doys_dict[sats[0]],
-            target,
-            mask,
-            id_patch,
+        BatchInputUTAE(
+            sits=batch_dict[sats[0]],
+            doy=doys_dict[sats[0]],
+            gt=target,
+            sits_mask=data_masks_dict[sats[0]],
+            gt_mask=mask,
+            id_patch=id_patch,
         )
 
-    return batch_dict, data_masks_dict, doys_dict, target, mask, id_patch
+    return BatchInputUTAE(
+        sits=batch_dict,
+        doy=doys_dict,
+        gt=target,
+        sits_mask=data_masks_dict,
+        gt_mask=mask,
+        id_patch=id_patch,
+    )
 
 
-class PastisEncodedDataModule(PastisDataModule):
+class PastisEncodedDataModule(PastisOEDataModule):
     """
     A DataModule implements 4 key methods:
         - setup (things to do on every accelerator in distributed mode)
@@ -423,9 +424,9 @@ class PastisEncodedDataModule(PastisDataModule):
             reference_date,
             task,
             batch_size,
-            crop_size,
-            crop_type,
-            num_workers,
+            crop_size=crop_size,
+            crop_type=crop_type,
+            num_workers=num_workers,
         )
         self.use_logvar = use_logvar
         self.norm = norm
