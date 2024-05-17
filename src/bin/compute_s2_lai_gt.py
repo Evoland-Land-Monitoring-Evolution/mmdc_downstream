@@ -10,7 +10,7 @@ import os
 from collections import namedtuple
 from pathlib import Path
 
-from mmdc_downstream.snap.components.compute_bio_var import compute_variables
+from mmdc_downstream_lai.snap.components.compute_bio_var import compute_variables
 
 my_logger = logging.getLogger(__name__)
 

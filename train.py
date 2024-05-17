@@ -11,8 +11,8 @@ dotenv.load_dotenv(override=True)
 def main(config: DictConfig):
     # Imports can be nested inside @hydra.main to optimize tab completion
     # https://github.com/facebookresearch/hydra/issues/934
-    from mmdc_downstream.training_pipeline import train
-    from mmdc_downstream.utils import extras
+    from mmdc_downstream_lai.training_pipeline import train
+    from mmdc_downstream_lai.utils import extras
 
     #
     # # Applies optional utilities

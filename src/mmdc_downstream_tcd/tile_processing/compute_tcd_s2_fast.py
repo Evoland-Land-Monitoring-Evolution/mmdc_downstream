@@ -6,7 +6,7 @@ import pandas as pd
 import torch
 from encode_tile import generate_coord_matrix, get_s2, get_sliced_modality, get_slices
 
-from mmdc_downstream.utils import get_logger
+from mmdc_downstream_lai.utils import get_logger
 from mmdc_downstream_tcd.tile_processing.utils import get_tcd_gt
 
 log = get_logger(__name__)

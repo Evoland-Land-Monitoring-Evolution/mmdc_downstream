@@ -8,7 +8,7 @@ from einops import rearrange, repeat
 from mmdc_singledate.models.datatypes import S1S2VAEAuxiliaryEmbeddings, VAELatentSpace
 from mmdc_singledate.utils.train_utils import standardize_data
 
-from mmdc_downstream.mmdc_model.model import PretrainedMMDC
+from mmdc_downstream_lai.mmdc_model.model import PretrainedMMDC
 from mmdc_downstream_pastis.utils.utils import MMDCPartialBatch
 
 

@@ -22,13 +22,13 @@ from mmdc_singledate.datamodules.datatypes import (
 from mmdc_singledate.datamodules.mmdc_datamodule import MMDCDataModule
 from mmdc_singledate.utils.train_utils import standardize_data
 
-from mmdc_downstream.mmdc_model.model import PretrainedMMDC
-from mmdc_downstream.snap.components.compute_bio_var import (
+from mmdc_downstream_lai.mmdc_model.model import PretrainedMMDC
+from mmdc_downstream_lai.snap.components.compute_bio_var import (
     predict_variable_from_tensors,
     prepare_s2_image,
 )
-from mmdc_downstream.snap.lai_snap import BVNET, normalize
-from mmdc_downstream.utils import get_logger
+from mmdc_downstream_lai.snap.lai_snap import BVNET, normalize
+from mmdc_downstream_lai.utils import get_logger
 
 TILES_CONFIG_DIR = (
     f"{os.environ['SCRATCH']}/scratch_data/MMDC_OE/tiles_conf_training/LAI_micro/"
@@ -266,15 +266,18 @@ for type, files in files_dict.items():
             s2_angles = (
                 rearrange(batch.s2_a, "b c h w -> (b h w) c")[~mask][idx].cpu().numpy()
             )
-            s1 = (
-                standardize_data(
-                    rearrange(batch.s1_x, "b c h w -> (b h w) c")[~mask][idx],
-                    shift=stats.sen1.shift.type_as(batch.s1_x),
-                    scale=stats.sen1.shift.type_as(batch.s1_x),
+            s1 = rearrange(
+                (
+                    standardize_data(
+                        batch.s1_x,
+                        shift=stats.sen1.shift.type_as(batch.s1_x),
+                        scale=stats.sen1.shift.type_as(batch.s1_x),
+                    )
                 )
                 .cpu()
-                .numpy()
-            )
+                .numpy(),
+                "b c h w -> (b h w) c",
+            )[~mask][idx]
             s1_angles = (
                 rearrange(batch.s1_a, "b c h w -> (b h w) c")[~mask][idx].cpu().numpy()
             )
