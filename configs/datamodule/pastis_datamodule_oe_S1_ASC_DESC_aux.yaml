@@ -1,0 +1,16 @@
+_target_: mmdc_downstream_pastis.datamodule.pastis_oe_aux.PastisAuxDataModule
+
+dataset_path_pastis: ${oc.env:SCRATCH}/scratch_data/Pastis
+dataset_path_oe: ${oc.env:SCRATCH}/scratch_data/Pastis_OE
+
+reference_date: "2018-09-01"
+sats: [ "S1_ASC", "S1_DESC" ]
+task: "semantic"
+
+folds:
+  _target_: mmdc_downstream_pastis.datamodule.datatypes.PastisFolds
+  train: [1,2,3]
+  val: [4]
+  test: [5]
+
+batch_size: 4
