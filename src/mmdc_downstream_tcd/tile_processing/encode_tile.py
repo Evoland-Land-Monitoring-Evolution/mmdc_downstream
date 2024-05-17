@@ -17,8 +17,11 @@ from mmdc_singledate.datamodules.components.datamodule_components import (
     dem_height_aspect,
 )
 
-from mmdc_downstream_pastis.datamodule.datatypes import METEO_BANDS, PastisBatch
-from mmdc_downstream_pastis.datamodule.utils import MMDCDataStruct
+from mmdc_downstream_pastis.datamodule.datatypes import (
+    METEO_BANDS,
+    MMDCDataStruct,
+    PastisBatch,
+)
 from mmdc_downstream_pastis.encode_series.encode import encode_one_batch
 from mmdc_downstream_pastis.mmdc_model.model import PretrainedMMDCPastis
 from mmdc_downstream_tcd.tile_processing.utils import (
@@ -149,8 +152,6 @@ def get_encoded_patch(
         tcd_batch = PastisBatch(
             sits=sits,
             true_doy=dates_meteo[sat][f"date_{sat}"].values[None, :],
-            padd_val=torch.Tensor([]),
-            padd_index=torch.Tensor([]),
         )
         batch_dict[sat.upper()] = tcd_batch
         encoded_patch[f"{sat}_doy"] = dates_meteo[sat][f"date_{sat}"].values
