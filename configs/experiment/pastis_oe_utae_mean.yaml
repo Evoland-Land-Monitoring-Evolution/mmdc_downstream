@@ -4,7 +4,7 @@
 # python train.py experiment=pastis_encoded
 
 defaults:
-  - override /datamodule: pastis_datamodule_oe_only_satellite_S1_ASC_DESC_S2.yaml
+  - override /datamodule: pastis_datamodule_oe_S1_ASC_DESC_S2.yaml
   - override /model: pastis_oe_utae_mean.yaml
   - override /callbacks: default.yaml
   - override /trainer: default.yaml

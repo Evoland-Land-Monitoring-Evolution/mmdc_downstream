@@ -1,7 +1,7 @@
 _target_: mmdc_downstream_pastis.datamodule.pastis_oe_only_satellite.PastisDataModule
 
-data_folder: ${oc.env:SCRATCH}/scratch_data/Pastis
-data_folder_oe: ${oc.env:SCRATCH}/scratch_data/Pastis_OE
+dataset_path_pastis: ${oc.env:SCRATCH}/scratch_data/Pastis
+dataset_path_oe: ${oc.env:SCRATCH}/scratch_data/Pastis_OE
 
 task:
   _target_: mmdc_downstream_pastis.datamodule.pastis_oe_only_satellite.PASTISTask

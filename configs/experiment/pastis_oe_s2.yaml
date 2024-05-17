@@ -4,7 +4,7 @@
 # python train.py experiment=mmdc_full
 
 defaults:
-  - override /datamodule: pastis_datamodule_oe_only_satellite_S2.yaml
+  - override /datamodule: pastis_datamodule_oe_S2.yaml
   - override /model: pastis_oe_utae_s2.yaml
   - override /callbacks: default.yaml
   - override /trainer: default.yaml
