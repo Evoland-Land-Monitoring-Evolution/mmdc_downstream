@@ -6,14 +6,16 @@ import os
 import pytest
 import torch
 
-from mmdc_downstream.mmdc_model.model import PretrainedMMDC
-from mmdc_downstream.models.datatypes import RegressionConfig, RegressionModel
-from mmdc_downstream.models.lightning.lai_regression import (
+from mmdc_downstream_lai.mmdc_model.model import PretrainedMMDC
+from mmdc_downstream_lai.models.datatypes import RegressionConfig, RegressionModel
+from mmdc_downstream_lai.models.lightning.lai_regression import (
     MMDCBatch,
     MMDCDownstreamRegressionLitModule,
 )
-from mmdc_downstream.models.torch.lai_regression import MMDCDownstreamRegressionModule
-from mmdc_downstream.snap.lai_snap import BVNET
+from mmdc_downstream_lai.models.torch.lai_regression import (
+    MMDCDownstreamRegressionModule,
+)
+from mmdc_downstream_lai.snap.lai_snap import BVNET
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

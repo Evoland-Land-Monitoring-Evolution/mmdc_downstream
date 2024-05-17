@@ -10,7 +10,7 @@ import pytest
 from hydra import compose, initialize
 from hydra.core.hydra_config import HydraConfig
 
-from mmdc_downstream.training_pipeline import train
+from mmdc_downstream_lai.training_pipeline import train
 
 
 @pytest.mark.slow

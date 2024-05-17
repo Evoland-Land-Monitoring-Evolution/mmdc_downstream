@@ -4,8 +4,10 @@
 import pytest
 import torch
 
-from mmdc_downstream.models.datatypes import RegressionConfig, RegressionModel
-from mmdc_downstream.models.torch.lai_regression import MMDCDownstreamRegressionModule
+from mmdc_downstream_lai.models.datatypes import RegressionConfig, RegressionModel
+from mmdc_downstream_lai.models.torch.lai_regression import (
+    MMDCDownstreamRegressionModule,
+)
 
 input_size = 6
 
