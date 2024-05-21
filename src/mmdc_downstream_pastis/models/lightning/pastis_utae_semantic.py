@@ -3,9 +3,13 @@
 """ Lightning module for lai regression prediction """
 
 import logging
+from pathlib import Path
 from typing import Any
 
 import torch
+from mmdc_singledate.datamodules.datatypes import ShiftScale
+from mmdc_singledate.utils.train_utils import standardize_data
+from torch import nn
 
 from ...datamodule.datatypes import BatchInputUTAE
 from ..components.losses import compute_losses
@@ -29,6 +33,44 @@ def to_class_label(logits: torch.Tensor) -> torch.Tensor:
     return pred
 
 
+def compute_stats(data_type: str, sat_stats: dict) -> ShiftScale:
+    scale_regul = nn.Threshold(1e-10, 1.0)
+    return ShiftScale(
+        sat_stats[data_type][1],
+        scale_regul((sat_stats[data_type][2] - sat_stats[data_type][0]) / 2.0),
+    )
+
+
+def set_aux_stats(
+    stats_path: dict[str | Path] | str | Path | None,
+    device: torch.device,
+    sat: str,
+) -> dict[str, ShiftScale] | ShiftScale:
+    if type(stats_path) != dict:
+        sat_stats = torch.load(stats_path)
+        stats_sat = {d: compute_stats(d, sat_stats) for d in sat_stats}
+        angles_len = 6 if sat == "S2" else 1
+        return ShiftScale(
+            torch.stack(
+                [
+                    stats_sat["img"].shift,
+                    torch.zeros(angles_len),
+                    stats_sat["meteo"].shift,
+                    stats_sat["dem"].shift,
+                ]
+            ).to(device),
+            torch.stack(
+                [
+                    stats_sat["img"].scale,
+                    torch.ones(angles_len),
+                    stats_sat["meteo"].scale,
+                    stats_sat["dem"].scale,
+                ]
+            ).to(device),
+        )
+    return {sat: set_aux_stats(stats_path, device, sat) for sat in stats_path}
+
+
 class PastisUTAE(MMDCPastisBaseLitModule):
     """
     LAI regression lightning module.
@@ -45,6 +87,7 @@ class PastisUTAE(MMDCPastisBaseLitModule):
         losses_list: list[str] = ["cross"],
         lr: float = 0.001,
         resume_from_checkpoint: str | None = None,
+        stats_aux_path: dict[str | Path] | None = None,
     ):
         super().__init__(model, lr, resume_from_checkpoint)
 
@@ -52,6 +95,8 @@ class PastisUTAE(MMDCPastisBaseLitModule):
         self.metrics_list = metrics_list
 
         self.model = model
+        self.set_aux_stats = stats_aux_path
+        self.stats = None
 
     def step(self, batch: BatchInputUTAE, stage: str = "train") -> Any:
         """
@@ -128,12 +173,39 @@ class PastisUTAE(MMDCPastisBaseLitModule):
 
     def forward(self, batch: BatchInputUTAE) -> torch.Tensor:
         """Forward step"""
-        return self.model.forward(batch.sits, batch_positions=batch.doy)
+        sits = batch.sits
+        if self.stats is not None:
+            if type(sits) is dict:
+                sits = {
+                    sat: standardize_data(
+                        sits[sat],
+                        shift=self.stats[sat].shift,
+                        scale=self.stats[sat].scale,
+                    )
+                    for sat in sits
+                }
+            else:
+                sits = standardize_data(
+                    sits, shift=self.stats.shift, scale=self.stats.scale
+                )
+        return self.model.forward(sits, batch_positions=batch.doy)
 
     def predict(self, batch: BatchInputUTAE) -> torch.Tensor:
         """Predict classification map"""
         self.model.eval()
         return to_class_label(self.model.forward(batch))
+
+    def on_fit_start(self) -> None:
+        """On fit start, get the stats, and set them into the model"""
+        assert hasattr(self.trainer, "datamodule")
+        if self.stats_aux_path is not None:
+            self.stats = set_aux_stats(
+                self.stats_aux_path,
+                device=self.model.device,
+                sat=self.trainer.datamodule.sats[0]
+                if type(self.stats_aux_path) is not dict
+                else None,
+            )
 
     def configure_optimizers(self) -> dict[str, Any]:
         """A single optimizer with a LR scheduler"""
