@@ -87,7 +87,8 @@ class UTAEFusion(nn.Module):
             )
         else:
             self.out_conv = ConvBlock(
-                nkernels=[decoder_widths[0] * 2] + out_conv, padding_mode=padding_mode
+                nkernels=[decoder_widths[0] * len(satellites)] + out_conv,
+                padding_mode=padding_mode,
             )
 
         self.satellites = satellites
