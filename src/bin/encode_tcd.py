@@ -80,15 +80,14 @@ def get_parser() -> argparse.ArgumentParser:
         "--pretrained_path",
         type=str,
         help="list of available tiles",
-        default=f"{os.environ['WORK']}/results/MMDC/results/latent/checkpoints/"
-        "mmdc_full_tiny/2024-04-05_14-58-22",
+        default=f"{os.environ['WORK']}/results/MMDC/checkpoint_best",
     )
 
     arg_parser.add_argument(
         "--model_name",
         type=str,
         help="Name of the pretrained model (last or epoch_XXX)",
-        default="epoch_129"
+        default="epoch_141"
         # required=False,
     )
 
@@ -97,6 +96,14 @@ def get_parser() -> argparse.ArgumentParser:
         type=str,
         help="Type of the model (baseline or experts)",
         default="baseline"
+        # required=False,
+    )
+
+    arg_parser.add_argument(
+        "--prepared_data_path",
+        type=str,
+        help="Path to prepared data",
+        default=f"{os.environ['SCRATCH']}/results/TCD/t32tnt/prepared_tiles_w_768_m_40"
         # required=False,
     )
 
@@ -123,14 +130,17 @@ if __name__ == "__main__":
         args.pretrained_path, args.model_name, args.model_type
     )
 
-    output_path = os.path.join(
-        args.output_path, "res_" + args.pretrained_path.split("/")[-1]
+    output_path = Path(
+        os.path.join(args.output_path, "res_" + args.pretrained_path.split("/")[-1])
     )
+    prepared_data_path = Path(os.path.join(args.output_path, args.prepared_data_path))
+
     Path(output_path).mkdir(parents=True, exist_ok=True)
 
     encode_tile(
         args.folder_data,
         args.months_folders,
+        prepared_data_path,
         args.window,
         output_path,
         mmdc_model,

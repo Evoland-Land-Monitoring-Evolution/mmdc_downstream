@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any, Literal
@@ -13,11 +14,24 @@ from mmdc_singledate.datamodules.components.datamodule_components import (
     apply_log_to_s1,
     build_s1_images_and_masks,
     build_s2_images_and_masks,
+    dem_height_aspect,
 )
+from xarray import DataArray, Dataset
+
+from mmdc_downstream_pastis.datamodule.datatypes import (
+    METEO_BANDS,
+    MMDCDataStruct,
+    PastisBatch,
+)
+from mmdc_downstream_pastis.encode_series.encode import encode_one_batch
+from mmdc_downstream_pastis.mmdc_model.model import PretrainedMMDCPastis
+
+log = logging.getLogger(__name__)
 
 METEO_DAYS_BEFORE = 4
 METEO_DAYS_AFTER = 1
 BANDS_S2 = ["B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B11", "B12"]
+meteo_modalities = METEO_BANDS.keys()
 
 
 def get_index(
@@ -95,16 +109,16 @@ def rearrange_ts(ts: torch.Tensor) -> torch.Tensor:
 
 def get_one_slice(
     nc_file: str | Path, slice: tuple[float, float, float, float]
-) -> xr.Dataset:
+) -> tuple[Any, Any]:
     """Get one slice for one month"""
     with xr.open_dataset(
         nc_file,
         decode_coords="all",
-        mask_and_scale=False,
+        mask_and_scale=True,
         decode_times=True,
         engine="netcdf4",
     ) as file:
-        return file.rio.slice_xy(*slice)
+        return file.rio.slice_xy(*slice), file.crs
 
 
 def get_sliced_modality(
@@ -115,7 +129,7 @@ def get_sliced_modality(
     meteo: bool = False,
     dates: np.ndarray = None,
     coord: list = None,
-) -> xr.Dataset:
+) -> tuple[DataArray | Dataset | Any, Any]:
     """Get a dataset slice for one modality for all available dates"""
     modality_slice_list = []
     for month in months:
@@ -123,7 +137,7 @@ def get_sliced_modality(
             nc_file = os.path.join(folder, month, "AGERA5", modality, "openEO.nc")
         else:
             nc_file = os.path.join(folder, month, modality, "openEO.nc")
-        file = get_one_slice(nc_file, slice)
+        file, src = get_one_slice(nc_file, slice)
         print(len(file.x), len(file.y))
         if coord is not None:
             file = file.sel(x=coord[0], y=coord[1])
@@ -134,7 +148,7 @@ def get_sliced_modality(
 
         modality_slice_list.append(file)
         file.close()
-    return xr.concat(modality_slice_list, dim="t").sortby("t")
+    return xr.concat(modality_slice_list, dim="t").sortby("t"), src
 
 
 def get_meteo_dates_modality(dates_df: pd.DataFrame, satellite: str) -> pd.DataFrame:
@@ -155,10 +169,8 @@ def check_s2_clouds(folder_data: str | Path, months_folders: list[str]) -> np.nd
         nc_file = os.path.join(folder_data, month, "Sentinel2", "openEO.nc")
         with xr.open_dataset(
             nc_file,
-            decode_coords="all",
             mask_and_scale=True,
             decode_times=True,
-            engine="netcdf4",
         ) as xarray_ds:
             xarray_ds = xarray_ds[["SCL", "CLM"]]
 
@@ -213,10 +225,8 @@ def check_s1_nans(
         nc_file = os.path.join(folder_data, month, f"Sentinel1_{orbit}", "openEO.nc")
         with xr.open_dataset(
             nc_file,
-            decode_coords="all",
             mask_and_scale=True,
             decode_times=True,
-            engine="netcdf4",
         ) as xarray_ds:
             array = torch.Tensor(xarray_ds.VV.values)
             nans = torch.isnan(array).to(torch.float)
@@ -418,6 +428,235 @@ def get_s1(
     return images, data, dates
 
 
+def prepare_patch(
+    folder_data: str | Path,
+    months_folders: list[str | int],
+    sliced: tuple[float, float, float, float],
+    s2_dates: np.array,
+    s1_dates_asc: np.array,
+    s1_dates_desc: np.array,
+    dates_meteo: dict[str, pd.DataFrame],
+    satellites: list[str],
+) -> tuple[dict[str, [str, torch.Tensor]], np.array]:
+    log.info(f"Slice {sliced}")
+    images = {}
+    data = {sat: {} for sat in satellites}
+    for sat in satellites:
+        t_slice = [
+            f"2018-{months_folders[0]}-05",
+            f"2018-{months_folders[-1]}-30",
+        ]
+
+        if sat == "s2":
+            modality = "Sentinel2"
+            log.info(f"Slicing {modality}")
+            sliced_modality, crs = get_sliced_modality(
+                months_folders,
+                folder_data,
+                sliced,
+                modality,
+                meteo=False,
+                dates=s2_dates,
+            )
+            log.info(f"Sliced {modality}")
+            sliced_modality = sliced_modality.sel(t=slice(t_slice[0], t_slice[1]))
+
+            # create_netcdf_s2_one_date(
+            #     xy_matrix, sliced_modality, margin, enum, date=2)
+            images, data, dates = get_s2(
+                s2_dates, t_slice, data, images, sliced_modality
+            )
+            images["CRS"] = crs
+        else:
+            modality = (
+                "Sentinel1_ASCENDING" if sat == "s1_asc" else "Sentinel1_DESCENDING"
+            )
+            log.info(f"Slicing {modality}")
+            sliced_modality, _ = get_sliced_modality(
+                months_folders,
+                folder_data,
+                sliced,
+                modality,
+                meteo=False,
+                dates=s1_dates_asc if sat == "s1_asc" else s1_dates_desc,
+            )
+            log.info(f"Sliced {modality}")
+            sliced_modality = sliced_modality.sel(t=slice(t_slice[0], t_slice[1]))
+
+            images, data, dates = get_s1(t_slice, data, images, sliced_modality, sat)
+            del sliced_modality
+
+        if sat not in dates_meteo:
+            dates_meteo[sat] = get_meteo_dates_modality(dates, sat)
+
+    for modality in meteo_modalities:
+        log.info(modality)
+        sliced_meteo, _ = get_sliced_modality(
+            months_folders,
+            folder_data,
+            sliced,
+            modality.upper(),
+            meteo=True,
+        )
+        for sat, dates_sat in dates_meteo.items():
+            # print(modality)
+            data[sat][f"meteo_{modality}"] = build_meteo(
+                images, sliced_meteo.astype(np.float64), dates_sat, modality
+            )[modality].unsqueeze(0)
+    del images, sliced_meteo
+    # DEM
+    nc_file = os.path.join(folder_data, "DEM", "openEO.nc")
+    dem_slice, _ = get_one_slice(nc_file, sliced)
+    dem_dataset = torch.tensor(dem_slice.DEM.values)
+    # We deal with the special case,
+    # when dem band contains 2 dates and one of them is nan
+    # So we choose the date with less nans than the other
+    if len(dem_dataset) > 0:
+        dem_dataset = dem_dataset[torch.argmin(torch.isnan(dem_dataset).sum((1, 2)))]
+    dem = dem_height_aspect(dem_dataset.squeeze(0))
+    for sat in data:
+        data[sat]["dem"] = dem.unsqueeze(0)
+    del dem
+    return data, dates_meteo
+
+
+def get_encoded_patch(
+    data: dict[str, [str, torch.Tensor]],
+    mmdc_model: PretrainedMMDCPastis,
+    xy_matrix: np.ndarray,
+    dates_meteo: np.array,
+    s1_join: bool = True,
+    margin: int = 40,
+) -> dict[str, torch.Tensor]:
+    encoded_patch = {}
+
+    batch_dict = {}
+    for sat in data:
+        sits = (
+            MMDCDataStruct.init_empty().fill_empty_from_dict(data[sat]).concat_meteo()
+        )
+        setattr(
+            sits,
+            "meteo",
+            torch.flatten(getattr(sits, "meteo"), start_dim=2, end_dim=3),
+        )
+        tcd_batch = PastisBatch(
+            sits=sits,
+            true_doy=dates_meteo[sat][f"date_{sat}"].values[None, :],
+        )
+        batch_dict[sat.upper()] = tcd_batch
+        encoded_patch[f"{sat}_doy"] = dates_meteo[sat][f"date_{sat}"].values
+        encoded_patch[f"{sat}_mask"] = sits.data.mask[
+            0, :, :, margin:-margin, margin:-margin
+        ]
+    log.info("encoding")
+
+    del data, tcd_batch
+
+    (
+        latents1,
+        latents1_asc,
+        latents1_desc,
+        latents2,
+        mask_s1,
+        days_s1,
+    ) = encode_one_batch(mmdc_model, batch_dict)
+    encoded_patch["matrix"] = xy_matrix
+    encoded_patch["s2_lat_mu"] = latents2.mean[0, :, :, margin:-margin, margin:-margin]
+    encoded_patch["s2_lat_logvar"] = latents2.logvar[
+        0, :, :, margin:-margin, margin:-margin
+    ]
+
+    if s1_join:
+        encoded_patch["s1_lat_mu"] = latents1.mean[
+            0, :, :, margin:-margin, margin:-margin
+        ]
+        encoded_patch["s1_lat_logvar"] = latents1.logvar[
+            0, :, :, margin:-margin, margin:-margin
+        ]
+        encoded_patch["s1_mask"] = mask_s1[0, :, :, margin:-margin, margin:-margin]
+        encoded_patch["s1_doy"] = days_s1
+    else:
+        encoded_patch["s1_asc_lat_mu"] = latents1_asc.mean[
+            0, :, :, margin:-margin, margin:-margin
+        ]
+        encoded_patch["s1_asc_lat_logvar"] = latents1_asc.logvar[
+            0, :, :, margin:-margin, margin:-margin
+        ]
+        encoded_patch["s1_desc_lat_mu"] = latents1_desc.mean[
+            0, :, :, margin:-margin, margin:-margin
+        ]
+        encoded_patch["s1_desc_lat_logvar"] = latents1_desc.logvar[
+            0, :, :, margin:-margin, margin:-margin
+        ]
+    del (
+        latents1,
+        latents1_asc,
+        latents1_desc,
+        latents2,
+        batch_dict,
+    )
+    return encoded_patch
+
+
+def extract_gt_points(
+    encoded_patch,
+    sat,
+    ind,
+    tcd_values_sliced,
+    sliced_gt,
+):
+    mask = encoded_patch[f"{sat}_mask"].expand_as(encoded_patch[f"{sat}_lat_mu"])
+
+    encoded_patch[f"{sat}_lat_mu"][mask.bool()] = torch.nan
+    encoded_patch[f"{sat}_lat_logvar"][mask.bool()] = torch.nan
+
+    gt_ref_values_mu = rearrange_ts(encoded_patch[f"{sat}_lat_mu"])[
+        :, ind[:, 0], ind[:, 1]
+    ].T
+
+    gt_ref_values_logvar = rearrange_ts(encoded_patch[f"{sat}_lat_logvar"])[
+        :, ind[:, 0], ind[:, 1]
+    ].T
+    days = encoded_patch[f"{sat}_doy"]
+
+    values_df_mu = pd.DataFrame(
+        data=gt_ref_values_mu.cpu().numpy(),
+        columns=[
+            f"mu_f{b}_d{m}"
+            for m in range(len(days))
+            for b in range(encoded_patch[f"{sat}_lat_logvar"].shape[-3])
+        ],
+    )
+    values_df_logvar = pd.DataFrame(
+        data=gt_ref_values_logvar.cpu().numpy(),
+        columns=[
+            f"logvar_f{b}_d{m}"
+            for m in range(len(days))
+            for b in range(encoded_patch[f"{sat}_lat_logvar"].shape[-3])
+        ],
+    )
+
+    df_gt = pd.concat(
+        [
+            tcd_values_sliced.reset_index(),
+            values_df_mu,
+            values_df_logvar,
+        ],
+        axis=1,
+    )
+
+    if sat not in sliced_gt:
+        sliced_gt[sat] = [df_gt]
+    else:
+        sliced_gt[sat].append(df_gt)
+
+    return df_gt, days
+
+    # torch.save(encoded_patch,
+    #            os.path.join(output_folder, f"Encoded_patch_{enum}.pt"))
+
+
 def set_system_and_save(
     ds: xr.Dataset, xx: torch.Tensor, yy: torch.Tensor, name: str
 ) -> None:
@@ -613,3 +852,53 @@ def create_netcdf_one_date_encoded(
         set_system_and_save(ds, xx, yy, name=f"s2_patch_encoded_{enum}_t{date}.nc")
     else:
         set_system_and_save(ds, xx, yy, name=f"s1_patch_encoded_{enum}_t{date}.nc")
+
+
+def build_meteo(
+    images: dict[str, Any],
+    xarray_ds: xr.Dataset,
+    dates_df: pd.DataFrame,
+    meteo_type: str,
+    light: bool = False,
+) -> dict[str, torch.Tensor]:
+    """
+    Generate meteo data provided by OpenEO,
+    and interpolate in case there are NaNs
+    """
+    if not light:
+        dataset_meteo = []
+        dates = dates_df[["meteo_start_date", "meteo_end_date"]]
+        for _, row in dates.iterrows():
+            # We convert netcdf directly to tensors
+            # (contrary to previous xr.concat) to avoid memory problems
+            meteo_array = xarray_ds.sel(
+                t=slice(row.meteo_start_date, row.meteo_end_date)
+            )
+            meteo_array[METEO_BANDS[meteo_type]].rio.write_nodata(np.nan, inplace=True)
+            # Interpolate NaNs
+            null_values = meteo_array[METEO_BANDS[meteo_type]].isnull()
+            null_values_per_date = null_values.sum(dim=["x", "y"])
+            ratio_null_values_per_date = null_values.mean(dim=["x", "y"])
+            if null_values_per_date.sum() > 0:
+                meteo_array = meteo_array.rio.write_crs(images["CRS"].crs_wkt)
+                # pylint: disable=C0103
+                t = null_values_per_date.where(
+                    (null_values_per_date > 0) & (ratio_null_values_per_date < 0.1)
+                ).t
+                if len(t) > 0:
+                    interpolated_dates = meteo_array.sel(t=t).rio.interpolate_na()
+                    # pylint: disable=use-dict-literal
+                    meteo_array.loc[dict(t=t)] = interpolated_dates
+
+            dataset_meteo.append(
+                torch.Tensor(meteo_array[METEO_BANDS[meteo_type]].values).unsqueeze(0)
+            )
+        images[meteo_type] = torch.cat(dataset_meteo, 0)
+    else:  # We choose only one image and not the series
+        dates = dates_df["date_s2"]
+        images[meteo_type] = torch.Tensor(
+            xarray_ds.sel(t=pd.DatetimeIndex(dates))
+            .sortby("t")[METEO_BANDS[meteo_type]]
+            .values
+        ).unsqueeze(1)
+    return images

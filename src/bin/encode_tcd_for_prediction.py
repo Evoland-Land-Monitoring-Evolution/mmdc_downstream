@@ -73,7 +73,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--pretrained_path",
         type=str,
         help="list of available tiles",
-        default=f"{os.environ['WORK']}/results/MMDC/" "checkpoint_best",
+        default=f"{os.environ['WORK']}/results/MMDC/checkpoint_best",
     )
 
     arg_parser.add_argument(

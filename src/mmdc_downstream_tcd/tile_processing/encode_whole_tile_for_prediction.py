@@ -1,11 +1,5 @@
 import logging
 import os
-
-# from mmdc_downstream_tcd.tile_processing.utils import (
-#     create_netcdf_encoded,
-#     create_netcdf_one_date_encoded,
-#     create_netcdf_s2_one_date,
-# )
 import warnings
 from pathlib import Path
 
@@ -61,7 +55,7 @@ def encode_tile(
         if not np.all(
             [
                 Path(
-                    os.path.join(os.path.join(output_folder, f"{sat}_{enum}.pt"))
+                    os.path.join(os.path.join(output_folder, f"{sat}_{enum}_.pt"))
                 ).exists()
                 for sat in satellites_to_write
             ]
@@ -112,7 +106,7 @@ def encode_tile(
                             "y_max": xy_matrix[1, :, 0].max(),
                         },
                     },
-                    os.path.join(output_folder, f"{sat}_{enum}.pt"),
+                    os.path.join(output_folder, f"{sat}_{enum}_.pt"),
                 )
 
             del encoded_patch
