@@ -46,7 +46,6 @@ class PASTISEncodedDataset(PASTISDataset):
         crop_type: Literal["Center", "Random"] = "Random",
         transform: nn.Module | None = None,
         norm: bool = False,
-        use_logvar: bool = True,  # TODO Add choosing logvar option
     ):
         """
         Pytorch Dataset class to load samples from the PASTIS dataset, for semantic and
@@ -334,7 +333,8 @@ def pad_collate_vae(
         torch.Tensor,
         torch.Tensor,
         int,
-    ]
+    ],
+    use_logvar: bool | dict[str, bool] = True,
 ) -> BatchInputUTAE:
     batch_dict = {}
     data_masks_dict = {}
@@ -354,23 +354,32 @@ def pad_collate_vae(
         doys_dict[sat] = torch.stack(
             [pad_tensor(v[sat].to(DEVICE), max_len) for v in doys]
         )
-        # batch_dict[sat] = VAELatentSpace(
-        #     torch.stack([pad_tensor(item.mean, max_len) for item in items]),
-        #     torch.stack([pad_tensor(item.logvar, max_len) for item in items]),
-        # )
-        batch_dict[sat] = torch.concat(
-            [
-                torch.stack(
-                    [pad_tensor(item.mean, max_len).to(DEVICE) for item in items]
-                ),
-                torch.stack(
-                    [pad_tensor(item.logvar, max_len).to(DEVICE) for item in items]
-                ),
-            ],
-            dim=-3,
-        )
+
+        logvar_yes = use_logvar if type(use_logvar) is bool else use_logvar[sat]
+
+        if logvar_yes:
+            batch_dict[sat] = torch.concat(
+                [
+                    torch.stack(
+                        [pad_tensor(item.mean, max_len).to(DEVICE) for item in items]
+                    ),
+                    torch.stack(
+                        [pad_tensor(item.logvar, max_len).to(DEVICE) for item in items]
+                    ),
+                ],
+                dim=-3,
+            )
+        else:
+            batch_dict[sat] = torch.concat(
+                [
+                    torch.stack(
+                        [pad_tensor(item.mean, max_len).to(DEVICE) for item in items]
+                    ),
+                ],
+                dim=-3,
+            )
     if len(sats) == 1:
-        BatchInputUTAE(
+        return BatchInputUTAE(
             sits=batch_dict[sats[0]],
             doy=doys_dict[sats[0]],
             gt=target,
@@ -443,7 +452,6 @@ class PastisEncodedDataModule(PastisOEDataModule):
             reference_date=self.reference_date,
             crop_size=self.crop_size,
             crop_type=self.crop_type,
-            use_logvar=self.use_logvar,
             norm=self.norm,
         )
 
@@ -457,7 +465,7 @@ class PastisEncodedDataModule(PastisOEDataModule):
             batch_size=self.batch_size,
             shuffle=shuffle,
             drop_last=drop_last,
-            collate_fn=pad_collate_vae,
+            collate_fn=lambda x: pad_collate_vae(x, self.use_logvar),
         )
 
 
