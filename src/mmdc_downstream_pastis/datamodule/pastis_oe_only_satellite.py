@@ -345,22 +345,7 @@ class PASTISDataset(tdata.Dataset):
             int(file[:-3].split("_")[-1])
             for file in os.listdir(os.path.join(path, satellite))
         ]
-
-        meteo_patches = [
-            int(file[:-3].split("_")[-1])
-            for file in os.listdir(os.path.join(path, f"{satellite}_METEO"))
-        ]
-
-        dem_patches = [
-            int(file[:-3].split("_")[-1])
-            for file in os.listdir(os.path.join(path, "DEM"))
-        ]
-
-        return np.intersect1d(
-            np.intersect1d(sat_patches, meteo_patches, assume_unique=False),
-            dem_patches,
-            assume_unique=True,
-        )
+        return sat_patches
 
     # TODO adapt for three sensors
     def patches_to_keep(self) -> np.array:
