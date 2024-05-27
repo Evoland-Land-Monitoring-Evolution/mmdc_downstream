@@ -26,6 +26,10 @@ model_summary:
 rich_progress_bar:
   _target_: pytorch_lightning.callbacks.RichProgressBar
 
-scatterplot:
+scatterplot_step:
+  _target_: mmdc_downstream_lai.callbacks.scatterplot_callback.MMDCLAIScatterplotCallbackStep
+  save_dir: ${hydra:run.dir}
+
+scatterplot_epoch:
   _target_: mmdc_downstream_lai.callbacks.scatterplot_callback.MMDCLAIScatterplotCallbackEpoch
   save_dir: ${hydra:run.dir}

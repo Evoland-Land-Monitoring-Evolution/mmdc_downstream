@@ -1,0 +1,20 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=mmdc_full
+
+defaults:
+  - override /datamodule: mmdc_lai_datamodule_s1_raw_csv.yaml
+  - override /model: lai_reg_s1_flat.yaml
+  - override /callbacks: lai_reg_csv.yaml
+  - override /trainer: lai_reg_csv.yaml
+
+output_dir: ${oc.env:WORK}/results/MMDC/results/lai
+
+# all parameters bellow will be merged with parameters from default configurations set above
+# this allows you overwrite only specified parameters
+
+tags: ["lai_s1"]
+
+
+name: "lai_S1"
