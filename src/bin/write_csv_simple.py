@@ -227,7 +227,9 @@ for type, files in files_dict.items():
             log.info(f"{enum}/{len(files)}")
 
             lai_gt = compute_gt(model_snap, batch)
-            # print(lai_gt[0])
+            log.info(lai_gt[~torch.isnan(lai_gt)].min())
+            log.info(lai_gt[~torch.isnan(lai_gt)].median())
+            log.info(lai_gt[~torch.isnan(lai_gt)].max())
             # lai_gt_denorm = denormalize(
             #     lai_gt.clone(), model_snap.variable_min, model_snap.variable_max
             # )
@@ -250,12 +252,12 @@ for type, files in files_dict.items():
             # log.info(np.min(gt))
             # log.info(np.max(gt))
 
-            mask = batch.s2_m
+            mask = batch.s2_m.clone()
             H, W = mask.shape[-2:]
-
+            log.info(mask.shape)
             mask[:, :, :margin, :margin] = 1
             mask[:, :, -margin:, -margin:] = 1
-            mask = mask.reshape(-1).bool()
+            mask = rearrange(mask.bool(), "b c h w -> (b h w c)")
             nbr_pixels = (mask == 0).sum().cpu().numpy()
             # idx = np.random.choice(nbr_pixels, int(nbr_pixels * 0.1), replace=False)
             idx = np.arange(nbr_pixels)
@@ -266,18 +268,18 @@ for type, files in files_dict.items():
             s2_angles = (
                 rearrange(batch.s2_a, "b c h w -> (b h w) c")[~mask][idx].cpu().numpy()
             )
-            s1 = rearrange(
-                (
+            s1 = (
+                rearrange(
                     standardize_data(
                         batch.s1_x,
-                        shift=stats.sen1.shift.type_as(batch.s1_x),
-                        scale=stats.sen1.shift.type_as(batch.s1_x),
-                    )
+                        shift=stats.sen1.shift.to(batch.s1_x.device),
+                        scale=stats.sen1.shift.to(batch.s1_x.device),
+                    ),
+                    "b c h w -> (b h w) c",
                 )
-                .cpu()
-                .numpy(),
-                "b c h w -> (b h w) c",
-            )[~mask][idx]
+                .cpu()[~mask.cpu()][idx]
+                .numpy()
+            )
             s1_angles = (
                 rearrange(batch.s1_a, "b c h w -> (b h w) c")[~mask][idx].cpu().numpy()
             )
@@ -350,9 +352,8 @@ for type, files in files_dict.items():
                 .unsqueeze(-1)
                 .cpu()
                 .numpy()
-                .round(3)
             )
-
+            log.info(np.median(gt))
             if header is None:
                 header = np.concatenate(
                     (
