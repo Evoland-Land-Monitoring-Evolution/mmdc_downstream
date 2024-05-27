@@ -293,7 +293,7 @@ class PASTISDataset(tdata.Dataset):
                     "img": data_all.sits,
                     "mask": data_all.mask,
                     "angles": data_all.angles.nan_to_num(),
-                    "dem": dem.nan_to_num(),
+                    "dem": dem,
                 }
                 data_one_sat.update(
                     {
