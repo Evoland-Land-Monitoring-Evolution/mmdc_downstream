@@ -1,7 +1,7 @@
 _target_: mmdc_downstream_pastis.datamodule.pastis_oe_aux.PastisAuxDataModule
 
 dataset_path_pastis: ${oc.env:SCRATCH}/scratch_data/Pastis
-dataset_path_oe: ${oc.env:SCRATCH}/scratch_data/Pastis_OE
+dataset_path_oe: ${oc.env:SCRATCH}/scratch_data/Pastis_OE_corr
 
 reference_date: "2018-09-01"
 sats: [ "S2" ]

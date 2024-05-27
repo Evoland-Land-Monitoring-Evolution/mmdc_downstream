@@ -17,5 +17,5 @@ metrics_list : ["cross_entropy"]
 losses_list : ["cross_entropy"]
 
 stats_aux_path :
-  S1_ASC: ${oc.env:SCRATCH}/scratch_data/Pastis_OE/stats_S1_ASC.pt
-  S1_DESC: ${oc.env:SCRATCH}/scratch_data/Pastis_OE/stats_S1_DESC.pt
+  S1_ASC: ${oc.env:SCRATCH}/scratch_data/Pastis_OE_corr/stats_S1_ASC.pt
+  S1_DESC: ${oc.env:SCRATCH}/scratch_data/Pastis_OE_corr/stats_S1_DESC.pt

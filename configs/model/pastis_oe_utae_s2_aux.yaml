@@ -12,4 +12,4 @@ metrics_list : ["cross_entropy"]
 # To choose from ["RMSE", "MSE", "MAE"]
 losses_list : ["cross_entropy"]
 
-stats_aux_path : ${oc.env:SCRATCH}/scratch_data/Pastis_OE/stats_S2.pt
+stats_aux_path : ${oc.env:SCRATCH}/scratch_data/Pastis_OE_corr/stats_S2.pt

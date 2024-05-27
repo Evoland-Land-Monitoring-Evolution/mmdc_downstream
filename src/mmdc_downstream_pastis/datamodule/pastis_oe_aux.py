@@ -18,6 +18,11 @@ from mmdc_downstream_pastis.datamodule.pastis_oe import (
     custom_collate_classif,
 )
 
+# from mmdc_downstream_pastis.models.lightning.pastis_utae_semantic import (
+#     set_aux_stats,
+#     standardize_data,
+# )
+
 # Configure logging
 NUMERIC_LEVEL = getattr(logging, "INFO", None)
 logging.basicConfig(
@@ -34,8 +39,14 @@ def custom_collate_classif_aux(
     Collate batch items and concat aux data to the image data:
     img + ang + meteo + dem
     """
-    batch_dict, target, mask, id_patch = custom_collate_classif(batch, pad_value)
-    sats = list(batch_dict.keys())[0]
+    batch: BatchInputUTAE = custom_collate_classif(batch, pad_value)
+    batch_dict, target, mask, id_patch = (
+        batch.sits,
+        batch.gt,
+        batch.gt_mask,
+        batch.id_patch,
+    )
+    sats = list(batch_dict.keys())
     batch_dict_aux = {
         sat: v.concat_aux_data(pad_value) for sat, v in batch_dict.items()
     }
@@ -109,3 +120,69 @@ class PastisAuxDataModule(PastisOEDataModule):
                 x, pad_value=self.pad_value
             ),
         )
+
+
+#
+#
+# def build_dm(sats) -> PastisAuxDataModule:
+#     """Builds datamodule"""
+#     return PastisAuxDataModule(
+#         dataset_path_oe=dataset_path_oe,
+#         dataset_path_pastis=dataset_path_pastis,
+#         folds=PastisFolds([1, 2, 3], [4], [5]),
+#         sats=sats,
+#         task="semantic",
+#         batch_size=1,
+#     )
+#
+#
+# dataset_path_oe = "/home/kalinichevae/scratch_jeanzay/scratch_data/Pastis_OE"
+# dataset_path_pastis = "/home/kalinichevae/scratch_jeanzay/scratch_data/Pastis"
+# stats_aux_path =
+# "/home/kalinichevae/scratch_jeanzay/scratch_data/Pastis_OE/stats_S1_ASC.pt"
+#
+# def pastisds_dataloader(sats) -> None:
+#     """Use a dataloader with PASTIS dataset"""
+#     dm = build_dm(sats)
+#     dm.setup(stage="fit")
+#     dm.setup(stage="test")
+#     stats = set_aux_stats(
+#                 stats_aux_path,
+#                 device="cpu",
+#                 sat=dm.sats[0]
+#                 if type(stats_aux_path) is not dict
+#                 else None,
+#             )
+#     assert (
+#         hasattr(dm, "train_dataloader")
+#         and hasattr(dm, "val_dataloader")
+#         and hasattr(dm, "test_dataloader")
+#     )  # type: ignore[truthy-function]
+#     for loader in (dm.train_dataloader(), dm.val_dataloader(), dm.test_dataloader()):
+#         assert loader
+#         for batch, _ in zip(loader, range(4)):
+#             sits = batch.sits
+#
+#             if type(sits) is dict:
+#                 sits = {
+#                     sat: standardize_data(
+#                         sits[sat].clone(),
+#                         shift=stats[sat].shift,
+#                         scale=stats[sat].scale,
+#                         pad_index=batch.doy[sat] == dm.pad_value,
+#                         pad_value=dm.pad_value,
+#                         mask=batch.sits_mask
+#                     )
+#                     for sat in sits
+#                 }
+#             else:
+#                 sits = standardize_data(
+#                     sits.clone(),
+#                     shift=stats.shift,
+#                     scale=stats.scale,
+#                     pad_index=batch.doy == dm.pad_value,
+#                     pad_value=dm.pad_value,
+#                     mask=batch.sits_mask
+#                 )
+#
+# pastisds_dataloader(["S1_ASC"])
