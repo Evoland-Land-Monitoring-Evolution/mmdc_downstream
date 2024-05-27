@@ -99,7 +99,7 @@ class PastisCallback(Callback):
     ):
         self.save_dir = save_dir
         self.n_samples = n_samples
-        self.pastis_path = f"{os.environ['SCRATCH']}/scratch_data/Pastis_OE"
+        self.pastis_path = f"{os.environ['SCRATCH']}/scratch_data/Pastis_OE_corr"
         self.selected_months = ["2018-10", "2019-02", "2019-05", "2019-08", "2019-11"]
 
     def prepare_encoded(
@@ -108,10 +108,12 @@ class PastisCallback(Callback):
         """Prepare the patches for the S1 and S2 data"""
         nb_feat = int(data.shape[2] / 2)
         lat_mu = self.render_row(data[samp_idx, sel_index, :3, 32:-32, 32:-32])
-
-        lat_logvar = self.render_row(
-            data[samp_idx, sel_index, 3 + nb_feat :, 32:-32, 32:-32]
-        )
+        if nb_feat <= 3:
+            lat_logvar = self.render_row(data[samp_idx, sel_index, 3:, 32:-32, 32:-32])
+        else:
+            lat_logvar = self.render_row(
+                data[samp_idx, sel_index, 3 + nb_feat :, 32:-32, 32:-32]
+            )
         return lat_mu, lat_logvar
 
     def prepare_patches_grid(
@@ -270,12 +272,7 @@ class PastisCallback(Callback):
             date = dates
             latent_mu, latent_logvar = latent
 
-            if sat == "S2":
-                for im in range(len(latent_mu)):
-                    axes[row_counter][im].imshow(original_patches[im])
-                    axes[row_counter][im].set_title(f"{sat.upper()}, date={date[im]}")
-                row_counter += 1
-            else:
+            if sat == "S1":
                 for sat_ in ("S1_ASC", "S1_DESC"):
                     for im in range(len(latent_mu)):
                         axes[row_counter][im].imshow(original_patches[sat_][im])
@@ -283,6 +280,11 @@ class PastisCallback(Callback):
                             f"{sat_.upper()}, date={date[im]}"
                         )
                     row_counter += 1
+            else:
+                for im in range(len(latent_mu)):
+                    axes[row_counter][im].imshow(original_patches[im])
+                    axes[row_counter][im].set_title(f"{sat.upper()}, date={date[im]}")
+                row_counter += 1
             for im in range(len(latent_mu)):
                 axes[row_counter][im].imshow(latent_mu[im])
                 axes[row_counter][im].set_title(f"{sat.upper()}, date={date[im]}")
@@ -486,7 +488,7 @@ class PastisCallback(Callback):
             batch_size = (
                 x.shape[0] if type(x) is torch.Tensor else x[list(x.keys())[0]].shape[0]
             )
-            pred[~batch.gt_mask] = 0
+            pred[batch.gt_mask] = 0
 
             self.save_image_grid(
                 x,
