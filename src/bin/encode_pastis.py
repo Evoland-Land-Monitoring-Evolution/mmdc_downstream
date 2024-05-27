@@ -33,7 +33,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--dataset_path_oe",
         type=str,
         help="OE data folder",
-        default=f"{os.environ['SCRATCH']}/scratch_data/Pastis_OE"
+        default=f"{os.environ['SCRATCH']}/scratch_data/Pastis_OE_corr"
         # required=True
     )
 
@@ -49,7 +49,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--sats",
         type=list[str],
         help="Chosen modalities",
-        default=["S2", "S1_ASC", "S1_DESC"]
+        default=["S1_ASC"]
         # required=True
     )
 
@@ -109,8 +109,17 @@ if __name__ == "__main__":
     )
 
     output_path = os.path.join(args.output_path, args.pretrained_path.split("/")[-1])
-    Path(os.path.join(output_path, "S1")).mkdir(exist_ok=True, parents=True)
-    Path(os.path.join(output_path, "S2")).mkdir(exist_ok=True, parents=True)
+    if "S1_ASC" in args.sats and "S1_DESC" in args.sats:
+        Path(os.path.join(output_path, "S1")).mkdir(exist_ok=True, parents=True)
+    else:
+        if "S1_ASC" in args.sats:
+            Path(os.path.join(output_path, "S1_ASC")).mkdir(exist_ok=True, parents=True)
+        elif "S1_DESC" in args.sats:
+            Path(os.path.join(output_path, "S1_DESC")).mkdir(
+                exist_ok=True, parents=True
+            )
+    if "S2" in args.sats:
+        Path(os.path.join(output_path, "S2")).mkdir(exist_ok=True, parents=True)
 
     encode_series(
         mmdc_model,
