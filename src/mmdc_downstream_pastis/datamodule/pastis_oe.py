@@ -447,7 +447,10 @@ def pad_and_stack(
     key: str, to_collate: list, pad_value: int = 0, max_size: int = -1
 ) -> torch.Tensor:
     return torch.stack(
-        [pad_tensor(getattr(c, key), max_size, pad_value) for c in to_collate]
+        [
+            pad_tensor(getattr(c, key).to(torch.float32), max_size, pad_value)
+            for c in to_collate
+        ]
     )
 
 
@@ -671,7 +674,7 @@ class PastisOEDataModule(LightningDataModule):
 #     )  # type: ignore[truthy-function]
 #     for loader in (dm.train_dataloader(), dm.val_dataloader(), dm.test_dataloader()):
 #         assert loader
-#         for (batch_dict, target, mask, id_patch), _ in zip(loader, range(4)):
+#         for batch, _ in zip(loader, range(4)):
 #             assert list(batch_dict.keys()) == sats
 #             for sat in sats:
 #                 b_s_x, t_s_x, nb_b, p_s_x, _ = batch_dict[sat].sits.data.img.shape
