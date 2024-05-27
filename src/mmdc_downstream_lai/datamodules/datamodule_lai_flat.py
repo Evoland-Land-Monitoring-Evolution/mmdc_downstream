@@ -65,7 +65,7 @@ class LAIDataModule(LightningDataModule):
         self,
         path_data: DataPath,
         selected_data: str = "s2_lat",
-        batch_size: BatchSize = BatchSize(4096, 4096 * 400, 4096 * 400),
+        batch_size: BatchSize = BatchSize(4096, 4096 * 100, 4096 * 100),
         use_logvar: bool = True,
         norm: bool = False,
     ):
