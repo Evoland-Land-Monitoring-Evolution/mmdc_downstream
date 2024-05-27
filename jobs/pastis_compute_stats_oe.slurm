@@ -22,4 +22,4 @@ export WORKING_DIR=$WORK/results/MMDC/jobs
 cd ${WORKING_DIR}
 source ${MMDC_INIT}
 
-HYDRA_FULL_ERROR=1 python   ${SRCDIR}/src/mmdc_downstream_pastis/encode_series/compute_stats.py  >> output_$SLURM_JOBID.log
+HYDRA_FULL_ERROR=1 python   ${SRCDIR}/src/mmdc_downstream_pastis/encode_series/compute_stats_img_only.py  >> output_$SLURM_JOBID.log
