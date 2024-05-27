@@ -31,7 +31,7 @@ class MMDCPartialBatch:
         return MMDCPartialBatch(
             img=batch_sat.sits.data.img,
             angles=batch_sat.sits.data.angles,
-            mask=batch_sat.sits.data.mask,
+            mask=batch_sat.sits.data.mask.to(torch.int8),
             meteo=batch_sat.sits.meteo,
             dem=batch_sat.sits.dem,
             type="S2" if satellite == "S2" else "S1",
