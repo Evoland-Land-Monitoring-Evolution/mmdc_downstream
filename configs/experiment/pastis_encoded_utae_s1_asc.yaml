@@ -4,7 +4,7 @@
 # python train.py experiment=pastis_encoded
 
 defaults:
-  - override /datamodule: pastis_datamodule_encoded_s1.yaml
+  - override /datamodule: pastis_datamodule_encoded_s1_asc.yaml
   - override /model: pastis_encoded_utae_s1.yaml
   - override /callbacks: pastis.yaml
   - override /trainer: default.yaml
@@ -15,6 +15,6 @@ output_dir: ${oc.env:WORK}/results/MMDC/results/pastis
 # all parameters bellow will be merged with parameters from default configurations set above
 # this allows you overwrite only specified parameters
 
-tags: ["pastis_encoded_s1_utae"]
+tags: ["pastis_encoded_s1_asc_utae"]
 
-name: "pastis_encoded_s1_utae"
+name: "pastis_encoded_s1_asc_utae"

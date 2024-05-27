@@ -1,12 +1,12 @@
 
 _target_: mmdc_downstream_pastis.models.lightning.pastis_utae_semantic.PastisUTAE
 lr: 0.001
-resume_from_checkpoint: null #/work/scratch/data/kalinie/MMDC/results/pastis/checkpoints/pastis_utae/2024-02-20_16-30-23/epoch_098.ckpt
+resume_from_checkpoint: ${oc.env:WORK}/results/MMDC/results/pastis/checkpoints/pastis_encoded_concat_utae/2024-05-24_12-51-34/last.ckpt
 
 model:
   _target_: mmdc_downstream_pastis.models.torch.utae_fusion.UTAEFusion
   input_dim:
-    S1: 12
+    S1: 6
     S2: 12
   fusion: concat
 

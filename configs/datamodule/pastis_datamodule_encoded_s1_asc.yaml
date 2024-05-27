@@ -4,7 +4,7 @@ dataset_path_oe: ${oc.env:WORK}/results/Pastis_encoded/checkpoint_best
 dataset_path_pastis: ${oc.env:SCRATCH}/scratch_data/Pastis
 
 reference_date: "2018-09-01"
-sats: [ "S1" ]
+sats: [ "S1_ASC" ]
 task: "semantic"
 
 folds:
