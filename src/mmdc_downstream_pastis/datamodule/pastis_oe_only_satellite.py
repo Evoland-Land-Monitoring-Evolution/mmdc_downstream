@@ -6,7 +6,6 @@ Original License MIT
 """
 
 import collections.abc
-import json
 import logging
 import os
 import re
@@ -22,6 +21,7 @@ import pandas as pd
 import torch
 import torch.utils.data as tdata
 from pytorch_lightning import LightningDataModule
+from torch import nn
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
 
@@ -269,6 +269,13 @@ class PastisFolds:
     test: list[int] | None = None
 
 
+# def replace_s1(data, sat):
+#     if "1" in sat:
+#         data[torch.isnan(data[:, 2].unsqueeze(1).expand_as(data))] = torch.nan
+#         data[data == -4] = torch.nan
+#     return data
+
+
 class PASTISDataset(tdata.Dataset):
     """Pytorch Dataset class to load samples from the PASTIS dataset, for semantic and
        panoptic segmentation.
@@ -309,34 +316,15 @@ class PASTISDataset(tdata.Dataset):
         # Get normalisation values
         assert self.options.task.sats is not None
         self.norm: dict[str, tuple[torch.Tensor, torch.Tensor]] | None = None
+        scale_regul = nn.Threshold(1e-10, 1.0)
         if self.options.norm:
             self.norm = {}
             for sat in self.options.task.sats:
-                if sat != "S2_MSK":
-                    if sat == "S2":
-                        s_name = "S2"
-                    elif sat == "S1_ASC":
-                        s_name = "S1A"
-                    elif sat == "S1_DESC":
-                        s_name = "S1D"
+                norm = torch.load(
+                    os.path.join(self.options.folder_oe, f"stats_{sat}_img.pt")
+                )
+                self.norm[sat] = [norm[1], scale_regul((norm[2] - norm[0]) / 2)]
 
-                    with open(
-                        os.path.join(self.options.folder, f"NORM_{s_name}_patch.json"),
-                        encoding="utf-8",
-                    ) as file:
-                        normvals = json.loads(file.read())
-                    selected_folds = (
-                        self.options.folds
-                        if self.options.folds is not None
-                        else range(1, 6)
-                    )
-                    means = [normvals[f"Fold_{f}"]["mean"] for f in selected_folds]
-                    stds = [normvals[f"Fold_{f}"]["std"] for f in selected_folds]
-                    tmp_norm = np.stack(means).mean(axis=0), np.stack(stds).mean(axis=0)
-                    self.norm[sat] = (
-                        torch.from_numpy(tmp_norm[0]).float(),
-                        torch.from_numpy(tmp_norm[1]).float(),
-                    )
         logger.info("Dataset ready.")
 
     def get_one_satellite_patches(self, satellite):
@@ -673,6 +661,7 @@ class PastisDataModule(LightningDataModule):
         folds: PastisFolds,
         task: PASTISTask,
         batch_size: int = 2,
+        norm: bool = True,
     ):
         super().__init__()
 
@@ -686,6 +675,8 @@ class PastisDataModule(LightningDataModule):
         self.batch_size = batch_size
         self.task = task
         self.data: PastisDataSets | None = None
+
+        self.norm = norm
 
     def setup(self, stage: str | None = None) -> None:
         """Load data. Set variables:
@@ -706,6 +697,7 @@ class PastisDataModule(LightningDataModule):
                         folds=self.folds.train,
                         folder=self.dataset_path_pastis,
                         folder_oe=self.dataset_path_oe,
+                        norm=self.norm,
                     )
                 ),
                 PASTISDataset(
@@ -714,6 +706,7 @@ class PastisDataModule(LightningDataModule):
                         folds=self.folds.val,
                         folder=self.dataset_path_pastis,
                         folder_oe=self.dataset_path_oe,
+                        norm=self.norm,
                     )
                 ),
             )
@@ -729,6 +722,7 @@ class PastisDataModule(LightningDataModule):
                         folds=self.folds.test,
                         folder=self.dataset_path_pastis,
                         folder_oe=self.dataset_path_oe,
+                        norm=self.norm,
                     )
                 ),
             )
@@ -783,7 +777,7 @@ class PastisDataModule(LightningDataModule):
 #
 #
 # DATA_FOLDER = "/home/kalinichevae/scratch_jeanzay/scratch_data/Pastis"
-# DATA_FOLDER_OE = "/home/kalinichevae/scratch_jeanzay/scratch_data/Pastis_OE"
+# DATA_FOLDER_OE = "/home/kalinichevae/scratch_jeanzay/scratch_data/Pastis_OE_corr"
 #
 #
 # def pastisds_dataloader(sats) -> None:
