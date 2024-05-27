@@ -54,7 +54,7 @@ class MMDCLAIScatterplotCallbackEpoch(Callback):
         epoch: int,
         lai_min: torch.Tensor,
         lai_max: torch.Tensor,
-        batch_idx: int | None,
+        batch_idx: int | None = None,
     ) -> None:
         """Save the PNG image of the scatterplots of prediction vs gt"""
         preds, gt, rmse = self.prepare_data(
@@ -84,8 +84,8 @@ class MMDCLAIScatterplotCallbackEpoch(Callback):
         lai_max: torch.Tensor,
     ) -> tuple[np.ndarray, np.ndarray, float]:
         idx = np.random.choice(len(preds), int(len(preds) * 0.05), replace=False)
-        preds = denormalize(preds, lai_min, lai_max)
-        gt = denormalize(gt, lai_min, lai_max)
+        preds = denormalize(preds, lai_min, lai_max).cpu().detach()
+        gt = denormalize(gt, lai_min, lai_max).cpu()
         rmse = np.round(self.loss_fn(preds, gt).item(), 2)
 
         logging.info("pred max " + str(preds.max()))
