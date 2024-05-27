@@ -104,6 +104,7 @@ class CatBoostTCD:
 
         for tt in range(len(pred_coords)):
             tile = torch.load(os.path.join(path_image_tiles, tile_names[tt]))
+            log.info(f"Encoding tile {tile}")
             img = rearrange_ts(tile["img"])
             c, h, w = img.shape
             if self.sat == "s1":
@@ -248,7 +249,10 @@ class CatBoostTCD:
                 months_feat_ind.append(feat_ind)
             else:
                 data_cols_month = [
-                    c for day in days for c in data.columns if c.endswith(f"_{day}")
+                    c
+                    for day in days
+                    for c in data.columns
+                    if (c.endswith(f"_d{day}") or c.endswith(f"_{day}"))
                 ]
                 for value in bands:
                     data_cols_feat = [c for c in data_cols_month if value in c]
