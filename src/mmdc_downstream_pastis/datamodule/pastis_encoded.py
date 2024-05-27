@@ -304,7 +304,7 @@ class PASTISEncodedDataset(PASTISDataset):
             }
 
         target[target == 19] = 0  # merge background and void class
-        mask = (target != 0) & (target != 19)
+        mask = (target == 0) | (target == 19)
 
         return data, data_masks, dates, target, mask, id_patch
 
