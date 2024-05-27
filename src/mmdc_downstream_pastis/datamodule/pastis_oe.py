@@ -375,7 +375,7 @@ class PASTISDataset(tdata.Dataset):
                 for sat in self.sats
             }
         target[target == 19] = 0  # merge background and void class
-        mask = (target != 0) & (target != 19)
+        mask = (target == 0) | (target == 19)
 
         return output, target, mask, id_patch
 
