@@ -22,11 +22,15 @@ logging.getLogger(__name__).setLevel(logging.INFO)
 
 class MMDCPastisBaseLitModule(LightningModule):  # pylint: disable=too-many-ancestors
     """
-    Base Lightning Module for the MMDC Single Date networks
+    Base Lightning Module for the Pastis Semantic Segmentation
     """
 
     def __init__(
-        self, model: UTAE, lr: float = 0.001, resume_from_checkpoint: str | None = None
+        self,
+        model: UTAE,
+        lr: float = 0.001,
+        lr_type: str = "constant",
+        resume_from_checkpoint: str | None = None,
     ):
         super().__init__()
 
@@ -42,15 +46,33 @@ class MMDCPastisBaseLitModule(LightningModule):  # pylint: disable=too-many-ance
 
         self.learning_rate = lr
 
-        self.iou_meter = {
-            stage: IoU(
-                num_classes=model.num_classes,
-                ignore_index=0,
-                cm_device="cuda",
-            )
-            for stage in ("train", "val", "test")
-        }
-        logging.info(self.iou_meter)
+        self.lr_type = lr_type
+
+        # self.iou_meter = {
+        #     stage: IoU(
+        #         num_classes=model.num_classes,
+        #         ignore_index=0,
+        #         cm_device="cuda",
+        #     )
+        #     for stage in ("train", "val", "test")
+        # }
+        # logging.info(self.iou_meter)
+
+        self.iou_meter_train = IoU(
+            num_classes=model.num_classes,
+            ignore_index=[0, 19],
+            cm_device="cuda",
+        )
+        self.iou_meter_val = IoU(
+            num_classes=model.num_classes,
+            ignore_index=[0, 19],
+            cm_device="cuda",
+        )
+        self.iou_meter_test = IoU(
+            num_classes=model.num_classes,
+            ignore_index=[0, 19],
+            cm_device="cuda",
+        )
 
     @abstractmethod
     def step(self, batch: Any) -> Any:
@@ -119,14 +141,12 @@ class MMDCPastisBaseLitModule(LightningModule):  # pylint: disable=too-many-ance
     def on_train_epoch_start(self) -> None:
         """On train epoch start"""
         # Otherwise reset does not work
-        meter = self.iou_meter["train"]
-        meter.reset()
-        self.iou_meter.update({"train": meter})
+        self.iou_meter_train.reset()
 
     def on_train_epoch_end(self) -> None:
         """On train epoch end"""
         logging.info("Ended traning epoch %s", self.trainer.current_epoch)
-        miou, acc = self.iou_meter["train"].get_miou_acc()
+        miou, acc = self.iou_meter_train.get_miou_acc()
         self.log(
             "train/mIoU",
             miou,
@@ -144,15 +164,12 @@ class MMDCPastisBaseLitModule(LightningModule):  # pylint: disable=too-many-ance
 
     def on_validation_epoch_start(self) -> None:
         """On validation epoch start"""
-        # Otherwise reset does not work
-        meter = self.iou_meter["val"]
-        meter.reset()
-        self.iou_meter.update({"val": meter})
+        self.iou_meter_val.reset()
 
     def on_validation_epoch_end(self) -> None:
         """On validation epoch end"""
         logging.info("Ended validation epoch %s", self.trainer.current_epoch)
-        miou, acc = self.iou_meter["val"].get_miou_acc()
+        miou, acc = self.iou_meter_val.get_miou_acc()
         self.log(
             "val/mIoU",
             miou,
@@ -170,7 +187,7 @@ class MMDCPastisBaseLitModule(LightningModule):  # pylint: disable=too-many-ance
 
     def on_test_epoch_end(self) -> None:
         """Callback after a test epoch"""
-        miou, acc = self.iou_meter["test"].get_miou_acc()
+        miou, acc = self.iou_meter_test.get_miou_acc()
         self.log(
             "test/mIoU",
             miou,
@@ -198,19 +215,28 @@ class MMDCPastisBaseLitModule(LightningModule):  # pylint: disable=too-many-ance
     def configure_optimizers(self) -> dict[str, Any]:
         """A single optimizer with a LR scheduler"""
         optimizer = torch.optim.Adam(
-            params=self.model.parameters(), lr=self.learning_rate
+            params=self.model.parameters(), lr=self.learning_rate  # , weight_decay=0.01
         )
+        if self.lr_type == "cosine":
+            training_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+                optimizer, T_0=4, T_mult=2, eta_min=0, last_epoch=-1
+            )
+            # training_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            #     optimizer, mode="min", factor=0.9, patience=200, threshold=0.01
+            # )
 
-        # training_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-        #     optimizer, T_0=4, T_mult=2, eta_min=0, last_epoch=-1
-        # )
-        # scheduler = {
-        #     "scheduler": training_scheduler,
-        #     "interval": "epoch",
-        #     "monitor": "val/loss",
-        #     "frequency": 1,
-        # }
+            scheduler = {
+                "scheduler": training_scheduler,
+                "interval": "step",
+                "monitor": f"val/{self.losses_list[0]}",
+                "frequency": 1,
+                "strict": False,
+            }
+            return {
+                "optimizer": optimizer,
+                "lr_scheduler": scheduler,
+            }
+        # constant
         return {
             "optimizer": optimizer,
-            # "lr_scheduler": scheduler,
         }
