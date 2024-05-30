@@ -136,8 +136,8 @@ def match_asc_desc(
             days_s1 = days_asc
             desc_ind = []
         else:
-            desc_ind = np.arange(len(days_asc))
-            days_s1 = days_asc
+            desc_ind = np.arange(len(days_desc))
+            days_s1 = days_desc
             asc_ind = []
 
     return asc_ind, desc_ind, days_s1
@@ -153,6 +153,8 @@ def create_full_s1(
     Match S1 asc and desc dates and fill MMDC S1 batch according to available data
     """
     bs, t, ch, h, w = batch_asc.img.shape
+    if h == w == 0:
+        bs, t, ch, h, w = batch_desc.img.shape
     if bs == 1:
         days_asc, days_desc = days_asc[0], days_desc[0]
         asc_ind, desc_ind, days_s1 = match_asc_desc(days_asc, days_desc)
