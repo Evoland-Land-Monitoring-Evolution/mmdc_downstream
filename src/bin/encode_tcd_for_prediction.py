@@ -11,7 +11,7 @@ from pathlib import Path
 
 from mmdc_downstream_pastis.mmdc_model.model import PretrainedMMDCPastis
 from mmdc_downstream_tcd.tile_processing.encode_whole_tile_for_prediction import (
-    encode_tile,
+    encode_tile_for_pred,
 )
 
 my_logger = logging.getLogger(__name__)
@@ -72,8 +72,10 @@ def get_parser() -> argparse.ArgumentParser:
     arg_parser.add_argument(
         "--pretrained_path",
         type=str,
-        help="list of available tiles",
+        help="pretrained model path",
         default=f"{os.environ['WORK']}/results/MMDC/checkpoint_best",
+        # default=f"{os.environ['WORK']}/results/MMDC/results/latent/
+        # checkpoints/mmdc_full_tiny/2024-04-05_14-58-22",
     )
 
     arg_parser.add_argument(
@@ -89,6 +91,27 @@ def get_parser() -> argparse.ArgumentParser:
         type=str,
         help="Type of the model (baseline or experts)",
         default="baseline"
+        # required=False,
+    )
+    arg_parser.add_argument(
+        "--satellites",
+        type=int,
+        help="satellites to prepare",
+        default=["s1_desc"]
+        # required=False,
+    )
+    arg_parser.add_argument(
+        "--prepared_data_path",
+        type=str,
+        help="Path to prepared data",
+        default=f"{os.environ['SCRATCH']}/results/TCD/t32tnt/prepared_tiles_w_768_m_40"
+        # required=False,
+    )
+    arg_parser.add_argument(
+        "--s1_join",
+        type=bool,
+        help="whether we encode asc and desc orbits together",
+        default=False
         # required=False,
     )
 
@@ -118,14 +141,16 @@ if __name__ == "__main__":
     output_path = os.path.join(
         args.output_path, "res_" + args.pretrained_path.split("/")[-1]
     )
+
     Path(output_path).mkdir(parents=True, exist_ok=True)
 
-    encode_tile(
+    encode_tile_for_pred(
         args.folder_data,
         args.months_folders,
+        args.prepared_data_path,
         args.window,
         output_path,
         mmdc_model,
-        gt_file=None,
-        s1_join=True,
+        satellites=args.satellites,
+        s1_join=args.s1_join,
     )

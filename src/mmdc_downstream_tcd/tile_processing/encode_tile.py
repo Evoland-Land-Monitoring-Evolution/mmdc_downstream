@@ -24,7 +24,6 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 log = logging.getLogger(__name__)
 
-satellites = ["s2", "s1_asc", "s1_desc"]
 meteo_modalities = METEO_BANDS.keys()
 
 
@@ -36,6 +35,7 @@ def encode_tile(
     output_folder: str | Path,
     mmdc_model: PretrainedMMDCPastis,
     gt_file: str | Path = None,
+    satellites: list[str] = ["s2", "s1_asc", "s1_desc"],
     s1_join: bool = True,
 ):
     """
@@ -72,7 +72,13 @@ def encode_tile(
         tcd_values = get_tcd_gt(gt_file)
 
     # Whether we produce separate embeddings for s1_asc and s1_desc or not
-    satellites_to_write = ["s2", "s1"] if s1_join else satellites
+    # Whether we produce separate embeddings for s1_asc and s1_desc or not
+    if s1_join and "s1_asc" in satellites and "s1_desc" in satellites:
+        satellites_to_write = ["s1"]
+        if "s2" in satellites:
+            satellites_to_write += ["s2"]
+    else:
+        satellites_to_write = satellites
 
     sliced_gt = {}
     # for enum, sliced in enumerate(slices_list[::-1]):
@@ -84,12 +90,14 @@ def encode_tile(
         if Path(dates_path).exists():
             dates_meteo[sat] = torch.load(dates_path)
 
+        Path(os.path.join(output_folder, sat)).mkdir(exist_ok=True, parents=True)
+
     for enum, sliced in enumerate(slices_list):
         if not np.all(
             [
                 Path(
                     os.path.join(
-                        output_folder, f"gt_tcd_t32tnt_encoded_{sat}_{enum}_.csv"
+                        output_folder, sat, f"gt_tcd_t32tnt_encoded_{sat}_{enum}_.csv"
                     )
                 ).exists()
                 for sat in satellites_to_write
@@ -133,8 +141,14 @@ def encode_tile(
                     }
 
                 encoded_patch = get_encoded_patch(
-                    data, mmdc_model, xy_matrix, dates_meteo, s1_join, margin
+                    data, mmdc_model, dates_meteo, satellites, s1_join, margin
                 )
+                encoded_patch["matrix"] = {
+                    "x_min": xy_matrix[0, 0].min(),
+                    "x_max": xy_matrix[0, 0].max(),
+                    "y_min": xy_matrix[1, :, 0].min(),
+                    "y_max": xy_matrix[1, :, 0].max(),
+                }
 
                 if ind.size > 0 and tcd_values_sliced is not None:
                     for sat in satellites_to_write:
@@ -148,15 +162,18 @@ def encode_tile(
                         df_gt.to_csv(
                             os.path.join(
                                 output_folder,
-                                f"gt_tcd_t32tnt_encoded_{sat}_{enum}_.csv",
+                                sat,
+                                f"gt_tcd_t32tnt_encoded_{sat}_{enum}.csv",
                             )
                         )
                         if not Path(
-                            os.path.join(output_folder, f"gt_tcd_t32tnt_days_{sat}.npy")
+                            os.path.join(
+                                output_folder, sat, f"gt_tcd_t32tnt_days_{sat}.npy"
+                            )
                         ).exists():
                             np.save(
                                 os.path.join(
-                                    output_folder, f"gt_tcd_t32tnt_days_{sat}.npy"
+                                    output_folder, sat, f"gt_tcd_t32tnt_days_{sat}.npy"
                                 ),
                                 days,
                             )

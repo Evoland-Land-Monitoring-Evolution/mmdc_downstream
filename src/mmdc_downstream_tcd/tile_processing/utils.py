@@ -23,7 +23,10 @@ from mmdc_downstream_pastis.datamodule.datatypes import (
     MMDCDataStruct,
     PastisBatch,
 )
-from mmdc_downstream_pastis.encode_series.encode import encode_one_batch
+from mmdc_downstream_pastis.encode_series.encode import (
+    encode_one_batch_s1,
+    encode_one_batch_s2,
+)
 from mmdc_downstream_pastis.mmdc_model.model import PretrainedMMDCPastis
 
 log = logging.getLogger(__name__)
@@ -425,6 +428,9 @@ def get_s1(
     data[sat]["img"] = apply_log_to_s1(images[sat]).unsqueeze(0)
     data[sat]["mask"] = images[f"{sat}_valmask"].unsqueeze(0).unsqueeze(-3)
     data[sat]["angles"] = images[f"{sat}_angles"].unsqueeze(0).unsqueeze(-3)
+    if "CRS" not in images:
+        images["CRS"] = sliced_modality.crs
+
     return images, data, dates
 
 
@@ -523,11 +529,11 @@ def prepare_patch(
 def get_encoded_patch(
     data: dict[str, [str, torch.Tensor]],
     mmdc_model: PretrainedMMDCPastis,
-    xy_matrix: np.ndarray,
     dates_meteo: np.array,
+    satellites: list[str],
     s1_join: bool = True,
     margin: int = 40,
-) -> dict[str, torch.Tensor]:
+) -> dict[str, Any]:
     encoded_patch = {}
 
     batch_dict = {}
@@ -553,49 +559,54 @@ def get_encoded_patch(
 
     del data, tcd_batch
 
-    (
-        latents1,
-        latents1_asc,
-        latents1_desc,
-        latents2,
-        mask_s1,
-        days_s1,
-    ) = encode_one_batch(mmdc_model, batch_dict)
-    encoded_patch["matrix"] = xy_matrix
-    encoded_patch["s2_lat_mu"] = latents2.mean[0, :, :, margin:-margin, margin:-margin]
-    encoded_patch["s2_lat_logvar"] = latents2.logvar[
-        0, :, :, margin:-margin, margin:-margin
-    ]
+    if "s1_asc" in satellites or "s1_desc" in satellites:
+        (
+            latents1,
+            latents1_asc,
+            latents1_desc,
+            mask_s1,
+            days_s1,
+        ) = encode_one_batch_s1(mmdc_model, batch_dict)
+        if s1_join:
+            encoded_patch["s1_lat_mu"] = latents1.mean[
+                0, :, :, margin:-margin, margin:-margin
+            ]
+            encoded_patch["s1_lat_logvar"] = latents1.logvar[
+                0, :, :, margin:-margin, margin:-margin
+            ]
+            encoded_patch["s1_mask"] = mask_s1[0, :, :, margin:-margin, margin:-margin]
+            encoded_patch["s1_doy"] = days_s1
+        else:
+            encoded_patch["s1_asc_lat_mu"] = latents1_asc.mean[
+                0, :, :, margin:-margin, margin:-margin
+            ]
+            encoded_patch["s1_asc_lat_logvar"] = latents1_asc.logvar[
+                0, :, :, margin:-margin, margin:-margin
+            ]
+            encoded_patch["s1_desc_lat_mu"] = latents1_desc.mean[
+                0, :, :, margin:-margin, margin:-margin
+            ]
+            encoded_patch["s1_desc_lat_logvar"] = latents1_desc.logvar[
+                0, :, :, margin:-margin, margin:-margin
+            ]
 
-    if s1_join:
-        encoded_patch["s1_lat_mu"] = latents1.mean[
+        del (
+            latents1,
+            latents1_asc,
+            latents1_desc,
+        )
+
+    if "s2" in satellites:
+        latents2 = encode_one_batch_s2(mmdc_model, batch_dict)
+
+        encoded_patch["s2_lat_mu"] = latents2.mean[
             0, :, :, margin:-margin, margin:-margin
         ]
-        encoded_patch["s1_lat_logvar"] = latents1.logvar[
+        encoded_patch["s2_lat_logvar"] = latents2.logvar[
             0, :, :, margin:-margin, margin:-margin
         ]
-        encoded_patch["s1_mask"] = mask_s1[0, :, :, margin:-margin, margin:-margin]
-        encoded_patch["s1_doy"] = days_s1
-    else:
-        encoded_patch["s1_asc_lat_mu"] = latents1_asc.mean[
-            0, :, :, margin:-margin, margin:-margin
-        ]
-        encoded_patch["s1_asc_lat_logvar"] = latents1_asc.logvar[
-            0, :, :, margin:-margin, margin:-margin
-        ]
-        encoded_patch["s1_desc_lat_mu"] = latents1_desc.mean[
-            0, :, :, margin:-margin, margin:-margin
-        ]
-        encoded_patch["s1_desc_lat_logvar"] = latents1_desc.logvar[
-            0, :, :, margin:-margin, margin:-margin
-        ]
-    del (
-        latents1,
-        latents1_asc,
-        latents1_desc,
-        latents2,
-        batch_dict,
-    )
+        del latents2
+    del batch_dict
     return encoded_patch
 
 

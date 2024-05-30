@@ -81,6 +81,8 @@ def get_parser() -> argparse.ArgumentParser:
         type=str,
         help="list of available tiles",
         default=f"{os.environ['WORK']}/results/MMDC/checkpoint_best",
+        # default=f"{os.environ['WORK']}/results/MMDC/results/
+        # latent/checkpoints/mmdc_full_tiny/2024-04-05_14-58-22",
     )
 
     arg_parser.add_argument(
@@ -104,6 +106,22 @@ def get_parser() -> argparse.ArgumentParser:
         type=str,
         help="Path to prepared data",
         default=f"{os.environ['SCRATCH']}/results/TCD/t32tnt/prepared_tiles_w_768_m_40"
+        # required=False,
+    )
+
+    arg_parser.add_argument(
+        "--satellites",
+        type=int,
+        help="modalities to encode",
+        default=["s1_desc"]
+        # required=False,
+    )
+
+    arg_parser.add_argument(
+        "--s1_join",
+        type=bool,
+        help="whether we encode asc and desc orbits together",
+        default=False
         # required=False,
     )
 
@@ -133,17 +151,20 @@ if __name__ == "__main__":
     output_path = Path(
         os.path.join(args.output_path, "res_" + args.pretrained_path.split("/")[-1])
     )
-    prepared_data_path = Path(os.path.join(args.output_path, args.prepared_data_path))
 
     Path(output_path).mkdir(parents=True, exist_ok=True)
+
+    if not ("s1_asc" in args.satellites and "s1_desc" in args.satellites):
+        args.s1_join = False
 
     encode_tile(
         args.folder_data,
         args.months_folders,
-        prepared_data_path,
+        args.prepared_data_path,
         args.window,
         output_path,
         mmdc_model,
         args.gt_path,
-        s1_join=True,
+        args.satellites,
+        args.s1_join,
     )
