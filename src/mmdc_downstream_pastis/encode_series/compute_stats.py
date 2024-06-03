@@ -29,7 +29,7 @@ def build_dm(
         folds=None,
         sats=sats,
         task="semantic",
-        batch_size=15,
+        batch_size=1,
         crop_size=crop_size,
         pad_value=pad_value,
     )
@@ -43,6 +43,7 @@ def get_quantile(
         return data[torch.randperm(16_000_000)].quantile(
             torch.tensor(quant, dtype=torch.float), dim=0
         )
+    return data.quantile(torch.tensor(quant, dtype=torch.float), dim=0)
 
 
 def compute_stats(
@@ -112,7 +113,7 @@ def compute_stats(
 
         sat_stats["meteo"] = get_quantile(meteo_stats)
 
-        if dem_min_med_max in None:
+        if dem_min_med_max is None:
             dem_min_med_max = get_quantile(dem_stats)
 
         sat_stats["dem"] = dem_min_med_max
@@ -123,10 +124,10 @@ def compute_stats(
 # dataset_path_oe = "/home/kalinichevae/scratch_jeanzay/scratch_data/Pastis_OE"
 # dataset_path_pastis = "/home/kalinichevae/scratch_jeanzay/scratch_data/Pastis"
 
-dataset_path_oe = f"{os.environ['SCRATCH']}/scratch_data/Pastis_OE"
+dataset_path_oe = f"{os.environ['SCRATCH']}/scratch_data/Pastis_OE_corr"
 dataset_path_pastis = f"{os.environ['SCRATCH']}/scratch_data/Pastis"
 
 
-sats = ["S2", "S1_ASC", "S1_DESC"]
+sats = ["S1_DESC", "S1_ASC", "S2"]
 
 compute_stats(dataset_path_oe, dataset_path_pastis, sats)
