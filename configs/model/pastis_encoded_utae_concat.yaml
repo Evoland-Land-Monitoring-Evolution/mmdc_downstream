@@ -7,7 +7,7 @@ model:
   _target_: mmdc_downstream_pastis.models.torch.utae_fusion.UTAEFusion
   input_dim:
     S1: 6
-    S2: 12
+    S2: 6
   fusion: concat
 
 metrics_list : ["cross_entropy"]
