@@ -34,16 +34,19 @@ def encode_tile_alise(
     """
     Encode a tile with MMDC algorithm with a sliding window
     """
-
+    sess_opt = onnxruntime.SessionOptions()
+    sess_opt.intra_op_num_threads = 16
     transform = load_transform_one_mod(path_csv, mod="s2").transform
     ort_session = onnxruntime.InferenceSession(
-        path_alise_model, providers=["GPUExecutionProvider"]
+        path_alise_model,
+        sess_opt,
+        providers=["CUDAExecutionProvider"],
     )
 
     margin = int(re.search(r"m_([0-9]*)", str(folder_prepared_data)).group(1))
     window = int(re.search(r"w_([0-9]*)", str(folder_prepared_data)).group(1))
-    log.info(f"Margin= {margin}")
-    log.info(f"Window= {window}")
+    log.info(f"Margin={margin}")
+    log.info(f"Window={window}")
 
     s2_dates_final = np.load(
         os.path.join(folder_prepared_data, "s2", "gt_tcd_t32tnt_days_s2.npy")
@@ -70,6 +73,7 @@ def encode_tile_alise(
         for f in os.listdir(os.path.join(folder_prepared_data, satellites[0]))
         if f.startswith(f"{satellites[0]}_tile_") and f.endswith(".pt")
     ]
+    # for enum in range(len(available_tiles))[::-1]:
 
     for enum in range(len(available_tiles)):
         if not np.all(
@@ -82,6 +86,7 @@ def encode_tile_alise(
                 for sat in satellites
             ]
         ):
+            log.info(f"Processing patch {enum}")
             data_files = {
                 sat: torch.load(
                     os.path.join(folder_prepared_data, sat, f"{sat}_tile_{enum}.pt")
@@ -132,6 +137,7 @@ def encode_tile_alise(
             for x1 in range(0, window, small_patch_size):
                 for y1 in range(0, window, small_patch_size):
                     log.info(f"Patch {x1}:{x2}, {y1}:{y2}")
+
                     input = {
                         "sits": s2_ref_norm.numpy()[:, :, :, x1:x2, y1:y2],
                         "tpe": doy[None, :].numpy(),
@@ -139,12 +145,10 @@ def encode_tile_alise(
                         .bool()
                         .numpy(),
                     }
-
                     ort_out = ort_session.run(None, input)[0]  # (1, 10, 64, 64, 64)
 
-                    encoded_patch["s2_lat_mu"][:, :, x1:x2, y1:y2] = torch.tensor(
-                        ort_out[0]
-                    )
+                    encoded_patch["s2_lat_mu"][:, :, x1:x2, y1:y2] = ort_out[0]
+
                     y2 += small_patch_size
                 y2 = small_patch_size
                 x2 += small_patch_size
@@ -154,7 +158,7 @@ def encode_tile_alise(
                 :, :, margin:-margin, margin:-margin
             ]
 
-            days = s2_dates_final
+            encoded_patch["s2_doy"] = np.arange(encoded_patch["s2_lat_mu"].shape[0])
 
             torch.save(
                 {
