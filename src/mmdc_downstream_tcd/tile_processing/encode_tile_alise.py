@@ -41,7 +41,9 @@ def encode_tile_alise(
     )
 
     margin = int(re.search(r"m_([0-9]*)", str(folder_prepared_data)).group(1))
+    window = int(re.search(r"w_([0-9]*)", str(folder_prepared_data)).group(1))
     log.info(f"Margin= {margin}")
+    log.info(f"Window= {window}")
 
     s2_dates_final = np.load(
         os.path.join(folder_prepared_data, "s2", "gt_tcd_t32tnt_days_s2.npy")
@@ -109,12 +111,10 @@ def encode_tile_alise(
             # s2_ref = data["s2"]["img"][0, :, :, margin:-margin, margin:-margin]
             # s2_mask = data["s2"]["mask"][0, :, :, margin:-margin, margin:-margin]
             s2_ref = data["s2"]["img"][0]
-            s2_mask = data["s2"]["mask"][0, :, :, margin:-margin, margin:-margin]
 
             del data
 
             encoded_patch = {}
-            encoded_patch["s2_mask"] = s2_mask
 
             encoded_patch["s2_lat_mu"] = np.zeros((10, 64, 768, 768))
 
@@ -125,11 +125,12 @@ def encode_tile_alise(
                 transform(rearrange(s2_ref, "t c h w -> c t h w")),
                 "c t h w -> 1 t c h w",
             )
+            small_patch_size = 64
 
-            x2 = 64
-            y2 = 64
-            for x1 in range(0, 768, 64):
-                for y1 in range(0, 768, 64):
+            x2 = small_patch_size
+            y2 = small_patch_size
+            for x1 in range(0, window, small_patch_size):
+                for y1 in range(0, window, small_patch_size):
                     log.info(f"Patch {x1}:{x2}, {y1}:{y2}")
                     input = {
                         "sits": s2_ref_norm.numpy()[:, :, :, x1:x2, y1:y2],
@@ -144,17 +145,14 @@ def encode_tile_alise(
                     encoded_patch["s2_lat_mu"][:, :, x1:x2, y1:y2] = torch.tensor(
                         ort_out[0]
                     )
-                    y2 += 64
-                y2 = 64
-                x2 += 64
+                    y2 += small_patch_size
+                y2 = small_patch_size
+                x2 += small_patch_size
 
             encoded_patch["matrix"] = xy_matrix
             encoded_patch["s2_lat_mu"] = encoded_patch["s2_lat_mu"][
                 :, :, margin:-margin, margin:-margin
             ]
-            encoded_patch["s2_lat_mu"][
-                s2_mask.bool().expand_as(encoded_patch["s2_lat_mu"])
-            ] = torch.nan
 
             days = s2_dates_final
 
