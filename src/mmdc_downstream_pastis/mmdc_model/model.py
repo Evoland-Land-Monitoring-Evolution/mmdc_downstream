@@ -106,7 +106,7 @@ class PretrainedMMDCPastis(PretrainedMMDC):
             embs = self.prepare_aux_embeddings(data)
 
             latent_s2 = self.model_mmdc.generate_latent_s2(
-                self.standardize_s2(reshape_sits(data.img)), embs
+                self.standardize_s2(reshape_sits(data.img.clip(0, 15000))), embs
             )
             return VAELatentSpace(
                 reshape_back_sits(latent_s2.mean, batch_size),
