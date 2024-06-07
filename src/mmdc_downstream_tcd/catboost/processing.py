@@ -19,7 +19,6 @@ from mmdc_downstream_tcd.tile_processing.utils import rearrange_ts
 
 warnings.filterwarnings("ignore")
 
-
 MAIN_COLS = ["index", "TCD", "x", "y", "x_round", "y_round"]
 
 CB_params = namedtuple("CB_params", "n_iter leaf depth")
@@ -36,6 +35,7 @@ class CatBoostTCD:
         cb_params: CB_params,
         encoded: bool,
         months_median: bool,
+        use_logvar: bool,
     ):
         self.sat = sat
         self.csv_folder = csv_folder
@@ -47,6 +47,8 @@ class CatBoostTCD:
         self.data_cols = None
 
         self.clip_x = 519000
+
+        self.use_logvar = use_logvar
 
     def predict_new_image(
         self,
@@ -62,15 +64,28 @@ class CatBoostTCD:
                 if (f.endswith(".pt") and f.__contains__(self.sat))
             ]
         )
+        if self.sat == "s1":
+            tile_names = np.sort(
+                [
+                    f
+                    for f in tile_names
+                    if not f.__contains__("s1_asc") or not f.__contains__("s1_desc")
+                ]
+            )
         pred_coords = []
+        pred_tiles = []
+        # all_img = []
         x_min_glob, x_max_glob, y_min_glob, y_max_glob = (
             torch.inf,
             -torch.inf,
             torch.inf,
             -torch.inf,
         )
-        for tile_name in tile_names:
-            matrix = torch.load(os.path.join(path_image_tiles, tile_name))["matrix"]
+
+        for tt in range(len(tile_names)):
+            tile = torch.load(os.path.join(path_image_tiles, tile_names[tt]))
+            log.info(f"Predicting tile {tile_names[tt]}")
+            matrix = tile["matrix"]
             if type(matrix) is dict:
                 x_min, x_max, y_min, y_max = (
                     matrix["x_min"] - 5,
@@ -85,7 +100,6 @@ class CatBoostTCD:
                     matrix[1].min() - 5,
                     matrix[1].max() + 5,
                 )
-            # pred_tiles.append(pred.astype(int))
             pred_coords.append([x_min, x_max, y_min, y_max])
             x_min_glob, x_max_glob, y_min_glob, y_max_glob = (
                 min(x_min_glob, x_min),
@@ -94,21 +108,20 @@ class CatBoostTCD:
                 max(y_max_glob, y_max),
             )
 
-        pred_img = np.zeros(
-            (int((y_max_glob - y_min_glob) / 10), int((x_max_glob - x_min_glob) / 10)),
-            dtype=int,
-        )
+            img = tile["img"]
+            t, c, h, w = img.shape
 
-        x_range = np.arange(x_min_glob, x_max_glob, 10)
-        y_range = np.arange(y_max_glob, y_min_glob, -10)
+            if "alise" not in path_image_tiles:
+                mu = img[:, : int(c / 2)]
+                if not self.use_logvar:
+                    img = mu
+                else:
+                    logvar = img[:, int(c / 2) :]
+                    img = np.concatenate([mu, logvar], 0)
 
-        for tt in range(len(pred_coords)):
-            tile = torch.load(os.path.join(path_image_tiles, tile_names[tt]))
-            log.info(f"Encoding tile {tile}")
-            img = rearrange_ts(tile["img"])
-            c, h, w = img.shape
-            if self.sat == "s1":
-                img = img[: int(c / 2)]  # we do not use logvar
+            img = rearrange_ts(img)
+            # all_img.append(img)
+
             img_flat = rearrange(img, "c h w -> (h w) c")
 
             if self.months_median:
@@ -123,6 +136,24 @@ class CatBoostTCD:
                 img_flat = img_flat.cpu().numpy()
             pred_flat = model.predict(img_flat)
 
+            pred_tiles.append(
+                rearrange(pred_flat, "(h w) -> h w", h=h, w=w).astype(int)
+            )
+
+        pred_img = np.zeros(
+            (int((y_max_glob - y_min_glob) / 10), int((x_max_glob - x_min_glob) / 10)),
+            dtype=int,
+        )
+        # gt_img = np.zeros(
+        #     (24, int((y_max_glob - y_min_glob) / 10),
+        #     int((x_max_glob - x_min_glob) / 10)),
+        #     dtype=float,
+        # )
+
+        x_range = np.arange(x_min_glob, x_max_glob, 10)
+        y_range = np.arange(y_max_glob, y_min_glob, -10)
+
+        for tt in range(len(pred_coords)):
             x_min, x_max, y_min, y_max = pred_coords[tt]
             idx_x_min, idx_x_max, idx_y_min, idx_y_max = (
                 np.where(x_range == x_min)[0][0],
@@ -131,9 +162,12 @@ class CatBoostTCD:
                 np.where(y_range == (y_min + 10))[0][0],
             )
 
-            pred_img[idx_y_min : idx_y_max + 1, idx_x_min : idx_x_max + 1] = rearrange(
-                pred_flat, "(h w) -> h w", h=h, w=w
-            )
+            pred_img[idx_y_min : idx_y_max + 1, idx_x_min : idx_x_max + 1] = pred_tiles[
+                tt
+            ]
+
+            # gt_img[:, idx_y_min : idx_y_max + 1, idx_x_min : idx_x_max + 1] =
+            # all_img[tt][:24, :, :]
 
         profile = {
             "driver": "GTiff",
@@ -148,12 +182,31 @@ class CatBoostTCD:
         pred_image_name = f"tdc_pred_from_{self.sat}_{model_name}"
         if self.months_median:
             pred_image_name += "_median"
+        if self.encoded and self.use_logvar:
+            pred_image_name += "_uselogvar"
         with rasterio.open(
             os.path.join(path_image_tiles, f"{pred_image_name}.tif"), "w", **profile
         ) as dst:
             dst.write(pred_img, 1)
 
         del pred_img
+
+        # profile = {
+        #     "driver": "GTiff",
+        #     "width": len(x_range),
+        #     "height": len(y_range),
+        #     "count": 24,
+        #     "dtype": "float32",
+        #     "crs": "epsg:32632",
+        #     "transform": Affine(10.0, 0.0, x_min_glob, 0.0, -10.0, y_max_glob),
+        # }
+        #
+        # pred_image_name = f"tdc_gt_from_{self.sat}_{model_name}"
+        #
+        # with rasterio.open(
+        #     os.path.join(path_image_tiles, f"{pred_image_name}.tif"), "w", **profile
+        # ) as dst:
+        #     dst.write(gt_img)
 
     def open_csv_files_and_combine(self) -> tuple[pd.DataFrame, np.array]:
         """
@@ -212,7 +265,7 @@ class CatBoostTCD:
         """Compute a months median for each feature and create a new df"""
 
         median_dict = {}
-
+        print(days)
         months_dates = (
             pd.DatetimeIndex(days).to_frame(name="dates").dates.dt.month.values
         )
@@ -228,7 +281,7 @@ class CatBoostTCD:
                 data_cols_month = [
                     c for day in days for c in data.columns if c.endswith(f"d{day}")
                 ]
-                values = ["mu", "logvar"] if self.sat == "s2" else ["mu"]
+                values = ["mu", "logvar"] if self.use_logvar else ["mu"]
                 for value in values:
                     feat_nb = int(
                         len([c for c in data_cols_month if value in c]) / len(days)
@@ -330,7 +383,7 @@ class CatBoostTCD:
     ) -> tuple[pd.DataFrame, np.array, list[list] | None]:
         if self.encoded:
             data_cols_mu = [c for c in data.columns if "mu" in c]
-            if self.sat == "s2":
+            if self.use_logvar:
                 data_cols_logvar = [c for c in data.columns if "logvar" in c]
                 self.data_cols = data_cols_mu + data_cols_logvar
             else:
@@ -395,6 +448,10 @@ class CatBoostTCD:
         # Get scatterplot of the result
         if self.months_median:
             self.folder += "_median"
+
+        if self.encoded and self.use_logvar:
+            self.folder += "_logvar"
+
         img_name = f"{self.folder.split('/')[-1]}_{self.sat}.png"
         Path(self.folder).mkdir(exist_ok=True, parents=True)
         self.results_scatterplot(
