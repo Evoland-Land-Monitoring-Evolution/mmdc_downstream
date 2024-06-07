@@ -110,6 +110,11 @@ def rearrange_ts(ts: torch.Tensor) -> torch.Tensor:
     return rearrange(ts, "t c h w ->  (t c) h w")
 
 
+def rearrange_back_ts(ts: torch.Tensor, c: int) -> torch.Tensor:
+    """Rearrange flattened TS"""
+    return rearrange(ts, "(t c) h w ->  t c h w", c=c)
+
+
 def get_one_slice(
     nc_file: str | Path, slice: tuple[float, float, float, float]
 ) -> tuple[Any, Any]:
@@ -617,18 +622,16 @@ def extract_gt_points(
     tcd_values_sliced,
     sliced_gt,
 ):
-    mask = encoded_patch[f"{sat}_mask"].expand_as(encoded_patch[f"{sat}_lat_mu"])
+    if f"{sat}_mask" in encoded_patch:
+        mask = encoded_patch[f"{sat}_mask"].expand_as(encoded_patch[f"{sat}_lat_mu"])
 
-    encoded_patch[f"{sat}_lat_mu"][mask.bool()] = torch.nan
-    encoded_patch[f"{sat}_lat_logvar"][mask.bool()] = torch.nan
+        encoded_patch[f"{sat}_lat_mu"][mask.bool()] = torch.nan
+        encoded_patch[f"{sat}_lat_logvar"][mask.bool()] = torch.nan
 
-    gt_ref_values_mu = rearrange_ts(encoded_patch[f"{sat}_lat_mu"])[
-        :, ind[:, 0], ind[:, 1]
-    ].T
+    gt_ref_values_mu = torch.Tensor(
+        rearrange_ts(encoded_patch[f"{sat}_lat_mu"])[:, ind[:, 0], ind[:, 1]].T
+    )
 
-    gt_ref_values_logvar = rearrange_ts(encoded_patch[f"{sat}_lat_logvar"])[
-        :, ind[:, 0], ind[:, 1]
-    ].T
     days = encoded_patch[f"{sat}_doy"]
 
     values_df_mu = pd.DataFrame(
@@ -636,26 +639,38 @@ def extract_gt_points(
         columns=[
             f"mu_f{b}_d{m}"
             for m in range(len(days))
-            for b in range(encoded_patch[f"{sat}_lat_logvar"].shape[-3])
+            for b in range(encoded_patch[f"{sat}_lat_mu"].shape[-3])
         ],
     )
-    values_df_logvar = pd.DataFrame(
-        data=gt_ref_values_logvar.cpu().numpy(),
-        columns=[
-            f"logvar_f{b}_d{m}"
-            for m in range(len(days))
-            for b in range(encoded_patch[f"{sat}_lat_logvar"].shape[-3])
-        ],
-    )
+    if f"{sat}_lat_logvar" in encoded_patch:
+        gt_ref_values_logvar = rearrange_ts(encoded_patch[f"{sat}_lat_logvar"])[
+            :, ind[:, 0], ind[:, 1]
+        ].T
+        values_df_logvar = pd.DataFrame(
+            data=gt_ref_values_logvar.cpu().numpy(),
+            columns=[
+                f"logvar_f{b}_d{m}"
+                for m in range(len(days))
+                for b in range(encoded_patch[f"{sat}_lat_logvar"].shape[-3])
+            ],
+        )
 
-    df_gt = pd.concat(
-        [
-            tcd_values_sliced.reset_index(),
-            values_df_mu,
-            values_df_logvar,
-        ],
-        axis=1,
-    )
+        df_gt = pd.concat(
+            [
+                tcd_values_sliced.reset_index(),
+                values_df_mu,
+                values_df_logvar,
+            ],
+            axis=1,
+        )
+    else:
+        df_gt = pd.concat(
+            [
+                tcd_values_sliced.reset_index(),
+                values_df_mu,
+            ],
+            axis=1,
+        )
 
     if sat not in sliced_gt:
         sliced_gt[sat] = [df_gt]
