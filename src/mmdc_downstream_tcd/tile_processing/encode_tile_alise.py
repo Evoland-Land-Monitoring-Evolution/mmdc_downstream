@@ -134,12 +134,33 @@ def encode_tile_alise(
 
             x2 = small_patch_size
             y2 = small_patch_size
-            for x1 in range(0, window, small_patch_size):
-                for y1 in range(0, window, small_patch_size):
+            for x1 in range(0, window, int(small_patch_size / 2)):
+                for y1 in range(0, window, int(small_patch_size / 2)):
                     log.info(f"Patch {x1}:{x2}, {y1}:{y2}")
+                    sits = s2_ref_norm.numpy()[:, :, :, x1:x2, y1:y2]
+                    if sits.shape[-2] == sits.shape[-1] == 32:
+                        new_sits = np.zeros((*sits.shape[:3], 64, 64))
+                        new_sits[:, :, :, :32, :32] = sits
+                        new_sits[:, :, :, 32:, :32] = np.flip(sits, -1)
+
+                        new_sits[:, :, :, :32, 32:] = np.flip(sits, -2)
+
+                        new_sits[:, :, :, 32:, 32:] = np.flip(np.flip(sits, -2), -1)
+
+                        sits = new_sits.astype(np.float32)
+                    elif sits.shape[-1] == 32:
+                        new_sits = np.zeros((*sits.shape[:3], 64, 64))
+                        new_sits[:, :, :, :, :32] = sits
+                        new_sits[:, :, :, :, 32:] = np.flip(sits, -2)
+                        sits = new_sits.astype(np.float32)
+                    elif sits.shape[-2] == 32:
+                        new_sits = np.zeros((*sits.shape[:3], 64, 64))
+                        new_sits[:, :, :, :32, :] = sits
+                        new_sits[:, :, :, 32:, :] = np.flip(sits, -1)
+                        sits = new_sits.astype(np.float32)
 
                     input = {
-                        "sits": s2_ref_norm.numpy()[:, :, :, x1:x2, y1:y2],
+                        "sits": sits,
                         "tpe": doy[None, :].numpy(),
                         "padd_mask": torch.zeros(1, s2_ref_norm.shape[1])
                         .bool()
@@ -147,11 +168,13 @@ def encode_tile_alise(
                     }
                     ort_out = ort_session.run(None, input)[0]  # (1, 10, 64, 64, 64)
 
-                    encoded_patch["s2_lat_mu"][:, :, x1:x2, y1:y2] = ort_out[0]
+                    encoded_patch["s2_lat_mu"][
+                        :, :, x1 + 16 : x1 + 16 + 32, y1 + 16 : y1 + 16 + 32
+                    ] = ort_out[0, :, :, 16:-16, 16:-16]
 
-                    y2 += small_patch_size
+                    y2 += int(small_patch_size / 2)
                 y2 = small_patch_size
-                x2 += small_patch_size
+                x2 += int(small_patch_size / 2)
 
             encoded_patch["matrix"] = xy_matrix
             encoded_patch["s2_lat_mu"] = encoded_patch["s2_lat_mu"][

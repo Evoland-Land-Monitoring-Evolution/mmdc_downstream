@@ -399,7 +399,7 @@ def get_s2(
     images = build_s2_images_and_masks(
         images, sliced_modality.astype(np.float32), dates
     )
-    data["s2"]["img"] = images["s2_set"].unsqueeze(0) / 10000
+    data["s2"]["img"] = images["s2_set"].unsqueeze(0)
     data["s2"]["mask"] = images["s2_masks"].unsqueeze(0)
     data["s2"]["angles"] = images["s2_angles"].unsqueeze(0)
     images["CRS"] = sliced_modality.crs
