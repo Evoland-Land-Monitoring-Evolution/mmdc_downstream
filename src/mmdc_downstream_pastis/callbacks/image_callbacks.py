@@ -95,7 +95,7 @@ class PastisCallback(Callback):
     def __init__(
         self,
         save_dir: str,
-        n_samples: int = 3,
+        n_samples: int = 6,
     ):
         self.save_dir = save_dir
         self.n_samples = n_samples
@@ -112,7 +112,7 @@ class PastisCallback(Callback):
             lat_logvar = self.render_row(data[samp_idx, sel_index, 3:, 32:-32, 32:-32])
         else:
             lat_logvar = self.render_row(
-                data[samp_idx, sel_index, 3 + nb_feat :, 32:-32, 32:-32]
+                data[samp_idx, sel_index, nb_feat : nb_feat + 3, 32:-32, 32:-32]
             )
         return lat_mu, lat_logvar
 
