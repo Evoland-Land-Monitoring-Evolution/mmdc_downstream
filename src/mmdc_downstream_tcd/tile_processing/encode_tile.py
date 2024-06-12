@@ -181,4 +181,36 @@ def encode_tile(
                 # torch.save(encoded_patch,
                 #            os.path.join(output_folder, f"Encoded_patch_{enum}.pt"))
 
-                del encoded_patch
+            for sat in satellites_to_write:
+                mask = encoded_patch[f"{sat}_mask"].expand_as(
+                    encoded_patch[f"{sat}_lat_mu"]
+                )
+
+                encoded_patch[f"{sat}_lat_mu"][mask.bool()] = torch.nan
+                encoded_patch[f"{sat}_lat_logvar"][mask.bool()] = torch.nan
+
+                # days = encoded_patch[f"{sat}_doy"]
+
+                torch.save(
+                    {
+                        "img": torch.concat(
+                            [
+                                encoded_patch[f"{sat}_lat_mu"],
+                                encoded_patch[f"{sat}_lat_logvar"],
+                            ],
+                            1,
+                        )
+                        .cpu()
+                        .numpy()
+                        .astype(np.float32),
+                        "matrix": {
+                            "x_min": xy_matrix[0, 0].min(),
+                            "x_max": xy_matrix[0, 0].max(),
+                            "y_min": xy_matrix[1, :, 0].min(),
+                            "y_max": xy_matrix[1, :, 0].max(),
+                        },
+                    },
+                    os.path.join(output_folder, sat, f"{sat}_{enum}.pt"),
+                )
+
+            del encoded_patch
