@@ -14,6 +14,15 @@ from mmdc_downstream_tcd.tile_processing.encode_tile import encode_tile
 
 my_logger = logging.getLogger(__name__)
 
+WORK_FOLDER = (
+    os.environ["WORK"] if "WORK" in os.environ else f"{os.environ['HOME']}/jeanzay"
+)
+SCRATCH_FOLDER = (
+    os.environ["SCRATCH"]
+    if "SCRATCH" in os.environ
+    else f"{os.environ['HOME']}/scratch_jeanzay"
+)
+
 
 def get_parser() -> argparse.ArgumentParser:
     """
@@ -38,7 +47,7 @@ def get_parser() -> argparse.ArgumentParser:
         type=str,
         help="input folder",
         # default="/work/CESBIO/projects/DeepChange/Ekaterina/TCD/OpenEO_data/t32tnt/",
-        default=f"{os.environ['SCRATCH']}/scratch_data/TCD/OpenEO_data/t32tnt/"
+        default=f"{SCRATCH_FOLDER}/scratch_data/TCD/OpenEO_data/t32tnt/"
         # required=True
     )
 
@@ -47,7 +56,7 @@ def get_parser() -> argparse.ArgumentParser:
         type=str,
         help="output folder",
         # default="/work/scratch/data/kalinie/TCD/OpenEO_data/t32tnt/encoded"
-        default=f"{os.environ['WORK']}/results/TCD/t32tnt/encoded"
+        default=f"{WORK_FOLDER}/results/TCD/t32tnt/encoded"
         # required=True
     )
 
@@ -56,7 +65,7 @@ def get_parser() -> argparse.ArgumentParser:
         type=str,
         help="path to geojson ground truth file",
         # default="/work/scratch/data/kalinie/TCD/OpenEO_data/SAMPLES_t32tnt_32632.geojson",  # noqa: E501
-        default=f"{os.environ['SCRATCH']}/scratch_data/TCD/SAMPLES_t32tnt_32632.geojson",  # noqa: E501
+        default=f"{SCRATCH_FOLDER}/scratch_data/TCD/SAMPLES_t32tnt_32632.geojson",  # noqa: E501
         # required=True
     )
 
@@ -80,8 +89,8 @@ def get_parser() -> argparse.ArgumentParser:
         "--pretrained_path",
         type=str,
         help="list of available tiles",
-        default=f"{os.environ['WORK']}/results/MMDC/checkpoint_best",
-        # default=f"{os.environ['WORK']}/results/MMDC/results/
+        default=f"{WORK_FOLDER}/results/MMDC/checkpoint_best",
+        # default=f"{WORK_FOLDER}/results/MMDC/results/
         # latent/checkpoints/mmdc_full_tiny/2024-04-05_14-58-22",
     )
 
@@ -105,7 +114,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--prepared_data_path",
         type=str,
         help="Path to prepared data",
-        default=f"{os.environ['SCRATCH']}/results/TCD/t32tnt/prepared_tiles_w_768_m_40"
+        default=f"{SCRATCH_FOLDER}/results/TCD/t32tnt/prepared_tiles_w_768_m_40"
         # required=False,
     )
 
@@ -113,7 +122,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--satellites",
         type=int,
         help="modalities to encode",
-        default=["s1_desc"]
+        default=["s2"]
         # required=False,
     )
 

@@ -9,6 +9,14 @@ from mmdc_downstream_pastis.encode_series.encode import encode_series
 from mmdc_downstream_pastis.mmdc_model.model import PretrainedMMDCPastis
 
 my_logger = logging.getLogger(__name__)
+WORK_FOLDER = (
+    os.environ["WORK"] if "WORK" in os.environ else f"{os.environ['HOME']}/jeanzay"
+)
+SCRATCH_FOLDER = (
+    os.environ["SCRATCH"]
+    if "SCRATCH" in os.environ
+    else f"{os.environ['HOME']}/scratch_jeanzay"
+)
 
 
 def get_parser() -> argparse.ArgumentParser:
@@ -33,7 +41,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--dataset_path_oe",
         type=str,
         help="OE data folder",
-        default=f"{os.environ['SCRATCH']}/scratch_data/Pastis_OE_corr"
+        default=f"{SCRATCH_FOLDER}/scratch_data/Pastis_OE_corr"
         # required=True
     )
 
@@ -41,7 +49,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--dataset_path_pastis",
         type=str,
         help="Original Pastis data folder",
-        default=f"{os.environ['SCRATCH']}/scratch_data/Pastis"
+        default=f"{SCRATCH_FOLDER}/scratch_data/Pastis"
         # required=True
     )
 
@@ -49,7 +57,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--sats",
         type=list[str],
         help="Chosen modalities",
-        default=["S1_ASC"]
+        default=["S1_ASC", "S1_DESC"]
         # required=True
     )
 
@@ -57,7 +65,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--output_path",
         type=str,
         help="output folder",
-        default=f"{os.environ['WORK']}/results/Pastis_encoded"
+        default=f"{WORK_FOLDER}/results/Pastis_encoded"
         # required=True
     )
 
@@ -65,7 +73,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--pretrained_path",
         type=str,
         help="list of available tiles",
-        default=f"{os.environ['WORK']}/results/MMDC/checkpoint_best"
+        default=f"{WORK_FOLDER}/results/MMDC/checkpoint_best"
         # required=False,
     )
 
