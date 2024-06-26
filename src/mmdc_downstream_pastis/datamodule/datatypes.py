@@ -247,7 +247,7 @@ class PastisBatch:
 
 @dataclass
 class BatchInputUTAE:
-    sits: torch.Tensor | dict[str, torch.Tensor]
+    sits: torch.Tensor | dict[str, torch.Tensor] | PastisBatch
     gt: torch.Tensor
     doy: torch.Tensor | dict[str, torch.Tensor] | None = None
     sits_mask: torch.Tensor | dict[str, torch.Tensor] | None = None

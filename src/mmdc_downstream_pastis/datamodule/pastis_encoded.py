@@ -192,10 +192,18 @@ class PASTISEncodedDataset(PASTISDataset):
             data.update(
                 {
                     s: VAELatentSpace(
-                        (a.mean - self.norm[s]["mu"][0][None, :, None, None])
-                        / self.norm[s]["mu"][1][None, :, None, None],
-                        (a.logvar - self.norm[s]["logvar"][0][None, :, None, None])
-                        / self.norm[s]["logvar"][1][None, :, None, None],
+                        (
+                            (a.mean - self.norm[s]["mu"][0][None, :, None, None])
+                            / (self.norm[s]["mu"][1][None, :, None, None].nan_to_num(1))
+                        ).nan_to_num(),
+                        (
+                            (a.logvar - self.norm[s]["logvar"][0][None, :, None, None])
+                            / (
+                                self.norm[s]["logvar"][1][
+                                    None, :, None, None
+                                ].nan_to_num(1)
+                            )
+                        ).nan_to_num(),
                     )
                     for s, a in data.items()
                 }

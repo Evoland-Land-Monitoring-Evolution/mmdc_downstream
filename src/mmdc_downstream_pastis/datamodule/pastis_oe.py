@@ -502,6 +502,7 @@ def custom_collate_classif(
     pad_value: int = 0,
 ) -> (dict[str, PastisBatch], torch.Tensor, torch.Tensor, list[int]):
     batch_dict = {}
+    batch_doy = {}
 
     sat_dict, target, mask, id_patch = zip(*batch)
     target = torch.stack(target, 0)
@@ -510,8 +511,12 @@ def custom_collate_classif(
     for sat in sat_dict[0]:
         item = [v[sat] for v in sat_dict]
         dict_collate = collate(item, pad_value)
-        batch_dict[sat] = PastisBatch.init_empty().fill_empty_from_dict(dict_collate)
-    return BatchInputUTAE(sits=batch_dict, gt=target, gt_mask=mask, id_patch=id_patch)
+        pastis_dict = PastisBatch.init_empty().fill_empty_from_dict(dict_collate)
+        batch_dict[sat] = pastis_dict
+        batch_doy[sat] = pastis_dict.true_doy
+    return BatchInputUTAE(
+        sits=batch_dict, doy=batch_doy, gt=target, gt_mask=mask, id_patch=id_patch
+    )
 
 
 class PastisOEDataModule(LightningDataModule):

@@ -48,7 +48,7 @@ def encode_series_pvae(
 
         res = ts_net(s2_ref_reshape, s2_angles_reshape)
         res_shaped = rearrange(res, "(t h w) c ml  ->  t c ml h w", h=h, w=w)
-        res_shaped[s2_mask.unsqueeze(2).expand_as(res_shaped).bool()] = torch.nan
+        # res_shaped[s2_mask.unsqueeze(2).expand_as(res_shaped).bool()] = torch.nan
 
         encoded_pastis_s2 = {
             "latents": VAELatentSpace(
