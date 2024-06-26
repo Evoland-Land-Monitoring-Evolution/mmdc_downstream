@@ -7,9 +7,8 @@
 #SBATCH -N 1                        # number of nodes ( or --nodes=1)
 #SBATCH --gres=gpu:1                # number of gpus
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=12
+#SBATCH --cpus-per-task=24
 #SBATCH --time=2:00:00             # Walltime 24h
-#SBATCH --qos=qos_gpu-dev
 
 
 # be sure no modules loaded
@@ -22,4 +21,4 @@ export WORKING_DIR=$WORK/results/MMDC/jobs
 cd ${WORKING_DIR}
 source ${MMDC_INIT}
 
-HYDRA_FULL_ERROR=1 python   ${SRCDIR}/src/mmdc_downstream_pastis/encode_series/compute_stats.py >> output_$SLURM_JOBID.log
+HYDRA_FULL_ERROR=1 python   ${SRCDIR}/src/mmdc_downstream_pastis/encode_series/compute_stats_fast.py >> output_$SLURM_JOBID.log
