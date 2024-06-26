@@ -62,7 +62,8 @@ def get_parser() -> argparse.ArgumentParser:
         "--path_alise_model",
         type=str,
         help="path to pre-entrained model",
-        default=f"{WORK_FOLDER}/results/alise_preentrained/alise_v1.onnx",
+        # default=f"{WORK_FOLDER}/results/alise_preentrained/alise_v1.onnx",
+        default=f"{WORK_FOLDER}/results/alise_preentrained/alise_flexible.onnx",
     )
 
     arg_parser.add_argument(

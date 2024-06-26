@@ -69,7 +69,7 @@ def get_parser() -> argparse.ArgumentParser:
     arg_parser.add_argument(
         "--path_jit_model",
         type=str,
-        help="list of available tiles",
+        help="path to pvae model",
         default=f"{WORK_FOLDER}/results/MMDC/pvae.torchscript",
     )
 
