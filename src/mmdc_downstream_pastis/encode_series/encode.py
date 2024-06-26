@@ -236,7 +236,6 @@ def encode_one_batch_s1(
     if batch_s1.img.shape[1] >= 40 and batch_s1.img.shape[-1] >= 500:
         batch_s1_0 = batch_s1[:, : int(batch_s1.img.shape[1] / 2)]
         batch_s1_1 = batch_s1[:, int(batch_s1.img.shape[1] / 2) :]
-        print("batch_s1.img.shape", batch_s1_0.img.shape)
         latents1_0 = mmdc_model.get_latent_s1_mmdc(
             batch_s1_0.to_device(mmdc_model.device)
         )
@@ -315,7 +314,7 @@ def encode_series(
     dataset_path_pastis: str | Path,
     sats: list[str],
     output_path: str | Path,
-    join_s1: bool = False,  # TODO integrate in code
+    join_s1: bool = True,  # TODO integrate in code
 ):
     """Encode PASTIS SITS into S1 and S2 latent embeddings"""
     dm = build_dm(dataset_path_oe, dataset_path_pastis, sats)
@@ -330,73 +329,67 @@ def encode_series(
         #     f"S1_{batch.id_patch[0]}.pt")).exists()
         #     and Path(os.path.join(output_path, "S2", f"S2_{batch.id_patch[0]}.pt"))
         # ):
-        if True:
-            log.info(batch.id_patch)
 
-            if "S1_ASC" in sats or "S1_DESC" in sats:
-                (
-                    latents1,
-                    latents1_asc,
-                    latents1_desc,
-                    batch_s1_mask,
-                    days_s1,
-                ) = encode_one_batch_s1(
-                    mmdc_model, batch.sits, ref_date=dm.reference_date
+        if "S1_ASC" in sats or "S1_DESC" in sats:
+            (
+                latents1,
+                latents1_asc,
+                latents1_desc,
+                batch_s1_mask,
+                days_s1,
+            ) = encode_one_batch_s1(mmdc_model, batch.sits, ref_date=dm.reference_date)
+            encoded_pastis_s1 = {
+                "latents": VAELatentSpace(
+                    latents1.mean.squeeze(0), latents1.logvar.squeeze(0)
+                ),
+                "mask": batch_s1_mask.squeeze(0),
+                "dates": days_s1,
+            }
+            if "S1_ASC" in sats and "S1_DESC" in sats:
+                torch.save(
+                    encoded_pastis_s1,
+                    os.path.join(output_path, "S1", f"S1_{batch.id_patch[0]}.pt"),
                 )
-                encoded_pastis_s1 = {
-                    "latents": VAELatentSpace(
-                        latents1.mean.squeeze(0), latents1.logvar.squeeze(0)
-                    ),
-                    "mask": batch_s1_mask.squeeze(0),
-                    "dates": days_s1,
-                }
-                if "S1_ASC" in sats and "S1_DESC" in sats:
+            else:
+                if "S1_ASC" in sats:
+                    log.info(
+                        os.path.join(
+                            output_path, "S1_ASC", f"S1_ASC_{batch.id_patch[0]}.pt"
+                        )
+                    )
                     torch.save(
                         encoded_pastis_s1,
-                        os.path.join(output_path, "S1", f"S1_{batch.id_patch[0]}.pt"),
+                        os.path.join(
+                            output_path, "S1_ASC", f"S1_ASC_{batch.id_patch[0]}.pt"
+                        ),
                     )
-                else:
-                    if "S1_ASC" in sats:
-                        log.info(
-                            os.path.join(
-                                output_path, "S1_ASC", f"S1_ASC_{batch.id_patch[0]}.pt"
-                            )
+                elif "S1_DESC" in sats:
+                    log.info(
+                        os.path.join(
+                            output_path,
+                            "S1_DESC",
+                            f"S1_DESC_{batch.id_patch[0]}.pt",
                         )
-                        torch.save(
-                            encoded_pastis_s1,
-                            os.path.join(
-                                output_path, "S1_ASC", f"S1_ASC_{batch.id_patch[0]}.pt"
-                            ),
-                        )
-                    elif "S1_DESC" in sats:
-                        log.info(
-                            os.path.join(
-                                output_path,
-                                "S1_DESC",
-                                f"S1_DESC_{batch.id_patch[0]}.pt",
-                            )
-                        )
-                        torch.save(
-                            encoded_pastis_s1,
-                            os.path.join(
-                                output_path,
-                                "S1_DESC",
-                                f"S1_DESC_{batch.id_patch[0]}.pt",
-                            ),
-                        )
-            if "S2" in sats:
-                latents2 = encode_one_batch_s2(mmdc_model, batch.sits)
+                    )
+                    torch.save(
+                        encoded_pastis_s1,
+                        os.path.join(
+                            output_path,
+                            "S1_DESC",
+                            f"S1_DESC_{batch.id_patch[0]}.pt",
+                        ),
+                    )
+        if "S2" in sats:
+            latents2 = encode_one_batch_s2(mmdc_model, batch.sits)
 
-                encoded_pastis_s2 = {
-                    "latents": VAELatentSpace(
-                        latents2.mean.squeeze(0), latents2.logvar.squeeze(0)
-                    ),
-                    "mask": batch.sits["S2"].sits.data.mask.squeeze(0),
-                    "dates": back_to_date(batch.sits["S2"].true_doy, dm.reference_date)[
-                        0
-                    ],
-                }
-                torch.save(
-                    encoded_pastis_s2,
-                    os.path.join(output_path, "S2", f"S2_{batch.id_patch[0]}.pt"),
-                )
+            encoded_pastis_s2 = {
+                "latents": VAELatentSpace(
+                    latents2.mean.squeeze(0), latents2.logvar.squeeze(0)
+                ),
+                "mask": batch.sits["S2"].sits.data.mask.squeeze(0),
+                "dates": back_to_date(batch.sits["S2"].true_doy, dm.reference_date)[0],
+            }
+            torch.save(
+                encoded_pastis_s2,
+                os.path.join(output_path, "S2", f"S2_{batch.id_patch[0]}.pt"),
+            )
