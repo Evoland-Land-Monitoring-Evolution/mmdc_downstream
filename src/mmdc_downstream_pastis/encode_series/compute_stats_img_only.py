@@ -29,7 +29,7 @@ def compute_stats(
     sats: list[str],
     pad_value: int = -9999,
 ):
-    """Encode PASTIS SITS into S1 and S2 latent embeddings"""
+    """Compute stats"""
 
     for sat in sats:
         files = [
