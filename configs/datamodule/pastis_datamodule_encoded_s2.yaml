@@ -16,4 +16,4 @@ folds:
 batch_size: 4
 crop_size: null
 norm: false
-use_logvar: false
+use_logvar: True

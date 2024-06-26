@@ -13,7 +13,7 @@ folds:
   val: [4]
   test: [5]
 
-batch_size: 4
+batch_size: 5
 crop_size: null
 norm: true
 use_logvar: true
