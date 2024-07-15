@@ -18,6 +18,6 @@ selected_data: s2_lat # ["exp_lat", "s1_lat", "s2_lat", "s1_asc", "s1_desc", "s1
 
 path_data:
   _target_: mmdc_downstream_lai.datamodules.datamodule_lai_flat.DataPath
-  train : ${oc.env:WORK}/results/MMDC/jobs/data_values_baseline_2024-02-27_14-47-18_train.csv
-  val : ${oc.env:WORK}/results/MMDC/jobs/data_values_baseline_2024-02-27_14-47-18_val.csv
-  test : ${oc.env:WORK}/results/MMDC/jobs/data_values_baseline_2024-02-27_14-47-18_test.csv
+  train : ${oc.env:WORK}/results/MMDC/jobs/data_values_baseline_magical_checkpoint_train.csv
+  val : ${oc.env:WORK}/results/MMDC/jobs/data_values_baseline_magical_checkpoint_val.csv
+  test : ${oc.env:WORK}/results/MMDC/jobs/data_values_baseline_magical_checkpoint_test.csv

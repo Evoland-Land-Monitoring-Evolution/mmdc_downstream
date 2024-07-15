@@ -480,22 +480,25 @@ class PastisCallback(Callback):
         #     trainer.datamodule.reference_date
         # )  # TODO check it later and integrate
 
-        if batch_idx < 2:  # TODO: Add a constraint with nb of images per epoch
-            pred: torch.Tensor = pl_module.predict(batch)
+        if trainer.current_epoch % 5 == 0:
+            if batch_idx < 3:  # TODO: Add a constraint with nb of images per epoch
+                pred: torch.Tensor = pl_module.predict(batch)
 
-            x = batch.sits
+                x = batch.sits
 
-            batch_size = (
-                x.shape[0] if type(x) is torch.Tensor else x[list(x.keys())[0]].shape[0]
-            )
-            pred[batch.gt_mask] = 0
+                batch_size = (
+                    x.shape[0]
+                    if type(x) is torch.Tensor
+                    else x[list(x.keys())[0]].shape[0]
+                )
+                pred[batch.gt_mask] = 0
 
-            self.save_image_grid(
-                x,
-                batch.doy,
-                pred,
-                batch.gt,
-                batch.id_patch,
-                SampleInfo(batch_idx, batch_size, trainer.current_epoch),
-                sat=trainer.datamodule.sats[0] if x is not dict else None,
-            )
+                self.save_image_grid(
+                    x,
+                    batch.doy,
+                    pred,
+                    batch.gt,
+                    batch.id_patch,
+                    SampleInfo(batch_idx, batch_size, trainer.current_epoch),
+                    sat=trainer.datamodule.sats[0] if x is not dict else None,
+                )

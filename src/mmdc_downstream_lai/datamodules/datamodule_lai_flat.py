@@ -55,9 +55,9 @@ class BatchSize:
 
 @dataclass
 class LAIDataSets:
-    train: tuple[torch.tensor, torch.tensor]
-    val: tuple[torch.tensor, torch.tensor]
-    test: tuple[torch.tensor, torch.tensor] | None = None
+    train: tuple[torch.tensor, torch.tensor, torch.tensor, torch.tensor]
+    val: tuple[torch.tensor, torch.tensor, torch.tensor, torch.tensor]
+    test: tuple[torch.tensor, torch.tensor, torch.tensor, torch.tensor] | None = None
 
 
 class LAIDataModule(LightningDataModule):
@@ -93,15 +93,16 @@ class LAIDataModule(LightningDataModule):
 
         return [i for i in x_col if i.startswith(self.selected_data)]
 
-    def prepare_xy_data(self, x, y):
+    def prepare_xy_data(self, x, y, pos):
         if self.norm:
             x = standardize(x, self.mean, self.std)
         x = torch.tensor(x[self.selected_col].values, dtype=torch.float32)
         y = torch.tensor(y.values, dtype=torch.float32).reshape(-1, 1)
-        return x, y
+        img, pix = pos
+        return x, y, img, pix
 
     def get_value_label(self, path: str | Path):
-        use_cols = self.selected_col + ["gt"]
+        use_cols = self.selected_col + ["gt"] + ["img"] + ["pix"]
         logging.info("Columns to be used")
         logging.info(use_cols)
         df = pd.read_csv(path, usecols=use_cols)
@@ -110,16 +111,17 @@ class LAIDataModule(LightningDataModule):
             df = rename_s1_cols(df)
         y = df["gt"]  # centered
         x = df[self.selected_col]
-        return x, y
+        img, pix = torch.Tensor(df["img"]), torch.Tensor(df["pix"])
+        return x, y, (img, pix)
 
     def setup(self, stage: str):
         if stage == "fit":
             logging.info("Opening train df")
             # 102805129
-            x_train_all, y_train = self.get_value_label(self.path_data.train)
+            x_train_all, y_train, pos_train = self.get_value_label(self.path_data.train)
             logging.info("Opening val df")
             # 25720720
-            x_val_all, y_val = self.get_value_label(self.path_data.val)
+            x_val_all, y_val, pos_val = self.get_value_label(self.path_data.val)
 
             if self.norm:
                 self.mean, self.std = get_mean_std(pd.concat([x_train_all, x_val_all]))
@@ -127,16 +129,18 @@ class LAIDataModule(LightningDataModule):
                 logging.info(self.std)
 
             self.data = LAIDataSets(
-                self.prepare_xy_data(x_train_all, y_train),
-                self.prepare_xy_data(x_val_all, y_val),
+                self.prepare_xy_data(x_train_all, y_train, pos_train),
+                self.prepare_xy_data(x_val_all, y_val, pos_val),
             )
         if stage == "test":
             logging.info("Opening test df")
             # 12900234
-            x_test_all, y_test = self.get_value_label(self.path_data.test)
+            x_test_all, y_test, pos_test = self.get_value_label(self.path_data.test)
 
             self.data = LAIDataSets(
-                self.data.train, self.data.val, self.prepare_xy_data(x_test_all, y_test)
+                self.data.train,
+                self.data.val,
+                self.prepare_xy_data(x_test_all, y_test, pos_test),
             )
 
     def train_dataloader(self):

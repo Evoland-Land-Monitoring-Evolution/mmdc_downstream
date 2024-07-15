@@ -64,7 +64,7 @@ class MMDCLAILitModule(LightningModule):  # pylint: disable=too-many-ancestors
         We produce GT LAI with SNAP.
         We generate regression input depending on the task.
         """
-        reg_input, lai_gt = batch
+        reg_input, lai_gt, img, pix = batch
         lai_pred = self.forward(reg_input)
         losses = compute_losses_flat(
             preds=lai_pred,
@@ -78,6 +78,9 @@ class MMDCLAILitModule(LightningModule):  # pylint: disable=too-many-ancestors
         if stage == "val":
             self.pred_val.extend(lai_pred.cpu().detach().to(torch.float16).reshape(-1))
             self.gt_val.extend(lai_gt.cpu().to(torch.float16).reshape(-1))
+            # self.pos.extend(pos)
+            # logger.info(pos.shape)
+            # logger.info(self.pos)
         # if stage == "test":
         #     self.pred_test.extend(lai_pred.cpu().detach().numpy())
         #     self.gt_test.extend(lai_gt.cpu().numpy())
@@ -163,6 +166,7 @@ class MMDCLAILitModule(LightningModule):  # pylint: disable=too-many-ancestors
     def on_validation_epoch_start(self) -> None:
         self.pred_val = []
         self.gt_val = []
+        self.pos = []
 
     def on_test_epoch_start(self) -> None:
         self.pred_test = []
