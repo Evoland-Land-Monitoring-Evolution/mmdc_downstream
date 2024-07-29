@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=pastis_pvae_utae
+#SBATCH --job-name=fold3
 #SBATCH --output=outputfile-%j.out
 #SBATCH --error=errorfile-%j.err
 #SBATCH -A ttd@a100
@@ -9,7 +9,6 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
 #SBATCH --time=12:00:00
-
 
 # be sure no modules loaded
 module purge
@@ -21,4 +20,4 @@ export WORKING_DIR=$WORK/results/MMDC/jobs
 cd ${WORKING_DIR}
 source ${MMDC_INIT}
 
-HYDRA_FULL_ERROR=1 python   ${SRCDIR}/train.py experiment=pastis_encoded_utae_pvae >> output_$SLURM_JOBID.log
+HYDRA_FULL_ERROR=1 python   ${SRCDIR}/train.py experiment=pastis_encoded_utae_pvae_fold3 >> output_$SLURM_JOBID.log

@@ -7,9 +7,8 @@
 #SBATCH -N 1                        # number of nodes ( or --nodes=1)
 #SBATCH --gres=gpu:1                # number of gpus
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=12
-#SBATCH --time=2:00:00             # Walltime 24h
-#SBATCH --qos=qos_gpu-dev
+#SBATCH --cpus-per-task=16
+#SBATCH --time=12:00:00
 
 # be sure no modules loaded
 module purge

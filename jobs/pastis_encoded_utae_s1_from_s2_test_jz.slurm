@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=pastis_pvae_utae
+#SBATCH --job-name=pastis_concat_utae
 #SBATCH --output=outputfile-%j.out
 #SBATCH --error=errorfile-%j.err
 #SBATCH -A ttd@a100
@@ -7,9 +7,9 @@
 #SBATCH -N 1                        # number of nodes ( or --nodes=1)
 #SBATCH --gres=gpu:1                # number of gpus
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=16
-#SBATCH --time=12:00:00
-
+#SBATCH --cpus-per-task=12
+#SBATCH --time=2:00:00             # Walltime 24h
+#SBATCH --qos=qos_gpu-dev
 
 # be sure no modules loaded
 module purge
@@ -21,4 +21,4 @@ export WORKING_DIR=$WORK/results/MMDC/jobs
 cd ${WORKING_DIR}
 source ${MMDC_INIT}
 
-HYDRA_FULL_ERROR=1 python   ${SRCDIR}/train.py experiment=pastis_encoded_utae_pvae >> output_$SLURM_JOBID.log
+HYDRA_FULL_ERROR=1 python   ${SRCDIR}/train.py experiment=pastis_encoded_utae_s1_from_s2_test >> output_$SLURM_JOBID.log
