@@ -21,4 +21,4 @@ export WORKING_DIR=$WORK/results/MMDC/jobs
 cd ${WORKING_DIR}
 source ${MMDC_INIT}
 
-HYDRA_FULL_ERROR=1 python   ${SRCDIR}/train.py experiment=pastis_encoded_utae_pvae_test >> output_$SLURM_JOBID.log
+HYDRA_FULL_ERROR=1 python   ${SRCDIR}/train.py experiment=pastis_encoded_utae_s1_test >> output_$SLURM_JOBID.log

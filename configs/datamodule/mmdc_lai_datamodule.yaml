@@ -2,15 +2,15 @@ _target_: mmdc_singledate.datamodules.mmdc_datamodule.MMDCDataModule
 
 dl_config:
   _target_: mmdc_singledate.datamodules.mmdc_datamodule.MMDCDataLoaderConfig
-  max_open_files : 1
-  batch_size_train: 25
+  max_open_files : 2
+  batch_size_train: 20
   batch_size_val: 50
-  num_workers: 1
+  num_workers: 2
   pin_memory: False
 
 data_paths:
   _target_: mmdc_singledate.datamodules.mmdc_datamodule.MMDCDataPaths
   tensors_dir : ${oc.env:SCRATCH}/scratch_data/MMDC_OE
-  train_rois : ${oc.env:SCRATCH}/scratch_data/MMDC_OE/tiles_conf_training/LAI_micro/train.txt
-  val_rois : ${oc.env:SCRATCH}/scratch_data/MMDC_OE/tiles_conf_training/LAI_micro/val.txt
-  test_rois : ${oc.env:SCRATCH}/scratch_data/MMDC_OE/tiles_conf_training/LAI_micro/test.txt
+  train_rois : ${oc.env:SCRATCH}/scratch_data/MMDC_OE/tiles_conf_training/LAI_small/train.txt
+  val_rois : ${oc.env:SCRATCH}/scratch_data/MMDC_OE/tiles_conf_training/LAI_small/val.txt
+  test_rois : ${oc.env:SCRATCH}/scratch_data/MMDC_OE/tiles_conf_training/LAI_small/test.txt

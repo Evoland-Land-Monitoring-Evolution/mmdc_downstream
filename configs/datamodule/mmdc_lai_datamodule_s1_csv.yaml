@@ -12,12 +12,27 @@ selected_data: s1_lat # ["exp_lat", "s1_lat", "s2_lat", "s1_asc", "s1_desc", "s1
 
 #path_data:
 #  _target_: mmdc_downstream_lai.datamodules.datamodule_lai_flat.DataPath
-#  train : ${oc.env:WORK}/results/LAI/data_values_baseline_checkpoint_best_train.csv
-#  val : ${oc.env:WORK}/results/LAI/data_values_baseline_checkpoint_best_val.csv
-#  test : ${oc.env:WORK}/results/LAI/data_values_baseline_checkpoint_best_test.csv
+#  train : ${oc.env:WORK}/results/MMDC/jobs/data_values_baseline_magical_checkpoint_train_big.csv
+#  val : ${oc.env:WORK}/results/MMDC/jobs/data_values_baseline_magical_checkpoint_val_big.csv
+#  test : ${oc.env:WORK}/results/MMDC/jobs/data_values_baseline_magical_checkpoint_test_big.csv
+
+
+batch_size:
+  _target_: mmdc_downstream_lai.datamodules.datamodule_lai_flat.BatchSize
+  train: 409600
+  val: 409600
+  test: 409600
+
 
 path_data:
   _target_: mmdc_downstream_lai.datamodules.datamodule_lai_flat.DataPath
-  train : ${oc.env:WORK}/results/MMDC/jobs/data_values_baseline_magical_checkpoint_train_.csv
-  val : ${oc.env:WORK}/results/MMDC/jobs/data_values_baseline_magical_checkpoint_val_.csv
-  test : ${oc.env:WORK}/results/MMDC/jobs/data_values_baseline_magical_checkpoint_test_.csv
+  train : ${oc.env:WORK}/results/MMDC/jobs/data_values_baseline_magical_checkpoint_train.csv
+  val : ${oc.env:WORK}/results/MMDC/jobs/data_values_baseline_magical_checkpoint_val.csv
+  test : ${oc.env:WORK}/results/MMDC/jobs/data_values_baseline_magical_checkpoint_test.csv
+#
+#
+#batch_size:
+#  _target_: mmdc_downstream_lai.datamodules.datamodule_lai_flat.BatchSize
+#  train: 8192
+#  val: 409600
+#  test: 409600
