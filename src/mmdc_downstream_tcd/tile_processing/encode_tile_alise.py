@@ -53,7 +53,7 @@ def encode_tile_alise(
     s2_dates_final = np.load(
         os.path.join(folder_prepared_data, "s2", "gt_tcd_t32tnt_days_s2.npy")
     )
-    reference_date = "2018-03-01"
+    reference_date = "2014-03-03"
     doy = torch.Tensor(
         (pd.to_datetime(s2_dates_final) - pd.to_datetime(reference_date)).days
     )
@@ -133,15 +133,19 @@ def encode_tile_alise(
             )
 
             log.info(s2_ref_norm.shape)
-            margin_local = 32
-            for x in range(0, window, 352):
-                if x + 416 > window:
+            margin_local = 0
+            for x in range(0, window, 384 - margin_local):
+                if x + 384 + margin_local > window:
                     continue
-                for y in range(0, window, 352):
-                    if y + 416 > window:
+                for y in range(0, window, 384 - margin_local):
+                    if y + 384 + margin_local > window:
                         continue
-                    log.info(f"Patch {x}:{x+416}, {y}:{y+416}")
-                    sits = s2_ref_norm.numpy()[:, :, y : y + 416, x : x + 416, :]
+                    log.info(
+                        f"Patch {x}:{x+384 + margin_local}, {y}:{y+384 + margin_local}"
+                    )
+                    sits = s2_ref_norm.numpy()[
+                        :, :, y : y + 384 + margin_local, x : x + 384 + margin_local, :
+                    ]
                     log.info(sits.shape)
                     input = {
                         "sits": sits,
@@ -150,14 +154,27 @@ def encode_tile_alise(
                     }
 
                     ort_out = ort_session.run(None, input)[0]  # (1, 10, 64, 64, 64)
-                    encoded_patch["s2_lat_mu"][
-                        :,
-                        :,
-                        y + margin_local : y + 416 - margin_local,
-                        x + margin_local : x + 416 - margin_local,
-                    ] = ort_out[
-                        0, :, :, margin_local:-margin_local, margin_local:-margin_local
-                    ]
+
+                    if margin_local > 0:
+                        encoded_patch["s2_lat_mu"][
+                            :,
+                            :,
+                            y + margin_local : y + 384,
+                            x + margin_local : x + 384,
+                        ] = ort_out[
+                            0,
+                            :,
+                            :,
+                            margin_local:-margin_local,
+                            margin_local:-margin_local,
+                        ]
+                    else:
+                        encoded_patch["s2_lat_mu"][
+                            :,
+                            :,
+                            y : y + 384,
+                            x : x + 384,
+                        ] = ort_out[0]
 
             encoded_patch["matrix"] = xy_matrix
             encoded_patch["s2_lat_mu"] = encoded_patch["s2_lat_mu"][
@@ -167,6 +184,7 @@ def encode_tile_alise(
             encoded_patch["s2_doy"] = np.arange(encoded_patch["s2_lat_mu"].shape[0])
 
             # Save encoded patch
+            sat = "s2"
             torch.save(
                 {
                     "img": encoded_patch["s2_lat_mu"].astype(np.float32),
