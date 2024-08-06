@@ -238,12 +238,17 @@ class MMDCPastisBaseLitModule(LightningModule):  # pylint: disable=too-many-ance
             }
         elif self.lr_type == "plateau":
             training_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-                optimizer, mode="min", factor=0.9, patience=200, threshold=0.01
+                # optimizer, mode="min", factor=0.8, patience=2, threshold=0.05
+                optimizer,
+                mode="min",
+                factor=0.9,
+                patience=2,
+                threshold=0.05,
             )
             scheduler = {
                 "scheduler": training_scheduler,
-                "interval": "step",
-                "monitor": f"train/{self.losses_list[0]}",
+                "interval": "epoch",
+                "monitor": f"val/{self.losses_list[0]}",
                 "frequency": 1,
                 "strict": False,
             }
