@@ -502,3 +502,21 @@ class PastisCallback(Callback):
                     SampleInfo(batch_idx, batch_size, trainer.current_epoch),
                     sat=trainer.datamodule.sats[0] if x is not dict else None,
                 )
+
+    def on_test_batch_end(  # pylint: disable=too-many-arguments
+        self,
+        trainer: pl.trainer.Trainer,
+        pl_module: PastisUTAE,
+        outputs: Any,
+        batch: BatchInputUTAE,
+        batch_idx: int,
+        dataloader_idx: int = 0,
+    ) -> None:
+        self.on_validation_batch_end(
+            trainer,
+            pl_module,
+            outputs,
+            batch,
+            batch_idx,
+            dataloader_idx,
+        )
