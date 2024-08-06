@@ -97,7 +97,7 @@ def encode_tile(
             [
                 Path(
                     os.path.join(
-                        output_folder, sat, f"gt_tcd_t32tnt_encoded_{sat}_{enum}_.csv"
+                        output_folder, sat, f"gt_tcd_t32tnt_encoded_{sat}_{enum}.csv"
                     )
                 ).exists()
                 for sat in satellites_to_write
