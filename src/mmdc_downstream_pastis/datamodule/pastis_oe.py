@@ -590,12 +590,18 @@ class PastisOEDataModule(LightningDataModule):
                 self.instanciate_dataset(self.folds.val),
             )
         if stage == "test":
-            assert self.data
-            self.data = PastisDataSets(
-                self.data.train,
-                self.data.val,
-                self.instanciate_dataset(self.folds.test),
-            )
+            if self.data:
+                self.data = PastisDataSets(
+                    self.data.train,
+                    self.data.val,
+                    self.instanciate_dataset(self.folds.test),
+                )
+            else:
+                self.data = PastisDataSets(
+                    self.instanciate_dataset(self.folds.train),
+                    self.instanciate_dataset(self.folds.val),
+                    self.instanciate_dataset(self.folds.test),
+                )
 
     def train_dataloader(self) -> tdata.DataLoader:
         """Train dataloader"""
@@ -622,6 +628,7 @@ class PastisOEDataModule(LightningDataModule):
         return self.test_dataloader()
 
     def instanciate_dataset(self, fold: list[int] | None) -> PASTISDataset:
+        logger.info(f"Folds {fold}")
         return PASTISDataset(
             PASTISOptions(
                 task=self.task,
