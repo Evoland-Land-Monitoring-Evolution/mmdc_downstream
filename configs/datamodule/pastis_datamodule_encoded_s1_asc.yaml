@@ -1,6 +1,6 @@
 _target_: mmdc_downstream_pastis.datamodule.pastis_encoded.PastisEncodedDataModule
 
-dataset_path_oe: ${oc.env:WORK}/results/Pastis_encoded/checkpoint_best
+dataset_path_oe: ${oc.env:WORK}/results/Pastis_encoded/magical_checkpoint
 dataset_path_pastis: ${oc.env:SCRATCH}/scratch_data/Pastis
 
 reference_date: "2018-09-01"
@@ -13,7 +13,7 @@ folds:
   val: [4]
   test: [5]
 
-batch_size: 4
+batch_size: 10
 crop_size: null
 norm: false
 use_logvar: false

@@ -36,13 +36,21 @@ TILES_CONFIG_DIR = (
 DATASET_DIR = f"{os.environ['SCRATCH']}/scratch_data/MMDC_OE/"
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-results_path = f"{os.environ['WORK']}/results/MMDC"
+# results_path = f"{os.environ['WORK']}/results/MMDC"
+# model_folder = "checkpoint_best"
+#
+# model_name = "epoch_141"
+# model_type = "baseline"
+
+
 # model_folder = "latent/checkpoints/mmdc_full/2024-02-27_14-47-18"
-model_folder = "checkpoint_best"
+results_path = f"{os.environ['WORK']}/results/MMDC/"
+model_folder = "magical_checkpoint"
+
+model_name = "epoch_463"
+model_type = "baseline"
 
 pretrained_path = os.path.join(results_path, model_folder)
-model_name = "epoch_141"
-model_type = "baseline"
 
 log = get_logger(__name__)
 
@@ -204,7 +212,7 @@ for type, files in files_dict.items():
     for enum, file in enumerate(files):
         log.info(f"{file}")
         tensors = load_files([file])
-
+        count = 0
         batch_all = MMDCBatch(
             tensors.s2_data.s2_set.to(DEVICE),
             tensors.s2_data.s2_masks.to(DEVICE),
@@ -225,6 +233,8 @@ for type, files in files_dict.items():
 
         for batch in batches:
             log.info(f"{enum}/{len(files)}")
+
+            print(batch.s2_x.shape)
 
             lai_gt = compute_gt(model_snap, batch)
             log.info(lai_gt[~torch.isnan(lai_gt)].min())
@@ -255,6 +265,18 @@ for type, files in files_dict.items():
             mask = batch.s2_m.clone()
             H, W = mask.shape[-2:]
             log.info(mask.shape)
+            img_nb = (
+                torch.arange(count, len(mask) + count)[:, None, None]
+                .expand(mask.squeeze(1).shape)
+                .reshape(-1, 1)
+            )
+            pix_nb = (
+                torch.arange(0, H * W)[None, :]
+                .expand((mask.shape[0], H * W))
+                .reshape(-1, 1)
+            )
+            count += len(mask)
+
             mask[:, :, :margin, :margin] = 1
             mask[:, :, -margin:, -margin:] = 1
             mask = rearrange(mask.bool(), "b c h w -> (b h w c)")
@@ -357,12 +379,14 @@ for type, files in files_dict.items():
             if header is None:
                 header = np.concatenate(
                     (
-                        [f"s2_{i}" for i in range(s2_ref.shape[1])],
-                        [f"s2_ang_{i}" for i in range(s2_angles.shape[1])],
-                        [f"s1_{i}" for i in range(s1.shape[1])],
-                        [f"s1_ang_{i}" for i in range(s1_angles.shape[1])],
+                        ["img"],
+                        ["pix"],
+                        # [f"s2_{i}" for i in range(s2_ref.shape[1])],
+                        # [f"s2_ang_{i}" for i in range(s2_angles.shape[1])],
+                        # [f"s1_{i}" for i in range(s1.shape[1])],
+                        # [f"s1_ang_{i}" for i in range(s1_angles.shape[1])],
                         [f"s1_mask_{i}" for i in range(s1_mask.shape[1])],
-                        [f"s2_input_{i}" for i in range(s2_input.shape[1])],
+                        # [f"s2_input_{i}" for i in range(s2_input.shape[1])],
                         [f"s1_lat_mu_{i}" for i in range(s1_lat_mu.shape[1])],
                         [f"s1_lat_logvar_{i}" for i in range(s1_lat_logvar.shape[1])],
                         [f"s2_lat_mu_{i}" for i in range(s2_lat_mu.shape[1])],
@@ -388,12 +412,14 @@ for type, files in files_dict.items():
             if model_type == "experts":
                 data_to_write = np.hstack(
                     (
-                        s2_ref,
-                        s2_angles,
-                        s1,
-                        s1_angles,
+                        img_nb.cpu()[~mask.cpu()][idx].numpy(),
+                        pix_nb.cpu()[~mask.cpu()][idx].numpy(),
+                        # s2_ref,
+                        # s2_angles,
+                        # s1,
+                        # s1_angles,
                         s1_mask,
-                        s2_input,
+                        # s2_input,
                         s1_lat_mu,
                         s1_lat_logvar,
                         s2_lat_mu,
@@ -406,12 +432,14 @@ for type, files in files_dict.items():
             else:
                 data_to_write = np.hstack(
                     (
-                        s2_ref,
-                        s2_angles,
-                        s1,
-                        s1_angles,
+                        img_nb.cpu()[~mask.cpu()][idx].numpy(),
+                        pix_nb.cpu()[~mask.cpu()][idx].numpy(),
+                        # s2_ref,
+                        # s2_angles,
+                        # s1,
+                        # s1_angles,
                         s1_mask,
-                        s2_input,
+                        # s2_input,
                         s1_lat_mu,
                         s1_lat_logvar,
                         s2_lat_mu,

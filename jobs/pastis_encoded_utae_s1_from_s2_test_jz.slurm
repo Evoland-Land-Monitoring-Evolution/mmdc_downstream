@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=lai_reg_s2_flat
+#SBATCH --job-name=pastis_concat_utae
 #SBATCH --output=outputfile-%j.out
 #SBATCH --error=errorfile-%j.err
 #SBATCH -A ttd@a100
@@ -18,8 +18,7 @@ export SRCDIR=$WORK/src/MMDC/mmdc-downstream
 export MMDC_INIT=${SRCDIR}/mmdc_init_jz.sh
 export WORKING_DIR=$WORK/results/MMDC/jobs
 
-
 cd ${WORKING_DIR}
 source ${MMDC_INIT}
 
-HYDRA_FULL_ERROR=1 python   ${SRCDIR}/train.py experiment=lai_reg_latent_s2_flat >> output_$SLURM_JOBID.log
+HYDRA_FULL_ERROR=1 python   ${SRCDIR}/train.py experiment=pastis_encoded_utae_s1_from_s2_test >> output_$SLURM_JOBID.log

@@ -53,8 +53,8 @@ class MMDCPartialBatch:
         Mask values are 1, because it is nodata
         """
         return MMDCPartialBatch(
-            img=torch.zeros(batch_size, times, nb_channels, height, width),
-            angles=torch.zeros(batch_size, times, nb_angles, height, width),
+            img=torch.full((batch_size, times, nb_channels, height, width), torch.nan),
+            angles=torch.full((batch_size, times, nb_angles, height, width), torch.nan),
             mask=torch.ones(batch_size, times, nb_mask, height, width).to(torch.int8),
             meteo=torch.zeros(batch_size, times, nb_meteo, height, width),
             dem=torch.zeros(batch_size, 4, height, width),

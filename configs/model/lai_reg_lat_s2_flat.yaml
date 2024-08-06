@@ -8,8 +8,8 @@ model:
   config:
     _target_: mmdc_downstream_lai.models.datatypes.RegressionConfig
     reg_model:
-      hidden_sizes: [ 5 ]
-      input_size: 12
+      hidden_sizes: [ 16, 16 ]
+      input_size: 6
       output_size: 1
 
 

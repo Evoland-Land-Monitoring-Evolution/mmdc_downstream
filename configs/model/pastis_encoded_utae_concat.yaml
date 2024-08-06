@@ -2,12 +2,13 @@
 _target_: mmdc_downstream_pastis.models.lightning.pastis_utae_semantic.PastisUTAE
 lr: 0.001
 resume_from_checkpoint: null #${oc.env:WORK}/results/MMDC/results/pastis/checkpoints/pastis_encoded_concat_utae/2024-05-24_12-51-34/last.ckpt
+#lr_type: constant
 
 model:
   _target_: mmdc_downstream_pastis.models.torch.utae_fusion.UTAEFusion
   input_dim:
     S1: 6
-    S2: 12
+    S2: 6
   fusion: concat
 
 metrics_list : ["cross_entropy"]

@@ -1,6 +1,6 @@
 _target_: mmdc_downstream_lai.datamodules.datamodule_lai_flat.LAIDataModule
 
-use_logvar: true
+use_logvar: false
 norm: false
 selected_data: s2_lat # ["exp_lat", "s1_lat", "s2_lat", "s1_asc", "s1_desc", "s1_mask"]
 
@@ -18,6 +18,12 @@ selected_data: s2_lat # ["exp_lat", "s1_lat", "s2_lat", "s1_asc", "s1_desc", "s1
 
 path_data:
   _target_: mmdc_downstream_lai.datamodules.datamodule_lai_flat.DataPath
-  train : ${oc.env:WORK}/results/MMDC/jobs/data_values_baseline_2024-02-27_14-47-18_train.csv
-  val : ${oc.env:WORK}/results/MMDC/jobs/data_values_baseline_2024-02-27_14-47-18_val.csv
-  test : ${oc.env:WORK}/results/MMDC/jobs/data_values_baseline_2024-02-27_14-47-18_test.csv
+  train : ${oc.env:WORK}/results/MMDC/jobs/data_values_baseline_magical_checkpoint_train_s2.csv
+  val : ${oc.env:WORK}/results/MMDC/jobs/data_values_baseline_magical_checkpoint_val_s2.csv
+  test : ${oc.env:WORK}/results/MMDC/jobs/data_values_baseline_magical_checkpoint_test_s2.csv
+
+batch_size:
+  _target_: mmdc_downstream_lai.datamodules.datamodule_lai_flat.BatchSize
+  train: 8192
+  val: 409600
+  test: 409600

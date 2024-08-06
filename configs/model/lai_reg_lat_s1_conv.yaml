@@ -1,0 +1,39 @@
+
+_target_: mmdc_downstream_lai.models.lightning.lai_regression_conv.MMDCDLAILitModuleConv
+lr: 0.0005
+resume_from_checkpoint: null
+
+# To choose from [experts, lat_S1, lat_S2, S2, S1_asc, S2_desc]
+input_data: lat_S1
+
+model:
+  _target_: mmdc_downstream_lai.models.torch.lai_regression_conv.MMDCDownstreamRegressionModuleConv
+  config:
+    _target_: mmdc_downstream_lai.models.datatypes.RegressionConfig
+    reg_model:
+#      hidden_sizes: [ 16, 32, 16 ]
+      hidden_sizes: [ 32, 16 ]
+      input_size: 6
+      output_size: 1
+
+model_snap:
+  _target_: mmdc_downstream_lai.snap.lai_snap.BVNET
+  device: cuda
+  ver: "2"
+  variable: lai
+
+model_mmdc:
+  _target_: mmdc_downstream_lai.mmdc_model.model.PretrainedMMDC
+  pretrained_path: ${oc.env:WORK}/results/MMDC/magical_checkpoint
+  model_name: epoch_463
+  model_type: baseline   # to choose from ["baseline", "experts"]
+
+stats_path: ${oc.env:WORK}/results/MMDC/magical_checkpoint/stats.pt
+histogram_path: ${oc.env:WORK}/src/MMDC/mmdc-downstream/src/mmdc_downstream_lai/models/histograms_for_weights/hist_bins.pt
+
+
+# To choose from ["RSE", "R2", "MAE", "MAPE"]
+metrics_list : ["RMSE", "RSE", "R2", "MAE", "MAPE"]
+
+# To choose from ["RMSE", "MSE", "MAE"]
+losses_list : ["RMSE"]

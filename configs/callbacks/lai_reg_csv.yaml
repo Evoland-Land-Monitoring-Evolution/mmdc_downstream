@@ -11,25 +11,25 @@ model_checkpoint:
 
 early_stopping:
   _target_: pytorch_lightning.callbacks.EarlyStopping
-  monitor: val/${model.losses_list[0]} # name of the logged metric which determines when model is improving
+  monitor: val/${model.metrics_list[0]} # name of the logged metric which determines when model is improving
   mode: "min" # "max" means higher metric value is better, can be also "min"
-  patience: 10 # how many validation epochs of not improving until training stops
+  patience: 3 # how many validation epochs of not improving until training stops
   min_delta: 0 # minimum change in the monitored metric needed to qualify as an improvement
 
 lr_monitor:
   _target_: pytorch_lightning.callbacks.LearningRateMonitor
 
-model_summary:
-  _target_: pytorch_lightning.callbacks.RichModelSummary
-  max_depth: -1
+#model_summary:
+#  _target_: pytorch_lightning.callbacks.RichModelSummary
+#  max_depth: -1
 
-rich_progress_bar:
-  _target_: pytorch_lightning.callbacks.RichProgressBar
+#rich_progress_bar:
+#  _target_: pytorch_lightning.callbacks.RichProgressBar
 
 scatterplot_step:
   _target_: mmdc_downstream_lai.callbacks.scatterplot_callback.MMDCLAIScatterplotCallbackStep
   save_dir: ${hydra:run.dir}
 
-scatterplot_epoch:
-  _target_: mmdc_downstream_lai.callbacks.scatterplot_callback.MMDCLAIScatterplotCallbackEpoch
-  save_dir: ${hydra:run.dir}
+#scatterplot_epoch:
+#  _target_: mmdc_downstream_lai.callbacks.scatterplot_callback.MMDCLAIScatterplotCallbackEpoch
+#  save_dir: ${hydra:run.dir}
