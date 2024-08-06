@@ -1,0 +1,35 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=pastis_encoded
+
+defaults:
+  - override /datamodule: pastis_datamodule_encoded_pvae.yaml
+  - override /model: pastis_encoded_utae_pvae.yaml
+  - override /callbacks: pastis.yaml
+  - override /trainer: default.yaml
+
+datamodule:
+  folds:
+    _target_: mmdc_downstream_pastis.datamodule.datatypes.PastisFolds
+    train: [ 3,4,5 ]
+    val: [ 1 ]
+    test: [ 2 ]
+
+model:
+  _target_: mmdc_downstream_pastis.models.lightning.pastis_utae_semantic.PastisUTAE
+  lr: 0.0005
+  resume_from_checkpoint: null #${oc.env:WORK}/results/MMDC/results/pastis/checkpoints/pastis_encoded_pvae_utae/2024-07-01_15-20-36/last.ckpt
+  lr_type: plateau
+
+test: True
+
+output_dir: ${oc.env:WORK}/results/MMDC/results/pastis
+
+
+# all parameters bellow will be merged with parameters from default configurations set above
+# this allows you overwrite only specified parameters
+
+tags: ["pastis_encoded_pvae_utae"]
+
+name: "pastis_encoded_pvae_utae"
