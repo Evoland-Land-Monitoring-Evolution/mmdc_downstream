@@ -1,0 +1,32 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=pastis_encoded
+
+defaults:
+  - override /datamodule: pastis_datamodule_encoded_alise_s1_asc.yaml
+  - override /model: pastis_encoded_alise_s1_asc.yaml
+  - override /callbacks: pastis.yaml
+  - override /trainer: default.yaml
+
+
+#output_dir: ${oc.env:WORK}/results/MMDC/results/pastis
+output_dir: /work/scratch/data/kalinie/MMDC/results/pastis
+
+datamodule:
+  sats: [ "S2" ]
+
+
+model:
+  _target_: mmdc_downstream_pastis.models.lightning.pastis_shallow_semantic.PastisShallow
+  lr: 0.0001
+  resume_from_checkpoint: null  #/work/scratch/data/kalinie/MMDC/results/pastis/checkpoints/pastis_encoded_alise_s2/2024-10-03_15-28-22/epoch_007.ckpt
+  lr_type: constant
+
+test: True
+# all parameters bellow will be merged with parameters from default configurations set above
+# this allows you overwrite only specified parameters
+
+tags: ["pastis_encoded_alise_s2"]
+
+name: "pastis_encoded_alise_s2"

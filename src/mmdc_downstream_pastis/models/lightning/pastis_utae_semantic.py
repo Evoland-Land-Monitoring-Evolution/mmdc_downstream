@@ -73,6 +73,8 @@ class PastisUTAE(MMDCPastisBaseLitModule):
             losses_list=self.losses_list,
         )
 
+        print(losses)
+
         if stage == "train":
             self.iou_meter_train.add(to_class_label(logits_clip), gt_clip)
         if stage == "val":
@@ -87,7 +89,7 @@ class PastisUTAE(MMDCPastisBaseLitModule):
         batch_idx: int,  # pylint: disable=unused-argument
     ) -> dict[str, Any]:
         """Training step. Step and return loss."""
-        torch.autograd.set_detect_anomaly(True)
+        # torch.autograd.set_detect_anomaly(True)
         losses = self.step(batch)
         for loss_name, loss_value in losses.items():
             self.log(

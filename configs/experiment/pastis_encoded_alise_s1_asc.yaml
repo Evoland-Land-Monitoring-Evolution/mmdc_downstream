@@ -1,0 +1,23 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=pastis_encoded
+
+defaults:
+  - override /datamodule: pastis_datamodule_encoded_alise_s1_asc.yaml
+  - override /model: pastis_encoded_alise_s1_asc.yaml
+  - override /callbacks: pastis.yaml
+  - override /trainer: default.yaml
+
+
+#output_dir: ${oc.env:WORK}/results/MMDC/results/pastis
+output_dir: /work/scratch/data/kalinie/MMDC/results/pastis
+
+
+test: True
+# all parameters bellow will be merged with parameters from default configurations set above
+# this allows you overwrite only specified parameters
+
+tags: ["pastis_encoded_alise_s1_asc"]
+
+name: "pastis_encoded_alise_s1_asc"

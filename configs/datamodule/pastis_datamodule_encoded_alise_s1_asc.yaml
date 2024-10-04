@@ -1,0 +1,24 @@
+_target_: mmdc_downstream_pastis.datamodule.pastis_encoded_alise.PastisEncodedAliseDataModule
+
+dataset_path_oe: /work/scratch/data/kalinie/results/Pastis_encoded/alise
+dataset_path_pastis: /work/CESBIO/projects/DeepChange/Ekaterina/Pastis
+
+reference_date: "2018-09-01"
+sats: [ "S1_ASC" ]
+task: "semantic"
+
+folds:
+  _target_: mmdc_downstream_pastis.datamodule.datatypes.PastisFolds
+  train: [1,2,3]
+  val: [4]
+  test: [5]
+#    fold_sequence = [
+#        [[1, 2, 3], [4], [5]],
+#        [[2, 3, 4], [5], [1]],
+#        [[3, 4, 5], [1], [2]],
+#        [[4, 5, 1], [2], [3]],
+#        [[5, 1, 2], [3], [4]],
+#    ]
+
+batch_size: 2
+crop_size: null
