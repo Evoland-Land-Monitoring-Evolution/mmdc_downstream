@@ -99,7 +99,9 @@ class PastisCallback(Callback):
     ):
         self.save_dir = save_dir
         self.n_samples = n_samples
-        self.pastis_path = f"{os.environ['SCRATCH']}/scratch_data/Pastis_OE_corr"
+        # self.pastis_path = f"{os.environ['SCRATCH']}/scratch_data/Pastis_OE_corr"
+        self.pastis_path = "/work/CESBIO/projects/DeepChange/Ekaterina/Pastis_OE"
+
         self.selected_months = ["2018-10", "2019-02", "2019-05", "2019-08", "2019-11"]
 
     def prepare_encoded(
@@ -444,7 +446,11 @@ class PastisCallback(Callback):
             sample.batch_size,
             sample.batch_size // min(sample.batch_size, self.n_samples),
         ):
-            sel_index, sel_dates = self.find_dates(dates, samp_idx)
+            if dates is not None:
+                sel_index, sel_dates = self.find_dates(dates, samp_idx)
+            else:
+                sel_index = range(0, 10, 2)
+                sel_dates = sel_index
 
             prepared_patches = self.prepare_patches_grid(
                 samp_idx, sen_data, pred, gt, sel_index
@@ -480,7 +486,7 @@ class PastisCallback(Callback):
         #     trainer.datamodule.reference_date
         # )  # TODO check it later and integrate
 
-        if trainer.current_epoch % 5 == 0:
+        if trainer.current_epoch % 1 == 0:
             if batch_idx < 3:  # TODO: Add a constraint with nb of images per epoch
                 pred: torch.Tensor = pl_module.predict(batch)
 
@@ -491,7 +497,11 @@ class PastisCallback(Callback):
                     if type(x) is torch.Tensor
                     else x[list(x.keys())[0]].shape[0]
                 )
-                pred[batch.gt_mask] = 0
+                if batch.gt_mask is None:
+                    gt_mask = ~((batch.gt != 0) & (batch.gt != 19))
+                else:
+                    gt_mask = batch.gt_mask
+                pred[gt_mask] = 0
 
                 self.save_image_grid(
                     x,
