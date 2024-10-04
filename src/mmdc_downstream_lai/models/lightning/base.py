@@ -107,7 +107,7 @@ class MMDCDownstreamBaseLitModule(
         batch_idx: int,  # pylint: disable=unused-argument
     ) -> dict[str, Any]:
         """Training step. Step and return loss."""
-        torch.autograd.set_detect_anomaly(True)
+        # torch.autograd.set_detect_anomaly(True)
         loss = self.step(batch)
 
         # log training metrics

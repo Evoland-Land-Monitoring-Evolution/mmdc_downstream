@@ -88,7 +88,7 @@ class MMDCPastisBaseLitModule(LightningModule):  # pylint: disable=too-many-ance
         batch_idx: int,  # pylint: disable=unused-argument
     ) -> dict[str, Any]:
         """Training step. Step and return loss."""
-        torch.autograd.set_detect_anomaly(True)
+        # torch.autograd.set_detect_anomaly(True)
         loss = self.step(batch)
 
         # log training metrics
@@ -215,7 +215,7 @@ class MMDCPastisBaseLitModule(LightningModule):  # pylint: disable=too-many-ance
     def configure_optimizers(self) -> dict[str, Any]:
         """A single optimizer with a LR scheduler"""
         optimizer = torch.optim.Adam(
-            params=self.model.parameters(), lr=self.learning_rate  # , weight_decay=0.01
+            params=self.model.parameters(), lr=self.learning_rate, weight_decay=0.01
         )
         if self.lr_type == "cosine":
             training_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
@@ -242,7 +242,7 @@ class MMDCPastisBaseLitModule(LightningModule):  # pylint: disable=too-many-ance
                 optimizer,
                 mode="min",
                 factor=0.9,
-                patience=2,
+                patience=1,
                 threshold=0.05,
             )
             scheduler = {
