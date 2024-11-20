@@ -486,7 +486,7 @@ class PastisCallback(Callback):
         #     trainer.datamodule.reference_date
         # )  # TODO check it later and integrate
 
-        if trainer.current_epoch % 1 == 0:
+        if trainer.current_epoch % 5 == 0:
             if batch_idx < 3:  # TODO: Add a constraint with nb of images per epoch
                 pred: torch.Tensor = pl_module.predict(batch)
 
