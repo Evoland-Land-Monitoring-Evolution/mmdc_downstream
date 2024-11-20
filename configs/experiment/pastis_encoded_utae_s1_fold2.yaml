@@ -9,7 +9,7 @@ defaults:
   - override /callbacks: pastis.yaml
   - override /trainer: default.yaml
 
-output_dir: ${oc.env:WORK}/results/MMDC/results/pastis
+output_dir: /work/scratch/data/kalinie/MMDC/results/pastis
 
 
 datamodule:

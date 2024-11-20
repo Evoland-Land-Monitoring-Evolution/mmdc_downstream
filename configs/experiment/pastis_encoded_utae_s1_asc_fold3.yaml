@@ -4,7 +4,7 @@
 # python train.py experiment=pastis_encoded
 
 defaults:
-  - override /datamodule: pastis_datamodule_encoded_s1.yaml
+  - override /datamodule: pastis_datamodule_encoded_s1_asc.yaml
   - override /model: pastis_encoded_utae_s1.yaml
   - override /callbacks: pastis.yaml
   - override /trainer: default.yaml
@@ -15,13 +15,13 @@ output_dir: /work/scratch/data/kalinie/MMDC/results/pastis
 datamodule:
   folds:
     _target_: mmdc_downstream_pastis.datamodule.datatypes.PastisFolds
-    train: [ 5,1,2 ]
-    val: [ 3 ]
-    test: [ 4 ]
+    train: [ 3,4,5 ]
+    val: [ 1 ]
+    test: [ 2 ]
 
 # all parameters bellow will be merged with parameters from default configurations set above
 # this allows you overwrite only specified parameters
 
-tags: ["pastis_encoded_s1_utae"]
+tags: ["pastis_encoded_s1_asc_utae"]
 
-name: "pastis_encoded_s1_utae"
+name: "pastis_encoded_s1_asc_utae"
