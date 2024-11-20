@@ -14,8 +14,6 @@ class Shallow(nn.Module):
         Shallow classifier for encoded alise
         """
         super().__init__()
-        # self.shallow_layer1 = nn.Linear(input_dim, int(input_dim/2))
-        # self.shallow_layer2 = nn.Linear(int(input_dim/2), num_classes)
 
         self.shallow_layer = nn.Linear(input_dim, num_classes)
 

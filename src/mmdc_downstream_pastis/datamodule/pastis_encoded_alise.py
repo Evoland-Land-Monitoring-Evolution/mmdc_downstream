@@ -44,6 +44,7 @@ class PASTISEncodedDatasetAlise(PASTISEncodedDataset):
         crop_type: Literal["Center", "Random"] = "Random",
         transform: nn.Module | None = None,
         norm: bool = False,
+        postfix: str = "",
     ):
         """ """
 
@@ -60,6 +61,7 @@ class PASTISEncodedDatasetAlise(PASTISEncodedDataset):
             sats = ["S2"]
 
         self.sats = sats
+        self.postfix = postfix
 
     def read_data_from_disk(
         self,
@@ -71,7 +73,7 @@ class PASTISEncodedDatasetAlise(PASTISEncodedDataset):
             satellite: self.load_file(
                 os.path.join(
                     self.options.dataset_path_oe,
-                    satellite,
+                    satellite + "_" + self.postfix,
                     f"{satellite}_{id_patch}.pt",
                 )
             )
@@ -213,6 +215,7 @@ class PastisEncodedAliseDataModule(PastisEncodedDataModule):
         crop_size: int | None = 64,
         crop_type: Literal["Center", "Random"] = "Random",
         num_workers: int = 1,
+        postfix: str = "",
     ):
         super().__init__(
             dataset_path_oe,
@@ -227,6 +230,8 @@ class PastisEncodedAliseDataModule(PastisEncodedDataModule):
             num_workers=num_workers,
         )
 
+        self.postfix = postfix
+
     def instanciate_dataset(self, fold: list[int] | None) -> PASTISDataset:
         return PASTISEncodedDatasetAlise(
             PASTISOptions(
@@ -240,6 +245,7 @@ class PastisEncodedAliseDataModule(PastisEncodedDataModule):
             crop_size=self.crop_size,
             crop_type=self.crop_type,
             norm=self.norm,
+            postfix=self.postfix,
         )
 
     def instanciate_data_loader(
