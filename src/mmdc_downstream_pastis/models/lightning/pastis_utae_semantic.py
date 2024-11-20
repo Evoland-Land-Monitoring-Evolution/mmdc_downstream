@@ -42,6 +42,7 @@ class PastisUTAE(MMDCPastisBaseLitModule):
         lr: float = 0.001,
         lr_type: str = "constant",
         resume_from_checkpoint: str | None = None,
+        margin: int = 32,
     ):
         super().__init__(model, lr, lr_type, resume_from_checkpoint)
 
@@ -49,6 +50,8 @@ class PastisUTAE(MMDCPastisBaseLitModule):
         self.metrics_list = metrics_list
 
         self.model = model
+
+        self.margin = margin
 
     def step(self, batch: BatchInputUTAE, stage: str = "train") -> Any:
         """
@@ -58,22 +61,37 @@ class PastisUTAE(MMDCPastisBaseLitModule):
         gt = batch.gt.long()
 
         logits = self.forward(batch)
-        logits_clip = logits[:, :, 32:-32, 32:-32].contiguous()
-        gt_clip = gt[:, 32:-32, 32:-32].contiguous()
-        gt_mask_clip = (
-            ((gt_clip == 0) | (gt_clip == 19))
-            if batch.gt_mask is None
-            else batch.gt_mask[:, 32:-32, 32:-32].contiguous()
-        )
+
+        if self.margin > 0:
+            logits_clip = logits[
+                :, :, self.margin : -self.margin, self.margin : -self.margin
+            ].contiguous()
+            gt_clip = gt[
+                :, self.margin : -self.margin, self.margin : -self.margin
+            ].contiguous()
+            gt_clip[gt_clip == 19] = 0
+            # gt_mask = (
+            #     ((gt_clip == 0) | (gt_clip == 19))
+            #     if batch.gt_mask is None
+            #     else batch.gt_mask[
+            #         :, self.margin : -self.margin, self.margin : -self.margin
+            #     ].contiguous()
+            # )
+        else:
+            logits_clip = logits
+            gt_clip = gt
+            gt_clip[gt_clip == 19] = 0
+            # gt_mask = (
+            #     ((gt_clip == 0) | (gt_clip == 19))
+            #     if batch.gt_mask is None
+            #     else batch.gt_mask
+            # )
 
         losses = compute_losses(
             preds=logits_clip,
             target=gt_clip,
-            mask=gt_mask_clip,
             losses_list=self.losses_list,
         )
-
-        print(losses)
 
         if stage == "train":
             self.iou_meter_train.add(to_class_label(logits_clip), gt_clip)
@@ -120,6 +138,14 @@ class PastisUTAE(MMDCPastisBaseLitModule):
                 prog_bar=False,
             )
 
+        # for metric_name, metric_value in metrics.items():
+        #     self.log(
+        #         f"{prefix}/{metric_name}",
+        #         metric_value,
+        #         on_step=False,
+        #         on_epoch=True,
+        #         prog_bar=False,
+        #     )
         return {"loss": sum(losses.values())}
 
     def test_step(  # pylint: disable=arguments-differ

@@ -60,17 +60,17 @@ class MMDCPastisBaseLitModule(LightningModule):  # pylint: disable=too-many-ance
 
         self.iou_meter_train = IoU(
             num_classes=model.num_classes,
-            ignore_index=[0, 19],
+            ignore_index=[0],
             cm_device="cuda",
         )
         self.iou_meter_val = IoU(
             num_classes=model.num_classes,
-            ignore_index=[0, 19],
+            ignore_index=[0],
             cm_device="cuda",
         )
         self.iou_meter_test = IoU(
             num_classes=model.num_classes,
-            ignore_index=[0, 19],
+            ignore_index=[0],
             cm_device="cuda",
         )
 
@@ -170,6 +170,7 @@ class MMDCPastisBaseLitModule(LightningModule):  # pylint: disable=too-many-ance
         """On validation epoch end"""
         logging.info("Ended validation epoch %s", self.trainer.current_epoch)
         miou, acc = self.iou_meter_val.get_miou_acc()
+        f1_score = self.iou_meter_val.get_f1_score_by_class()
         self.log(
             "val/mIoU",
             miou,
@@ -184,6 +185,15 @@ class MMDCPastisBaseLitModule(LightningModule):  # pylint: disable=too-many-ance
             on_epoch=True,
             prog_bar=False,
         )
+
+        for i in range(len(f1_score)):
+            self.log(
+                f"val/f1_{i}",
+                f1_score[i],
+                on_step=False,
+                on_epoch=True,
+                prog_bar=False,
+            )
 
     def on_test_epoch_end(self) -> None:
         """Callback after a test epoch"""
