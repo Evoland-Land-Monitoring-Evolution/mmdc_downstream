@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=s1_asc_alise_shallow
+#SBATCH --job-name=fold5
 #SBATCH --output=outputfile-%j.out
 #SBATCH --error=errorfile-%j.err
 #SBATCH -N 1                       # number of nodes ( or --nodes=1)
@@ -7,7 +7,7 @@
 #SBATCH --gres=gpu:1               # number of gpus
 #SBATCH --partition=gpu_a100       # partition
 #SBATCH --qos=gpu_all              # QoS
-#SBATCH --time=3:00:00            # Walltime
+#SBATCH --time=12:00:00            # Walltime
 #SBATCH --mem-per-cpu=24G          # memory per core
 #SBATCH --account=cesbio           # MANDATORY : account (launch myaccounts to list your accounts)
 #SBATCH --export=none              #  to start the job with a clean environnement and source of ~/.bashrc
@@ -23,4 +23,4 @@ export WORKING_DIR=${SCRATCH}/MMDC/jobs
 cd ${WORKING_DIR}
 source ${MMDC_INIT}
 
-HYDRA_FULL_ERROR=1 python   ${SRCDIR}/train.py experiment=pastis_encoded_alise_s1_asc >> output_$SLURM_JOBID.log
+HYDRA_FULL_ERROR=1 python   ${SRCDIR}/train.py experiment=pastis_encoded_utae_s1_fold5 >> output_$SLURM_JOBID.log
