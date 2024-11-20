@@ -1,7 +1,10 @@
 _target_: mmdc_downstream_pastis.datamodule.pastis_encoded.PastisEncodedDataModule
 
-dataset_path_oe: ${oc.env:WORK}/results/Pastis_encoded/magical_checkpoint
-dataset_path_pastis: ${oc.env:SCRATCH}/scratch_data/Pastis
+#dataset_path_oe: ${oc.env:WORK}/results/Pastis_encoded/magical_checkpoint
+#dataset_path_pastis: ${oc.env:SCRATCH}/scratch_data/Pastis
+
+dataset_path_oe: /work/scratch/data/kalinie/results/Pastis_encoded/magical_checkpoint
+dataset_path_pastis: /work/CESBIO/projects/DeepChange/Ekaterina/Pastis
 
 reference_date: "2018-09-01"
 sats: [ "S1" ]

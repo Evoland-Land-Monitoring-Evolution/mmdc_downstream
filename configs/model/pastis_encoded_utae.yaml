@@ -1,8 +1,8 @@
 
 _target_: mmdc_downstream_pastis.models.lightning.pastis_utae_semantic.PastisUTAE
 lr: 0.001
-resume_from_checkpoint: ${oc.env:WORK}/results/MMDC/results/pastis/checkpoints/pastis_encoded_s2_utae/2024-07-17_11-13-34/last.ckpt
-lr_type: constant
+resume_from_checkpoint: null
+lr_type: plateau
 
 model:
   _target_: mmdc_downstream_pastis.models.torch.utae.UTAE
