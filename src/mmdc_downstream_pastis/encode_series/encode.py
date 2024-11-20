@@ -80,7 +80,7 @@ def fill_batch_s1(
 
 
 def match_asc_desc_both_available(
-    days_asc: np.ndarray, days_desc: np.ndarray
+    days_asc: np.ndarray, days_desc: np.ndarray, tolerance: int = 1
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Match Asc et Desc dates when both orbits are available.
@@ -93,7 +93,7 @@ def match_asc_desc_both_available(
         df_desc,
         left_index=True,
         right_index=True,
-        tolerance=pd.Timedelta(1, "D"),
+        tolerance=pd.Timedelta(tolerance, "D"),
         direction="nearest",
     )
     s1_desc_asc = pd.merge_asof(
@@ -101,7 +101,7 @@ def match_asc_desc_both_available(
         df_asc,
         left_index=True,
         right_index=True,
-        tolerance=pd.Timedelta(1, "D"),
+        tolerance=pd.Timedelta(tolerance, "D"),
         direction="nearest",
     )
 
@@ -119,7 +119,7 @@ def match_asc_desc_both_available(
 
 
 def match_asc_desc(
-    days_asc: np.ndarray, days_desc: np.ndarray
+    days_asc: np.ndarray, days_desc: np.ndarray, tolerance: int = 1
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Match asc and desc orbits to find co-ocurences
@@ -128,7 +128,7 @@ def match_asc_desc(
     """
     # if both orbits are available for patch
     if len(days_asc) > 0 and len(days_desc) > 0:
-        return match_asc_desc_both_available(days_asc, days_desc)
+        return match_asc_desc_both_available(days_asc, days_desc, tolerance)
     # if only one orbit is available for patch
     else:
         if len(days_asc) > 0:
@@ -148,6 +148,7 @@ def create_full_s1(
     batch_desc: MMDCPartialBatch,
     days_asc: np.ndarray,
     days_desc: np.ndarray,
+    tolerance: int = 1,
 ) -> tuple[MMDCPartialBatch, np.ndarray, np.ndarray, np.ndarray]:
     """
     Match S1 asc and desc dates and fill MMDC S1 batch according to available data
@@ -157,7 +158,7 @@ def create_full_s1(
         bs, t, ch, h, w = batch_desc.img.shape
     if bs == 1:
         days_asc, days_desc = days_asc[0], days_desc[0]
-        asc_ind, desc_ind, days_s1 = match_asc_desc(days_asc, days_desc)
+        asc_ind, desc_ind, days_s1 = match_asc_desc(days_asc, days_desc, tolerance)
 
         batch_s1 = MMDCPartialBatch.create_empty_s1_with_shape(
             batch_size=bs,
@@ -209,7 +210,10 @@ def create_empty_s1_orbit_batch(
 
 
 def encode_one_batch_s1(
-    mmdc_model: PretrainedMMDCPastis, batch_dict: dict[str, Any], ref_date: str = None
+    mmdc_model: PretrainedMMDCPastis,
+    batch_dict: dict[str, Any],
+    ref_date: str = None,
+    tolerance: int = 1,
 ) -> tuple[VAELatentSpace, VAELatentSpace, VAELatentSpace, torch.Tensor, np.ndarray,]:
     """
     Encode one S1 batch.
@@ -230,7 +234,7 @@ def encode_one_batch_s1(
         batch_desc, days_desc = create_empty_s1_orbit_batch(bs)
 
     batch_s1, asc_ind, desc_ind, days_s1 = create_full_s1(
-        batch_asc, batch_desc, days_asc, days_desc
+        batch_asc, batch_desc, days_asc, days_desc, tolerance
     )
 
     if batch_s1.img.shape[1] >= 40 and batch_s1.img.shape[-1] >= 500:
@@ -289,7 +293,10 @@ def encode_one_batch_s2(
 
 
 def encode_one_batch(
-    mmdc_model: PretrainedMMDCPastis, batch_dict: dict[str, Any], ref_date: str = None
+    mmdc_model: PretrainedMMDCPastis,
+    batch_dict: dict[str, Any],
+    ref_date: str = None,
+    tolerance: int = 1,
 ) -> tuple[
     VAELatentSpace,
     VAELatentSpace,
@@ -303,7 +310,7 @@ def encode_one_batch(
     """
     latents2 = encode_one_batch_s2(mmdc_model, batch_dict)
     latents1, latents1_asc, latents1_desc, batch_s1_mask, days_s1 = encode_one_batch_s1(
-        mmdc_model, batch_dict, ref_date
+        mmdc_model, batch_dict, ref_date, tolerance=tolerance
     )
     return latents1, latents1_asc, latents1_desc, latents2, batch_s1_mask, days_s1
 
@@ -314,6 +321,7 @@ def encode_series(
     dataset_path_pastis: str | Path,
     sats: list[str],
     output_path: str | Path,
+    tolerance: int = 1,
     join_s1: bool = True,  # TODO integrate in code
 ):
     """Encode PASTIS SITS into S1 and S2 latent embeddings"""
@@ -331,6 +339,8 @@ def encode_series(
                 Path(os.path.join(output_path, "S2", f"S2_{id}.pt")).exists()
                 and Path(os.path.join(output_path, "S1", f"S1_{id}.pt")).exists()
             )
+        elif "S2" in sats:
+            condition = Path(os.path.join(output_path, "S2", f"S2_{id}.pt")).exists()
         elif "S1_ASC" in sats and "S1_DESC" in sats:
             condition = Path(os.path.join(output_path, "S1", f"S1_{id}.pt")).exists()
         elif "S1_ASC" in sats:
@@ -343,6 +353,7 @@ def encode_series(
             ).exists()
 
         if not condition:
+            log.info(os.path.join(output_path, "S1", f"S1_{id}.pt"))
             if "S1_ASC" in sats or "S1_DESC" in sats:
                 (
                     latents1,
@@ -351,7 +362,10 @@ def encode_series(
                     batch_s1_mask,
                     days_s1,
                 ) = encode_one_batch_s1(
-                    mmdc_model, batch.sits, ref_date=dm.reference_date
+                    mmdc_model,
+                    batch.sits,
+                    ref_date=dm.reference_date,
+                    tolerance=tolerance,
                 )
                 encoded_pastis_s1 = {
                     "latents": VAELatentSpace(
