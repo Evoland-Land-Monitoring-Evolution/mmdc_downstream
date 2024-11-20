@@ -9,14 +9,21 @@ from mmdc_downstream_pastis.encode_series.encode import encode_series
 from mmdc_downstream_pastis.mmdc_model.model import PretrainedMMDCPastis
 
 my_logger = logging.getLogger(__name__)
-WORK_FOLDER = (
-    os.environ["WORK"] if "WORK" in os.environ else f"{os.environ['HOME']}/jeanzay"
-)
-SCRATCH_FOLDER = (
-    os.environ["SCRATCH"]
-    if "SCRATCH" in os.environ
-    else f"{os.environ['HOME']}/scratch_jeanzay"
-)
+
+if not Path("/work/scratch").exists():
+    SCRATCH_FOLDER = (
+        f"{os.environ['SCRATCH']}/scratch_data"
+        if "SCRATCH" in os.environ
+        else f"{os.environ['HOME']}/scratch_jeanzay/scratch_data"
+    )
+    WORK_FOLDER = (
+        f'{os.environ["WORK"]}/results'
+        if "WORK" in os.environ
+        else f"{os.environ['HOME']}/jeanzay/results"
+    )
+else:
+    SCRATCH_FOLDER = "/work/CESBIO/projects/DeepChange/Ekaterina"
+    WORK_FOLDER = "/work/scratch/data/kalinie"
 
 
 def get_parser() -> argparse.ArgumentParser:
@@ -41,7 +48,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--dataset_path_oe",
         type=str,
         help="OE data folder",
-        default=f"{SCRATCH_FOLDER}/scratch_data/Pastis_OE_corr"
+        default=f"{SCRATCH_FOLDER}/Pastis_OE"
         # required=True
     )
 
@@ -49,7 +56,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--dataset_path_pastis",
         type=str,
         help="Original Pastis data folder",
-        default=f"{SCRATCH_FOLDER}/scratch_data/Pastis"
+        default=f"{SCRATCH_FOLDER}/Pastis"
         # required=True
     )
 
@@ -58,6 +65,14 @@ def get_parser() -> argparse.ArgumentParser:
         type=list[str],
         help="Chosen modalities",
         default=["S1_ASC", "S1_DESC"]
+        # required=True
+    )
+
+    arg_parser.add_argument(
+        "--tolerance",
+        type=int,
+        help="Tolerance days for asc and desc orbit",
+        default=0
         # required=True
     )
 
@@ -73,7 +88,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--pretrained_path",
         type=str,
         help="list of available tiles",
-        default=f"{WORK_FOLDER}/results/MMDC/checkpoint_best"
+        default=f"{WORK_FOLDER}/results/MMDC/magical_checkpoint"
         # required=False,
     )
 
@@ -81,7 +96,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--model_name",
         type=str,
         help="Name of the pretrained model (last or epoch_XXX)",
-        default="epoch_141"
+        default="epoch_463"
         # required=False,
     )
 
@@ -135,4 +150,5 @@ if __name__ == "__main__":
         args.dataset_path_pastis,
         args.sats,
         output_path,
+        args.tolerance,
     )
