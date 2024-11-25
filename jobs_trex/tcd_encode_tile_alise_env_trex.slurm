@@ -15,13 +15,15 @@
 
 # be sure no modules loaded
 module purge
+module load conda
+conda activate alise
 
 export SCRATCH=/work/scratch/data/${USER}
 export SRCDIR=${SCRATCH}/src/MMDC/mmdc-downstream
-export MMDC_INIT=${SRCDIR}/mmdc_init.sh
+
 export WORKING_DIR=${SCRATCH}/MMDC/jobs
 
 cd ${WORKING_DIR}
-source ${MMDC_INIT}
+
 
 HYDRA_FULL_ERROR=1 python   ${SRCDIR}/src/bin/encode_tcd_alise.py  >> output_$SLURM_JOBID.log
