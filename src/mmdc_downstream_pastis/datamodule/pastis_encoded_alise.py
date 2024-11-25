@@ -61,7 +61,7 @@ class PASTISEncodedDatasetAlise(PASTISEncodedDataset):
             sats = ["S2"]
 
         self.sats = sats
-        self.postfix = postfix
+        self.postfix = "_" + postfix if postfix else ""
 
     def read_data_from_disk(
         self,
@@ -73,7 +73,7 @@ class PASTISEncodedDatasetAlise(PASTISEncodedDataset):
             satellite: self.load_file(
                 os.path.join(
                     self.options.dataset_path_oe,
-                    satellite + "_" + self.postfix,
+                    satellite + self.postfix,
                     f"{satellite}_{id_patch}.pt",
                 )
             )
