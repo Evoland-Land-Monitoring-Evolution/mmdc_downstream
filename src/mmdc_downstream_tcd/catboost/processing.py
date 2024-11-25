@@ -74,7 +74,7 @@ class CatBoostTCD:
             )
         pred_coords = []
         pred_tiles = []
-        # all_img = []
+        all_img = []
         x_min_glob, x_max_glob, y_min_glob, y_max_glob = (
             torch.inf,
             -torch.inf,
@@ -111,7 +111,7 @@ class CatBoostTCD:
             img = tile["img"]
             t, c, h, w = img.shape
 
-            if "alise" not in path_image_tiles:
+            if not ("alise" in path_image_tiles or "malice" in path_image_tiles):
                 mu = img[:, : int(c / 2)]
                 if not self.use_logvar:
                     img = mu
@@ -120,7 +120,7 @@ class CatBoostTCD:
                     img = np.concatenate([mu, logvar], 0)
 
             img = rearrange_ts(img)
-            # all_img.append(img)
+            all_img.append(img)
 
             img_flat = rearrange(img, "c h w -> (h w) c")
 
@@ -166,8 +166,8 @@ class CatBoostTCD:
                 tt
             ]
 
-            # gt_img[:, idx_y_min : idx_y_max + 1, idx_x_min : idx_x_max + 1] =
-            # all_img[tt][:24, :, :]
+            # gt_img[:, idx_y_min : idx_y_max + 1, idx_x_min : idx_x_max + 1]
+            # = all_img[tt][:24, :, :]
 
         profile = {
             "driver": "GTiff",
@@ -322,8 +322,8 @@ class CatBoostTCD:
                 months_feat_ind.append(feat_ind)
 
         data = pd.concat([data[MAIN_COLS], pd.DataFrame.from_dict(median_dict)], axis=1)
-        if self.sat == "s1":
-            data = data[data["x"] > self.clip_x]
+        # if self.sat == "s1":
+        #     data = data[data["x"] > self.clip_x]
         data_cols = np.asarray(median_dict.keys())
         # if encoded:
         #     assert data_cols.size * 2 * feat_nb
