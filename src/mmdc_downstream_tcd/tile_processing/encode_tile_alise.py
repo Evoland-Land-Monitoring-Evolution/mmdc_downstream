@@ -9,9 +9,13 @@ import onnxruntime
 import pandas as pd
 import torch
 from einops import rearrange
+from mt_ssl.data.classif_class import ClassifBInput
 from openeo_mmdc.dataset.to_tensor import load_transform_one_mod
 
-from mmdc_downstream_tcd.tile_processing.utils import (
+from src.mmdc_downstream_pastis.encode_series.encode_alise_s1_original_pt import (
+    load_checkpoint,
+)
+from src.mmdc_downstream_tcd.tile_processing.utils import (
     extract_gt_points,
     generate_coord_matrix,
     get_index,
@@ -21,6 +25,8 @@ from mmdc_downstream_tcd.tile_processing.utils import (
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 log = logging.getLogger(__name__)
+
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 def encode_tile_alise(
@@ -36,15 +42,21 @@ def encode_tile_alise(
     We divide the sliding window of 768 pixels into 4 overlapping patches
     to overcome memory problems
     """
-    sess_opt = onnxruntime.SessionOptions()
-    sess_opt.intra_op_num_threads = 16
     transform = load_transform_one_mod(path_csv, mod="s2").transform
-    ort_session = onnxruntime.InferenceSession(
-        path_alise_model,
-        sess_opt,
-        providers=["CUDAExecutionProvider"],
-    )
 
+    if path_alise_model.endswith("onnx"):
+        sess_opt = onnxruntime.SessionOptions()
+        sess_opt.intra_op_num_threads = 16
+        ort_session = onnxruntime.InferenceSession(
+            path_alise_model,
+            sess_opt,
+            providers=["CUDAExecutionProvider"],
+        )
+    else:
+        hydra_conf = os.path.join(
+            os.path.dirname(path_alise_model), ".hydra", "config.yaml"
+        )
+        repr_encoder = load_checkpoint(hydra_conf, path_alise_model, satellites[0])
     margin = int(re.search(r"m_([0-9]*)", str(folder_prepared_data)).group(1))
     window = int(re.search(r"w_([0-9]*)", str(folder_prepared_data)).group(1))
     log.info(f"Margin={margin}")
@@ -147,13 +159,27 @@ def encode_tile_alise(
                         :, :, y : y + 384 + margin_local, x : x + 384 + margin_local, :
                     ]
                     log.info(sits.shape)
-                    input = {
-                        "sits": sits,
-                        "tpe": doy[None, :].numpy(),
-                        "padd_mask": torch.zeros(1, sits.shape[1]).bool().numpy(),
-                    }
 
-                    ort_out = ort_session.run(None, input)[0]  # (1, 10, 64, 64, 64)
+                    if path_alise_model.endswith("onnx"):
+                        input = {
+                            "sits": sits,
+                            "tpe": doy[None, :].numpy(),
+                            "padd_mask": torch.zeros(1, sits.shape[1]).bool().numpy(),
+                        }
+
+                        ort_out = ort_session.run(None, input)[0]  # (1, 10, 64, 64, 64)
+                    else:
+                        input = ClassifBInput(
+                            sits=sits.to(DEVICE),
+                            input_doy=doy[None, :].to(DEVICE),
+                            padd_index=torch.zeros(1, sits.shape[1]).bool().to(DEVICE),
+                            mask=None,
+                            labels=None,
+                        )
+
+                        repr_encoder.eval()
+                        with torch.no_grad():
+                            ort_out = repr_encoder.forward_keep_input_dim(input).repr
 
                     if margin_local > 0:
                         encoded_patch["s2_lat_mu"][

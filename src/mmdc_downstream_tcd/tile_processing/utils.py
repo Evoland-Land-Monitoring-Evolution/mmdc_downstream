@@ -15,7 +15,9 @@ from mmdc_singledate.datamodules.components.datamodule_components import (
     build_s1_images_and_masks,
     build_s2_images_and_masks,
     dem_height_aspect,
+    xarray_to_tensor,
 )
+from mmdc_singledate.datamodules.constants import ANGLES_S1
 from xarray import DataArray, Dataset
 
 from mmdc_downstream_pastis.datamodule.datatypes import (
@@ -439,6 +441,83 @@ def get_s1(
     return images, data, dates
 
 
+def get_s1_malice(
+    t_slice: list[str],
+    data: dict[str, dict],
+    images: dict[str, Any],
+    sliced_modality: xr.Dataset,
+    sat: Literal["s1_asc", "s1_desc"],
+) -> tuple[dict[str, torch.Tensor], dict[str, dict], Any]:
+    """
+    Get S1 images
+    """
+    dates = pd.DatetimeIndex(sliced_modality.t.values)
+
+    dates = dates.to_frame(name=f"date_{sat}")
+    dates = dates[
+        (dates[f"date_{sat}"] >= pd.to_datetime(t_slice[0]))
+        & (dates[f"date_{sat}"] <= pd.to_datetime(t_slice[1]))
+    ].dropna()
+    images = build_s1_images_and_masks_malice(images, sliced_modality, dates, sat)
+
+    data[sat]["img"] = images[sat].unsqueeze(0)
+    data[sat]["mask"] = images[f"{sat}_valmask"].unsqueeze(0).unsqueeze(-3)
+    data[sat]["angles"] = images[f"{sat}_angles"].unsqueeze(0).unsqueeze(-3)
+    if "CRS" not in images:
+        images["CRS"] = sliced_modality.crs
+
+    return images, data, dates
+
+
+def build_s1_images_and_masks_malice(
+    images: dict[str, torch.Tensor],
+    xarray_ds: xr.Dataset,
+    dates_df: pd.DataFrame,
+    s1_type: str = "s1_asc",
+) -> dict[str, torch.Tensor]:
+    """
+    Generate backscatter and validity mask for a S1 data provided by OpenEO
+    """
+    dates = dates_df[f"date_{s1_type}"]
+    xarray_ds = xarray_ds.sel(t=pd.DatetimeIndex(dates.dropna())).sortby("t")
+    masks = dates.isnull().values  # non available days for validity mask
+
+    # We open VH and VV bands from XArray dataset,
+    # and we compute VH/VV as the third band
+    available_images = xarray_to_tensor(xarray_ds, bands=["VH", "VV"])
+
+    ratio = available_images[:, 0] / available_images[:, 1]
+
+    available_images = torch.cat([available_images, ratio[:, None, :, :]], dim=1)
+
+    available_images = torch.log(available_images)
+
+    # available_images[mask.expand_as(available_images).bool()] = 0
+
+    images[s1_type] = torch.full((len(dates), *available_images.shape[-3:]), torch.nan)
+
+    images[s1_type][~masks] = available_images
+
+    available_angles = torch.cos(
+        torch.deg2rad(xarray_to_tensor(xarray_ds, bands=ANGLES_S1).squeeze(1))
+    )
+    images[f"{s1_type}_angles"] = torch.full(
+        (len(dates), *available_images.shape[-2:]), torch.nan, dtype=torch.float32
+    )
+    images[f"{s1_type}_angles"][~masks] = available_angles
+
+    images[f"{s1_type}_valmask"] = torch.zeros(
+        len(dates), *available_images.shape[-2:]
+    ).to(torch.int8)
+    images[f"{s1_type}_valmask"][masks] = 1
+
+    # generate nan mask
+    nan_mask = torch.isnan(images[s1_type]).sum(dim=1).to(torch.int8) > 0
+    images[f"{s1_type}_valmask"][nan_mask] = 1
+
+    return images
+
+
 def prepare_patch(
     folder_data: str | Path,
     months_folders: list[str | int],
@@ -529,6 +608,51 @@ def prepare_patch(
         data[sat]["dem"] = dem.unsqueeze(0)
     del dem
     return data, dates_meteo
+
+
+def prepare_patch_s1_malice(
+    folder_data: str | Path,
+    months_folders: list[str | int],
+    sliced: tuple[float, float, float, float],
+    s1_dates_asc: np.array,
+    sats: str = ["s1_asc"],
+    task="tcd",
+) -> dict[str, [str, torch.Tensor]]:
+    log.info(f"Slice {sliced}")
+
+    images = {}
+    data = {sat: {} for sat in sats}
+    if task == "tcd":
+        t_slice = [
+            f"2018-{months_folders[0]}-05",
+            f"2018-{months_folders[-1]}-30",
+        ]
+    else:
+        t_slice = None
+
+    for sat in sats:
+        modality = "Sentinel1_ASCENDING" if sat == "s1_asc" else "Sentinel1_DESCENDING"
+
+        log.info(f"Slicing {modality}")
+        sliced_modality, _ = get_sliced_modality(
+            months_folders,
+            folder_data,
+            sliced,
+            modality,
+            meteo=False,
+            dates=s1_dates_asc,
+        )
+        log.info(f"Sliced {modality}")
+
+        if t_slice is not None:
+            sliced_modality = sliced_modality.sel(t=slice(t_slice[0], t_slice[1]))
+
+        images, data, dates = get_s1_malice(t_slice, data, images, sliced_modality, sat)
+        del sliced_modality
+
+    del images
+
+    return data
 
 
 def get_encoded_patch(

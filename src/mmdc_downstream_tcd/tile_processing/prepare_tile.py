@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import torch
 
-from mmdc_downstream_tcd.tile_processing.utils import (
+from src.mmdc_downstream_tcd.tile_processing.utils import (
     generate_coord_matrix,
     get_slices,
     prepare_patch,
