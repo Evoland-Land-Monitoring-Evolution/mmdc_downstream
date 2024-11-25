@@ -82,7 +82,7 @@ def encode_series_alise_onnx(
             )
 
             if sat == "S1_ASC":
-                s1_asc_2b = 10 ** img[:, :2]
+                s1_asc_2b = img[:, [1, 0]]
 
                 ratio = s1_asc_2b[:, 0] / s1_asc_2b[:, 1]
 

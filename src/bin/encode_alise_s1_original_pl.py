@@ -123,6 +123,8 @@ def encode_series_alise_s1(
     hydra_conf = os.path.join(
         os.path.dirname(path_alise_model), ".hydra", "config.yaml"
     )
+    if not Path(hydra_conf).exists():
+        hydra_conf = path_alise_model.split(".")[0] + "_config.yaml"
 
     repr_encoder = load_checkpoint(hydra_conf, path_alise_model, sat.lower())
     repr_encoder = repr_encoder.to(DEVICE)

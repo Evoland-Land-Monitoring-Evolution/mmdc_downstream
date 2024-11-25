@@ -84,8 +84,8 @@ def get_parser() -> argparse.ArgumentParser:
         help="path to alise model",
         # default=f"{WORK_FOLDER}/results/alise_preentrained/
         # malice_for_katya/malice_flexible_s1_wrec1_winv1_wcr0_seed3.onnx",
-        default=f"{WORK_FOLDER}/results/alise_preentrained/ckpt_alise_mm/"
-        f"metric-epoch=136-val_total_loss=0.2422.ckpt",
+        default=f"{WORK_FOLDER}/results/alise_preentrained/all_checkpoints_malice/"
+        f"malice-wr1-winv1-wcr0_seed4.ckpt",
     )
 
     arg_parser.add_argument(

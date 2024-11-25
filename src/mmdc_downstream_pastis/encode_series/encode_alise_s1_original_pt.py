@@ -30,7 +30,7 @@ def load_checkpoint(hydra_conf, pretrain_module_ckpt_path, mod):
     myconfig_module = DictConfig(
         open_yaml(f"{WORK}/results/alise_preentrained/fine_tune_one_mod.yaml")
     )
-    myconfig_module.mod = "s2" if mod == "S2" else "s1"
+    myconfig_module.mod = "s2" if "2" in mod else "s1"
 
     pretrain_module_config.datamodule.datamodule.path_dir_csv = (
         f"{WORK}/results/alise_preentrained/data/"
