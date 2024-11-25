@@ -109,7 +109,7 @@ class MMDCLAILitModule(LightningModule):  # pylint: disable=too-many-ancestors
         batch_idx: int,  # pylint: disable=unused-argument
     ) -> dict[str, Any]:
         """Training step. Step and return loss."""
-        torch.autograd.set_detect_anomaly(True)
+        # torch.autograd.set_detect_anomaly(True)
         losses = self.step(batch)
 
         # log training metrics
