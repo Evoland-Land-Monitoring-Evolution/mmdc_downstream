@@ -47,6 +47,7 @@ class PASTISEncodedDatasetAlise(PASTISEncodedDataset):
         postfix: str = "",
     ):
         """ """
+        self.postfix = "_" + postfix if postfix else ""
 
         super().__init__(
             options,
@@ -61,7 +62,6 @@ class PASTISEncodedDatasetAlise(PASTISEncodedDataset):
             sats = ["S2"]
 
         self.sats = sats
-        self.postfix = "_" + postfix if postfix else ""
 
     def read_data_from_disk(
         self,
@@ -113,7 +113,7 @@ class PASTISEncodedDatasetAlise(PASTISEncodedDataset):
         path = self.options.dataset_path_oe
         return [
             int(file[:-3].split("_")[-1])
-            for file in os.listdir(os.path.join(path, satellite))
+            for file in os.listdir(os.path.join(path, satellite + self.postfix))
         ]
 
     def __getitem__(

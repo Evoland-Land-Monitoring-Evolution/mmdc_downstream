@@ -9,7 +9,8 @@ import pandas as pd
 import torch
 from einops import rearrange
 from hydra.utils import instantiate
-from mmmv_ssl.data.datamodule.mm_datamodule import MMMaskDataModule
+
+# from mmmv_ssl.data.datamodule.mm_datamodule import MMMaskDataModule
 from mmmv_ssl.model.sits_encoder import MonoSITSEncoder
 from mmmv_ssl.model.utils import build_encoder
 from mmmv_ssl.module.alise_mm import AliseMM
@@ -30,26 +31,34 @@ def load_checkpoint(hydra_conf, pretrain_module_ckpt_path, mod):
     myconfig_module = DictConfig(
         open_yaml(f"{WORK}/results/alise_preentrained/fine_tune_one_mod.yaml")
     )
-    myconfig_module.mod = "s2" if mod == "S2" else "s1"
+    myconfig_module.mod = "s2" if "2" in mod else "s1"
 
     pretrain_module_config.datamodule.datamodule.path_dir_csv = (
         f"{WORK}/results/alise_preentrained/data/"
     )
-    old_datamodule: MMMaskDataModule = instantiate(
-        pretrain_module_config.datamodule.datamodule,
-        config_dataset=pretrain_module_config.dataset,
-        batch_size=pretrain_module_config.train.batch_size,
-        _recursive_=False,
-    )
+
+    # try:
+    #     old_datamodule: MMMaskDataModule = instantiate(
+    #         pretrain_module_config.datamodule.datamodule,
+    #         config_dataset=pretrain_module_config.dataset,
+    #         batch_size=pretrain_module_config.train.batch_size,
+    #         _recursive_=False,
+    #     )
+    #
+    #     pretrained_pl_module: AliseMM = instantiate(
+    #         pretrain_module_config.module,
+    #         train_config=pretrain_module_config.train,
+    #         input_channels=old_datamodule.num_channels,
+    #         stats=(
+    #             old_datamodule.all_transform.s2.stats,
+    #             old_datamodule.all_transform.s1_asc.stats,
+    #         ),  # TODO do better than that load stats of each mod
+    #         _recursive_=False,
+    #     )
+    #
+    # except:
     pretrained_pl_module: AliseMM = instantiate(
         pretrain_module_config.module,
-        train_config=pretrain_module_config.train,
-        input_channels=old_datamodule.num_channels,
-        stats=(
-            old_datamodule.all_transform.s2.stats,
-            old_datamodule.all_transform.s1_asc.stats,
-        ),  # TODO do better than that load stats of each mod
-        _recursive_=False,
     )
 
     pretrained_module = pretrained_pl_module.load_from_checkpoint(
@@ -116,7 +125,7 @@ def encode_series_alise_s1(
 ):
     transform = load_transform_one_mod(path_csv, mod=sat.lower()).transform
 
-    """Encode PASTIS SITS S2 with prosailVAE"""
+    """Encode PASTIS SITS with MALICE"""
 
     log.info("Loader is ready")
 

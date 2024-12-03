@@ -84,8 +84,8 @@ def get_parser() -> argparse.ArgumentParser:
         help="path to alise model",
         # default=f"{WORK_FOLDER}/results/alise_preentrained/
         # malice_for_katya/malice_flexible_s1_wrec1_winv1_wcr0_seed3.onnx",
-        default=f"{WORK_FOLDER}/results/alise_preentrained/all_checkpoints_malice/"
-        f"malice-wr1-winv1-wcr0_seed4.ckpt",
+        default=f"{WORK_FOLDER}/results/alise_preentrained/my_checkpoints_malice/"
+        f"malice-wr1-winv1-wcr05_f32_seed0.ckpt",
     )
 
     arg_parser.add_argument(
@@ -118,7 +118,7 @@ if __name__ == "__main__":
 
     postfix = args.path_alise_model.split("/")[-1][19:-5]
     print(postfix)
-    postfix = "good_log_ratio_bands"
+    postfix = "wr1-winv1-wcr05_f32_seed0"
 
     Path(os.path.join(output_path, args.sat + "_" + postfix)).mkdir(
         exist_ok=True, parents=True

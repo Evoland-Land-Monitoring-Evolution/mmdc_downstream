@@ -23,4 +23,4 @@ folds:
 batch_size: 16
 crop_size: null
 
-postfix: ""
+postfix: "wr1-winv1-wcr05_f32_seed0"

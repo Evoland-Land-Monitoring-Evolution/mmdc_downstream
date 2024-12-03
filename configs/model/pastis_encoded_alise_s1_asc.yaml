@@ -1,12 +1,12 @@
 
 _target_: mmdc_downstream_pastis.models.lightning.pastis_shallow_semantic.PastisShallow
-lr: 0.001
+lr: 0.0001
 resume_from_checkpoint: null #/work/scratch/data/kalinie/MMDC/results/pastis/checkpoints/pastis_encoded_alise_s2/2024-10-29_06-47-24/last.ckpt
 lr_type: plateau
 
 model:
-  _target_: mmdc_downstream_pastis.models.torch.shallow.Shallow
-  input_dim: 640
+  _target_: mmdc_downstream_pastis.models.torch.shallow_big.ShallowBig
+  input_dim: 320
   num_classes: 19
 
 metrics_list : ["f1"]

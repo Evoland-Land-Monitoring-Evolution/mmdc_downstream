@@ -26,4 +26,4 @@ module purge
 module load conda
 conda activate alise
 
-HYDRA_FULL_ERROR=1 python ${SRCDIR}/src/bin/encode_pastis_alise.py --sat S1_ASC >> output_$SLURM_JOBID.log
+HYDRA_FULL_ERROR=1 python ${SRCDIR}/src/bin/encode_pastis_alise.py --sat S1_ASC>> output_$SLURM_JOBID.log
