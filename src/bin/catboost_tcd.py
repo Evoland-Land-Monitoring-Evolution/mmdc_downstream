@@ -5,6 +5,9 @@ from collections import namedtuple
 from pathlib import Path
 
 from mmdc_downstream_tcd.catboost.processing import CatBoostTCD
+from src.mmdc_downstrteam_biomass.tile_processing.catboost_biomass import (
+    CatBoostBioMass,
+)
 
 CB_params = namedtuple("CB_params", "n_iter leaf depth")
 
@@ -40,6 +43,8 @@ def get_parser() -> argparse.ArgumentParser:
         type=str,
         help="input folder",
         # default=f"{WORK_FOLDER}/results/TCD/t32tnt/pure_values/s2"
+        # default=f"{WORK_FOLDER}/results/TCD/t32tnt/encoded/"
+        # default=f"{WORK_FOLDER}/results/BioMass/encoded/Sweden"
         default=f"{WORK_FOLDER}/results/TCD/t32tnt/encoded/"
         # default=f"{WORK_FOLDER}/results/TCD/t32tnt/pure_values/s1_desp"
         # required=True
@@ -49,7 +54,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--model",
         type=str,
         help="Name of encoded model, only if we work with encoded data",
-        default="malice_s1_wr1-winv1-wcr0_seed3",
+        default="malice_wr1-winv1-wcr0_seed3",
         # "res_magical_checkpoint",  # "res_checkpoint_best"
         # #"alise" #res_2024-04-05_14-58-22",
     )
@@ -98,7 +103,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--satellites",
         type=list[str],
         help="satellites we deal with",
-        default=["s1_asc"]
+        default=["s2"]
         # required=False,
     )
 
@@ -117,10 +122,12 @@ def get_parser() -> argparse.ArgumentParser:
         # default=None
         # default=f"{WORK_FOLDER}/results/TCD/t32tnt/pure_values/S1/"
         default=f"{WORK_FOLDER}"
-        f"/results/TCD/t32tnt/encoded/malice_s1_wr1-winv1-wcr0_seed3"
-        # #pvae" ##res_2024-04-05_14-58-22" #
+        f"/results/TCD/t32tnt/encoded/malice_wr1-winv1-wcr0_seed3"
+        # f"/results/BioMass/encoded/Sweden/malice_wr1-winv1-wcr0_seed3"
         # required=False,
     )
+
+    arg_parser.add_argument("--type", type=str, help="TCD or BioMass", default="TCD")
 
     return arg_parser
 
@@ -147,21 +154,50 @@ if __name__ == "__main__":
             if (args.model is not None and args.encoded_data)
             else args.folder_data
         )
-        cat = CatBoostTCD(
-            sat,
-            csv_folder,
-            folder,
-            cb_params,
-            args.encoded_data,
-            args.months_median,
-            args.use_logvar,
-        )
-        model_cat, month_median_feat = cat.process_satellites()
-        exit()
-        if args.path_predict_new_image is not None:
-            cat.predict_new_image(
-                path_image_tiles=os.path.join(args.path_predict_new_image, sat),
-                model=model_cat,
-                model_name=f"{args.n_iter}_{args.leaf}_{args.depth}",
-                month_median_feat=month_median_feat,
+        if args.type == "TCD":
+            cat = CatBoostTCD(
+                sat,
+                csv_folder,
+                folder,
+                cb_params,
+                args.encoded_data,
+                args.months_median,
+                args.use_logvar,
             )
+            model_cat, month_median_feat = cat.process_satellites()
+            exit()
+            if args.path_predict_new_image is not None:
+                cat.predict_new_image(
+                    path_image_tiles=os.path.join(args.path_predict_new_image, sat),
+                    model=model_cat,
+                    model_name=f"{args.n_iter}_{args.leaf}_{args.depth}",
+                    month_median_feat=month_median_feat,
+                )
+        else:
+            cat = CatBoostBioMass(
+                sat,
+                csv_folder,
+                folder,
+                cb_params,
+                args.encoded_data,
+                args.months_median,
+                args.use_logvar,
+            )
+            model_cat, month_median_feat = cat.process_satellites(variable="MeanHeight")
+            # if args.path_predict_new_image is not None:
+            #     cat.predict_new_image(
+            #         path_image_tiles=os.path.join(args.path_predict_new_image, sat),
+            #         model=model_cat,
+            #         model_name=f"{args.n_iter}_{args.leaf}_{args.depth}",
+            #         month_median_feat=month_median_feat,
+            #         variable="MeanHeight"
+            #     )
+            model_cat, month_median_feat = cat.process_satellites(variable="AGB_T_HA")
+            # if args.path_predict_new_image is not None:
+            #     cat.predict_new_image(
+            #         path_image_tiles=os.path.join(args.path_predict_new_image, sat),
+            #         model=model_cat,
+            #         model_name=f"{args.n_iter}_{args.leaf}_{args.depth}",
+            #         month_median_feat=month_median_feat,
+            #         variable="BioMass"
+            #     )

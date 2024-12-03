@@ -69,17 +69,20 @@ def get_index(
     return np.array(ind), tcd_values_sliced
 
 
-def get_tcd_gt(gt_path: str) -> pd.DataFrame:
+def get_tcd_gt(gt_path: str, variable: str = "TCD") -> pd.DataFrame:
     """
     Get coordinates of GT points and recompute them to the center of pixel
     """
-    tcd_values = pd.DataFrame(columns=["TCD", "x", "y", "x_round", "y_round"])
+    df = pd.DataFrame(columns=[variable, "x", "y", "x_round", "y_round"])
     with open(gt_path) as f:
         data = json.load(f)
 
     for feature in data["features"]:
-        x, y = feature["geometry"]["coordinates"][0]
-        tcd = feature["properties"]["TCD"]
+        if feature["geometry"]["type"] == "MultiPoint":
+            x, y = feature["geometry"]["coordinates"][0]
+        else:  # Point
+            x, y = feature["geometry"]["coordinates"]
+        value = feature["properties"][variable]
 
         x_r = round(x / 5) * 5
         y_r = round(y / 5) * 5
@@ -94,17 +97,17 @@ def get_tcd_gt(gt_path: str) -> pd.DataFrame:
         if y - y_r > 5:
             y_r += 10
 
-        tcd_values = pd.concat(
+        df = pd.concat(
             [
-                tcd_values,
+                df,
                 pd.DataFrame(
-                    [{"TCD": tcd, "x": x, "y": y, "x_round": x_r, "y_round": y_r}]
+                    [{variable: value, "x": x, "y": y, "x_round": x_r, "y_round": y_r}]
                 ),
             ],
             ignore_index=True,
         )
-    print(tcd_values.head(20))
-    return tcd_values
+    print(df.head(20))
+    return df
 
 
 def rearrange_ts(ts: torch.Tensor) -> torch.Tensor:
@@ -610,6 +613,48 @@ def prepare_patch(
     return data, dates_meteo
 
 
+def prepare_patch_s2_malice(
+    folder_data: str | Path,
+    months_folders: list[str | int],
+    sliced: tuple[float, float, float, float],
+    s2_dates: np.array,
+    task="tcd",
+) -> dict[str, [str, torch.Tensor]]:
+    log.info(f"Slice {sliced}")
+
+    images = {}
+    data = {"s2": {}}
+    if task == "tcd":
+        t_slice = [
+            f"2018-{months_folders[0]}-01",
+            f"2018-{months_folders[-1]}-30",
+        ]
+    else:
+        t_slice = [s2_dates.min(), s2_dates.max()]  # TODO check if works
+    modality = "Sentinel2"
+
+    log.info(f"Slicing {modality}")
+    sliced_modality, _ = get_sliced_modality(
+        months_folders,
+        folder_data,
+        sliced,
+        modality,
+        meteo=False,
+        dates=s2_dates,
+    )
+    log.info(f"Sliced {modality}")
+
+    if t_slice is not None:
+        sliced_modality = sliced_modality.sel(t=slice(t_slice[0], t_slice[1]))
+
+    images, data, dates = get_s2(s2_dates, t_slice, data, images, sliced_modality)
+    del sliced_modality
+
+    del images
+
+    return data, dates
+
+
 def prepare_patch_s1_malice(
     folder_data: str | Path,
     months_folders: list[str | int],
@@ -652,7 +697,7 @@ def prepare_patch_s1_malice(
 
     del images
 
-    return data
+    return data, dates
 
 
 def get_encoded_patch(

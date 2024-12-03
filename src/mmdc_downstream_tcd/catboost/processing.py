@@ -418,12 +418,14 @@ class CatBoostTCD:
                 return data, data_cols_final, median_months_feat
         return data, self.data_cols, None
 
-    def process_satellites(self) -> tuple[CatBoostRegressor, list[list] | None]:
+    def process_satellites(
+        self, variable: str = "TCD"
+    ) -> tuple[CatBoostRegressor, list[list] | None]:
         data, days = self.open_csv_files_and_combine()
 
         data, data_cols_final, months_median_feat = self.prepare_data(data, days)
 
-        gt_cols = ["TCD"]
+        gt_cols = [variable]
 
         log.info("splitting data")
         X_train, X_test, y_train, y_test = train_test_split(
@@ -438,7 +440,12 @@ class CatBoostTCD:
 
         # Compute error
         rmse = round(
-            mean_squared_error(y_test.flatten(), np.round(pred), squared=False), 2
+            mean_squared_error(
+                y_test.flatten()[~np.isnan(y_test.flatten())],
+                np.round(pred)[~np.isnan(y_test.flatten())],
+                squared=False,
+            ),
+            2,
         )
         log.info(f"RMSE={rmse}")
         print(f"RMSE={rmse}")
