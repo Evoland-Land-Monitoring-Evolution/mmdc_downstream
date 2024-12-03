@@ -100,7 +100,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--satellites",
         type=int,
         help="modalities to encode",
-        default=["s1_asc"]
+        default=["s2"]
         # required=False,
     )
 
@@ -123,46 +123,68 @@ if __name__ == "__main__":
         format="%(asctime)s :: %(levelname)s :: %(message)s",
     )
 
-    if args.satellites[0] == "s2":
-        output_path = Path(
-            os.path.join(
-                args.output_path,
-                "malice_s2_" + args.path_alise_model.split("/")[-1].split(".")[0][7:],
-            )
+    output_path = Path(
+        os.path.join(
+            args.output_path,
+            "malice_" + args.path_alise_model.split("/")[-1].split(".")[0][7:],
         )
-        Path(output_path).mkdir(parents=True, exist_ok=True)
-        print(output_path)
-        from src.mmdc_downstream_tcd.tile_processing.encode_tile_alise import (
-            encode_tile_alise,
-        )
+    )
+    Path(output_path).mkdir(parents=True, exist_ok=True)
+    print(output_path)
+    from mmdc_downstream_tcd.tile_processing.encode_tile_alise_s1 import (
+        encode_tile_alise_s1,
+    )
 
-        encode_tile_alise(
-            args.prepared_data_path,
-            args.path_alise_model,
-            args.path_csv_norm,
-            output_path,
-            args.gt_path,
-            args.satellites,
-        )
-    else:
-        output_path = Path(
-            os.path.join(
-                args.output_path,
-                "malice_s1_" + args.path_alise_model.split("/")[-1].split(".")[0][7:],
-            )
-        )
-        Path(output_path).mkdir(parents=True, exist_ok=True)
-        print(output_path)
-        from mmdc_downstream_tcd.tile_processing.encode_tile_alise_s1 import (
-            encode_tile_alise_s1,
-        )
+    encode_tile_alise_s1(
+        args.prepared_data_path,
+        args.folder_data,
+        args.path_alise_model,
+        args.path_csv_norm,
+        output_path,
+        args.gt_path,
+        args.satellites,
+    )
 
-        encode_tile_alise_s1(
-            args.prepared_data_path,
-            args.folder_data,
-            args.path_alise_model,
-            args.path_csv_norm,
-            output_path,
-            args.gt_path,
-            args.satellites,
-        )
+    # if args.satellites[0] == "s2":
+    #     output_path = Path(
+    #         os.path.join(
+    #             args.output_path,
+    #             "malice_s2_" + args.path_alise_model.split("/")[-1].split(".")[0][7:],
+    #         )
+    #     )
+    #     Path(output_path).mkdir(parents=True, exist_ok=True)
+    #     print(output_path)
+    #     from src.mmdc_downstream_tcd.tile_processing.encode_tile_alise import (
+    #         encode_tile_alise,
+    #     )
+    #
+    #     encode_tile_alise(
+    #         args.prepared_data_path,
+    #         args.path_alise_model,
+    #         args.path_csv_norm,
+    #         output_path,
+    #         args.gt_path,
+    #         args.satellites,
+    #     )
+    # else:
+    #     output_path = Path(
+    #         os.path.join(
+    #             args.output_path,
+    #             "malice_s1_" + args.path_alise_model.split("/")[-1].split(".")[0][7:],
+    #         )
+    #     )
+    #     Path(output_path).mkdir(parents=True, exist_ok=True)
+    #     print(output_path)
+    #     from mmdc_downstream_tcd.tile_processing.encode_tile_alise_s1 import (
+    #         encode_tile_alise_s1,
+    #     )
+    #
+    #     encode_tile_alise_s1(
+    #         args.prepared_data_path,
+    #         args.folder_data,
+    #         args.path_alise_model,
+    #         args.path_csv_norm,
+    #         output_path,
+    #         args.gt_path,
+    #         args.satellites,
+    #     )
