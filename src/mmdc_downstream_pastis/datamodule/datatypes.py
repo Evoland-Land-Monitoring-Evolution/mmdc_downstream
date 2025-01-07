@@ -5,6 +5,7 @@ from typing import Literal
 import numpy as np
 import torch
 import torch.utils.data as tdata
+from einops import rearrange
 from mmdc_singledate.datamodules.datatypes import MMDCMeteoData
 from torch.nn import functional as F
 
@@ -91,7 +92,7 @@ class MMDCDataStruct:
                 setattr(self.data, key, value)
             else:
                 if key == "meteo" and flatten_meteo:
-                    setattr(self, key, torch.flatten(value, start_dim=2, end_dim=3))
+                    setattr(self, key, rearrange(value, "b t d c h w -> b t (d c) h w"))
                 else:
                     setattr(self, key, value)
         return self
