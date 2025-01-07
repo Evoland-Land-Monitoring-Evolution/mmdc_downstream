@@ -15,13 +15,13 @@ output_dir: /work/scratch/data/kalinie/MMDC/results/pastis
 
 datamodule:
   sats: [ "S2" ]
-  postfix: "wr1-winv1-wcr05_f32_seed0"
+  postfix: "wr1-winv1-wcr0_f32_seed0"
 
 
 model:
   _target_: mmdc_downstream_pastis.models.lightning.pastis_shallow_semantic.PastisShallow
   lr: 0.001
-  resume_from_checkpoint: null  #/work/scratch/data/kalinie/MMDC/results/pastis/checkpoints/pastis_encoded_alise_s2/2024-10-29_06-47-24/last.ckpt
+  resume_from_checkpoint: null  #/work/scratch/data/kalinie/MMDC/results/pastis/checkpoints/pastis_encoded_alise_s2/2024-12-10_16-40-47/last.ckpt
   lr_type: plateau
 
 test: True
