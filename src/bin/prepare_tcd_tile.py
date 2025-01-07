@@ -14,6 +14,22 @@ from mmdc_downstream_tcd.tile_processing.prepare_tile import prepare_tiles
 my_logger = logging.getLogger(__name__)
 
 
+if not Path("/work/scratch").exists():
+    SCRATCH_FOLDER = (
+        f"{os.environ['SCRATCH']}/scratch_data/results"
+        if "SCRATCH" in os.environ
+        else f"{os.environ['HOME']}/scratch_jeanzay/scratch_data/results"
+    )
+    WORK_FOLDER = (
+        f'{os.environ["WORK"]}/results'
+        if "WORK" in os.environ
+        else f"{os.environ['HOME']}/jeanzay/results"
+    )
+else:
+    SCRATCH_FOLDER = "/work/CESBIO/projects/DeepChange/Ekaterina"
+    WORK_FOLDER = "/work/scratch/data/kalinie"
+
+
 def get_parser() -> argparse.ArgumentParser:
     """
     Generate argument parser for CLI
@@ -37,7 +53,7 @@ def get_parser() -> argparse.ArgumentParser:
         type=str,
         help="input folder",
         # default="/work/CESBIO/projects/DeepChange/Ekaterina/TCD/OpenEO_data/t32tnt/",
-        default=f"{os.environ['SCRATCH']}/scratch_data/TCD/OpenEO_data/t32tnt/"
+        default=f"{SCRATCH_FOLDER}/TCD/OpenEO_data/t32tnt/"
         # required=True
     )
 
@@ -46,7 +62,7 @@ def get_parser() -> argparse.ArgumentParser:
         type=str,
         help="output folder",
         # default="/work/scratch/data/kalinie/TCD/OpenEO_data/t32tnt/encoded"
-        default=f"{os.environ['SCRATCH']}/results/TCD/t32tnt"
+        default=f"{WORK_FOLDER}/results/TCD/t32tnt"
         # required=True
     )
 
@@ -78,7 +94,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--satellites",
         type=int,
         help="satellites to prepare",
-        default=["s2", "s1_asc", "s1_desc"]
+        default=["s2", "s1_asc"]
         # required=False,
     )
 
