@@ -47,9 +47,9 @@ def apply_transform_basic(
     batch_sits: torch.Tensor, transform: torch.nn.Module
 ) -> torch.Tensor:
     b, *_ = batch_sits.shape
-    batch_sits = rearrange(batch_sits, " b t c h w -> c (b t )  h w")
+    batch_sits = rearrange(batch_sits, "b t c h w -> c (b t ) h w")
     batch_sits = transform(batch_sits)
-    batch_sits = rearrange(batch_sits, "c (b t )  h w -> b t c h w", b=b)
+    batch_sits = rearrange(batch_sits, "c (b t ) h w -> b t c h w", b=b)
     return batch_sits
 
 
@@ -92,10 +92,11 @@ def encode_series_malise_aux(
         angles = batch.sits[sat].sits.data.angles[0]
         img = torch.concat((img, angles), dim=-3)
 
-        true_doy = back_to_date(batch.sits[sat].true_doy, dm.reference_date)[0]
         meteo = batch.sits[sat].sits.meteo
-        meteo = rearrange(meteo, "b t (d c) h w -> b t c d h w", c=8).mean((-2, -1))
+        meteo = rearrange(meteo, "b t (d c) h w -> b t c d h w", c=8).nanmean((-2, -1))
         dem = batch.sits[sat].sits.dem
+
+        true_doy = back_to_date(batch.sits[sat].true_doy, dm.reference_date)[0]
 
         reference_date = "2014-03-03"
 
