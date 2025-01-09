@@ -9,6 +9,13 @@ import logging
 import os
 from pathlib import Path
 
+from mmdc_downstream_tcd.tile_processing.encode_tile_alise_s1 import (
+    encode_tile_alise_s1,
+)
+from mmdc_downstream_tcd.tile_processing.encode_tile_malice_aux import (
+    encode_tile_malice_aux,
+)
+
 my_logger = logging.getLogger(__name__)
 
 
@@ -68,22 +75,24 @@ def get_parser() -> argparse.ArgumentParser:
         help="path to pre-entrained model",
         # default=f"{WORK_FOLDER}/results/alise_preentrained/
         # malice_for_katya/malice_flexible_s1_wrec1_winv1_wcr0_seed3.onnx",
-        default=f"{WORK_FOLDER}/results/alise_preentrained/all_checkpoints_malice/"
-        f"malice-wr1-winv1-wcr0_seed3.ckpt",
+        default=f"{WORK_FOLDER}/results/alise_preentrained/my_checkpoints_malice_aux/"
+        f"malice-aux-wr1-winv1-wcr0_f64_seed0_same_mod_epoch=121.ckpt",
     )
 
     arg_parser.add_argument(
         "--path_csv_norm",
         type=str,
         help="path to pre-entrained model",
-        default=f"{WORK_FOLDER}/results/alise_preentrained",
+        # default=f"{WORK_FOLDER}/results/alise_preentrained",
+        default=f"{SCRATCH_FOLDER}/MMDC_MALICE",
     )
 
     arg_parser.add_argument(
         "--prepared_data_path",
         type=str,
         help="Path to prepared data",
-        default=f"{SCRATCH_FOLDER}/TCD/t32tnt/prepared_tiles_malice_w_768_m_40"
+        # default=f"{SCRATCH_FOLDER}/TCD/t32tnt/prepared_tiles_malice_w_768_m_40"
+        default=f"{SCRATCH_FOLDER}/TCD/t32tnt/prepared_tiles_w_768_m_40"
         # required=False,
     )
 
@@ -101,6 +110,14 @@ def get_parser() -> argparse.ArgumentParser:
         type=int,
         help="modalities to encode",
         default=["s2"]
+        # required=False,
+    )
+
+    arg_parser.add_argument(
+        "--aux",
+        type=bool,
+        help="auxiliary data used",
+        default=True,
         # required=False,
     )
 
@@ -131,19 +148,27 @@ if __name__ == "__main__":
     )
     Path(output_path).mkdir(parents=True, exist_ok=True)
     print(output_path)
-    from mmdc_downstream_tcd.tile_processing.encode_tile_alise_s1 import (
-        encode_tile_alise_s1,
-    )
 
-    encode_tile_alise_s1(
-        args.prepared_data_path,
-        args.folder_data,
-        args.path_alise_model,
-        args.path_csv_norm,
-        output_path,
-        args.gt_path,
-        args.satellites,
-    )
+    if args.aux:
+        encode_tile_malice_aux(
+            args.prepared_data_path,
+            args.folder_data,
+            args.path_alise_model,
+            args.path_csv_norm,
+            output_path,
+            args.gt_path,
+            args.satellites,
+        )
+    else:
+        encode_tile_alise_s1(
+            args.prepared_data_path,
+            args.folder_data,
+            args.path_alise_model,
+            args.path_csv_norm,
+            output_path,
+            args.gt_path,
+            args.satellites,
+        )
 
     # if args.satellites[0] == "s2":
     #     output_path = Path(

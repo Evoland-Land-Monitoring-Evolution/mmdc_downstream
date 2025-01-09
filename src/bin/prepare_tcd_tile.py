@@ -61,8 +61,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--output_path",
         type=str,
         help="output folder",
-        # default="/work/scratch/data/kalinie/TCD/OpenEO_data/t32tnt/encoded"
-        default=f"{WORK_FOLDER}/results/TCD/t32tnt"
+        default=f"{SCRATCH_FOLDER}/TCD/t32tnt"
         # required=True
     )
 
@@ -94,7 +93,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--satellites",
         type=int,
         help="satellites to prepare",
-        default=["s2", "s1_asc"]
+        default=["s2"]
         # required=False,
     )
 
