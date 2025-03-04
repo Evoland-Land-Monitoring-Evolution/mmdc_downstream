@@ -17,10 +17,12 @@ module purge
 
 export SCRATCH=/work/scratch/data/${USER}
 export SRCDIR=${SCRATCH}/src/MMDC/mmdc-downstream
-export MMDC_INIT=${SRCDIR}/mmdc_init.sh
+# export MMDC_INIT=${SRCDIR}/mmdc_init.sh
+module load conda
+conda activate anysat
 export WORKING_DIR=${SCRATCH}/MMDC/jobs
 
 cd ${WORKING_DIR}
 source ${MMDC_INIT}
 
-HYDRA_FULL_ERROR=1 python   ${SRCDIR}/src/bin/catboost_tcd.py  >> output_$SLURM_JOBID.log
+HYDRA_FULL_ERROR=1 python   ${SRCDIR}/src/bin/mlp_biomass.py  >> output_$SLURM_JOBID.log

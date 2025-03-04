@@ -8,7 +8,7 @@
 #SBATCH --partition=gpu_a100       # partition
 #SBATCH --qos=gpu_all              # QoS
 #SBATCH --time=4:00:00            # Walltime
-#SBATCH --mem-per-cpu=24G          # memory per core
+#SBATCH --mem-per-cpu=12G          # memory per core
 #SBATCH --account=cesbio           # MANDATORY : account (launch myaccounts to list your accounts)
 #SBATCH --export=none              #  to start the job with a clean environnement and source of ~/.bashrc
 
