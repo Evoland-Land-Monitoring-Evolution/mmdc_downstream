@@ -124,8 +124,8 @@ class MMDCLAIScatterplotCallbackStep(Callback):
         gt: torch.Tensor,
         pos: list[torch.Tensor, torch.Tensor],
         reg_input: torch.Tensor,
-        lai_min: torch.Tensor,
-        lai_max: torch.Tensor,
+        lai_min: torch.Tensor | None = None,
+        lai_max: torch.Tensor | None = None,
         margin: int = 28,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         img, pix = pos
@@ -146,16 +146,21 @@ class MMDCLAIScatterplotCallbackStep(Callback):
         gt_img = gt_img[existing_img]
         input_img = input_img[existing_img]
 
-        pred_img = denormalize(
-            pred_img.reshape(-1, 256, 256)[:, margin:-margin, margin:-margin],
-            lai_min,
-            lai_max,
-        ).numpy()
-        gt_img = denormalize(
-            gt_img.reshape(-1, 256, 256)[:, margin:-margin, margin:-margin],
-            lai_min,
-            lai_max,
-        ).numpy()
+        if lai_max is not None:
+            pred_img = denormalize(
+                pred_img.reshape(-1, 256, 256)[:, margin:-margin, margin:-margin],
+                lai_min,
+                lai_max,
+            ).numpy()
+            gt_img = denormalize(
+                gt_img.reshape(-1, 256, 256)[:, margin:-margin, margin:-margin],
+                lai_min,
+                lai_max,
+            ).numpy()
+        else:
+            pred_img = pred_img.reshape(-1, 256, 256)[:, margin:-margin, margin:-margin]
+            gt_img = gt_img.reshape(-1, 256, 256)[:, margin:-margin, margin:-margin]
+
         # input_img = input_img.reshape(-1, reg_input.shape[1], 256, 256)[1:-1].numpy()
         input_img = (
             input_img.reshape(-1, 256, 256, reg_input.shape[1])
@@ -169,12 +174,15 @@ class MMDCLAIScatterplotCallbackStep(Callback):
         self,
         preds: torch.Tensor,
         gt: torch.Tensor,
-        lai_min: torch.Tensor,
-        lai_max: torch.Tensor,
+        lai_min: torch.Tensor | None = None,
+        lai_max: torch.Tensor | None = None,
     ) -> tuple[np.ndarray, np.ndarray, float]:
         # idx = np.random.choice(len(preds), int(len(preds) * 0.05), replace=False)
-        preds = denormalize(preds, lai_min, lai_max).cpu().detach()
-        gt = denormalize(gt, lai_min, lai_max).cpu()
+        if lai_max is not None:
+            preds = denormalize(preds, lai_min, lai_max).cpu().detach()
+            gt = denormalize(gt, lai_min, lai_max).cpu()
+        else:
+            preds, gt = preds.cpu().detach(), gt.cpu()
         rmse = np.round(self.loss_fn(preds, gt).item(), 2)
 
         logging.info("pred max " + str(preds.max()))
@@ -201,28 +209,42 @@ class MMDCLAIScatterplotCallbackStep(Callback):
             preds, gt, pos, reg_input, lai_min, lai_max, margin
         )
 
-        input_img = input_img[:, :3]
+        if input_img.shape[1] == 6:
+            input_img = {"input_img1": input_img[:, :3], "input_img2": input_img[:, 3:]}
+        else:
+            input_img = input_img[:, :3]
 
         plt.close()
-
+        extra_col = 1 if type(input_img) is dict else 0
         fig, axes = plt.subplots(
             nrows=len(pred_img),
-            ncols=4,
+            ncols=4 + extra_col,
             sharex=True,
             sharey=True,
-            figsize=(13, len(pred_img) * 2.5),
+            figsize=(16, len(pred_img) * 2.5),
         )
         fig.suptitle("Prediction Inspection", fontsize=20)
-
         for samp_idx in range(len(pred_img)):  # We iterate through samples to plot
             # input_denorm = (input_img[samp_idx].transpose(1, 2, 0) + 1)/2
             # axes[samp_idx, 0].imshow(input_denorm)
 
-            axes[samp_idx, 0].imshow(
-                rgb_render(input_img[samp_idx])[0], interpolation="bicubic"
-            )
-            zeros = (input_img[samp_idx][0] == 0).sum()
-            axes[samp_idx, 0].set_title(f"Latent {img[samp_idx]} zeros={zeros}")
+            if type(input_img) is dict:
+                axes[samp_idx, 0].imshow(
+                    rgb_render(input_img["input_img1"][samp_idx])[0],
+                    interpolation="bicubic",
+                )
+                axes[samp_idx, 0].set_title("S1 ASC")
+                axes[samp_idx, 1].imshow(
+                    rgb_render(input_img["input_img2"][samp_idx])[0],
+                    interpolation="bicubic",
+                )
+                axes[samp_idx, 1].set_title("S1 DESC")
+            else:
+                axes[samp_idx, 0].imshow(
+                    rgb_render(input_img[samp_idx])[0], interpolation="bicubic"
+                )
+                zeros = (input_img[samp_idx][0] == 0).sum()
+                axes[samp_idx, 0].set_title(f"Latent {img[samp_idx]} zeros={zeros}")
 
             min, mean, max = np.quantile(
                 pred_img[samp_idx][pred_img[samp_idx] != 0], q=[0.01, 0.5, 0.99]
@@ -231,27 +253,31 @@ class MMDCLAIScatterplotCallbackStep(Callback):
                 gt_img[samp_idx][gt_img[samp_idx] != 0], q=[0.01, 0.5, 0.99]
             )
 
-            axes[samp_idx, 1].imshow(
+            axes[samp_idx, 1 + extra_col].imshow(
                 pred_img[samp_idx],
                 cmap="RdYlGn",
                 vmin=min_gt,
                 vmax=max_gt,
                 interpolation="bicubic",
             )
-            axes[samp_idx, 1].set_title(f"Pred {int(min)} {int(max)}")
+            axes[samp_idx, 1 + extra_col].set_title(f"Pred {int(min)} {int(max)}")
 
-            axes[samp_idx, 2].imshow(
+            axes[samp_idx, 2 + extra_col].imshow(
                 gt_img[samp_idx],
                 cmap="RdYlGn",
                 vmin=min_gt,
                 vmax=max_gt,
                 interpolation="bicubic",
             )
-            axes[samp_idx, 2].set_title(f"GT {int(min_gt)} {int(max_gt)}")
+            axes[samp_idx, 2 + extra_col].set_title(f"GT {int(min_gt)} {int(max_gt)}")
 
             error = np.abs(gt_img[samp_idx] - pred_img[samp_idx])
-            axes[samp_idx, 3].imshow(error, cmap="Reds", interpolation="bicubic")
-            axes[samp_idx, 3].set_title(f"Error, max={np.max(np.round(error, 1))}")
+            axes[samp_idx, 3 + extra_col].imshow(
+                error, cmap="Reds", interpolation="bicubic"
+            )
+            axes[samp_idx, 3 + extra_col].set_title(
+                f"Error, max={np.max(np.round(error, 1))}"
+            )
 
         if batch_idx is not None:
             if train:
@@ -368,21 +394,27 @@ class MMDCLAIConvCallbackStep(MMDCLAIScatterplotCallbackStep):
         dataloader_idx: int = 0,
     ) -> None:
         if batch_idx < 3:
-            debatch = destructure_batch(batch)[: self.n_samples]
-
             patch_margin = pl_module.margin
             assert isinstance(patch_margin, int)
 
-            pred = pl_module.predict(debatch)
-            lai_pred, lai_gt = (
-                pred.lai_pred.squeeze(1).nan_to_num(),
-                pred.lai_gt.squeeze(1).nan_to_num(),
-            )
+            if pl_module.input_data == "S1_asc":
+                debatch = destructure_batch(batch)
+                pred = pl_module.predict(debatch)
+                lai_pred, lai_gt = (
+                    pred.lai_pred.squeeze(1).nan_to_num()[: self.n_samples],
+                    pred.lai_gt.squeeze(1).nan_to_num()[: self.n_samples],
+                )
+                reg_input = pred.latent[: self.n_samples]
+            else:
+                debatch = destructure_batch(batch)[: self.n_samples]
 
-            logger.info(lai_pred.shape)
-            logger.info(lai_gt.shape)
+                pred = pl_module.predict(debatch)
+                lai_pred, lai_gt = (
+                    pred.lai_pred.squeeze(1).nan_to_num(),
+                    pred.lai_gt.squeeze(1).nan_to_num(),
+                )
 
-            reg_input = pred.latent
+                reg_input = pred.latent
 
             logger.info(f"{reg_input.shape=}")
             logger.info(f"{lai_gt.shape=}")
@@ -455,3 +487,16 @@ class MMDCLAIConvCallbackStep(MMDCLAIScatterplotCallbackStep):
         logging.info("gt min " + str(gt.min()))
 
         return preds.numpy(), gt.numpy(), rmse
+
+    def on_test_batch_end(
+        self,
+        trainer: pl.trainer.Trainer,
+        pl_module: MMDCDLAILitModuleConv,
+        outputs: Any,
+        batch: torch.Tensor,
+        batch_idx: int,
+        dataloader_idx: int = 0,
+    ) -> None:
+        self.on_validation_batch_end(
+            trainer, pl_module, outputs, batch, batch_idx, dataloader_idx
+        )
