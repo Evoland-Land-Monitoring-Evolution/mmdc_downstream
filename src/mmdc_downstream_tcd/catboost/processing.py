@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 import os
 import warnings
@@ -9,13 +11,12 @@ import numpy as np
 import pandas as pd
 import rasterio
 import torch
-from catboost import CatBoostRegressor
+from catboost import CatBoostRegressor, Pool
 from einops import rearrange
 from rasterio.transform import Affine
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
-
-from mmdc_downstream_tcd.tile_processing.utils import rearrange_ts
+from sklearn.neural_network import MLPRegressor
 
 warnings.filterwarnings("ignore")
 
@@ -24,6 +25,11 @@ MAIN_COLS = ["index", "TCD", "x", "y", "x_round", "y_round"]
 CB_params = namedtuple("CB_params", "n_iter leaf depth")
 
 log = logging.getLogger(__name__)
+
+
+def rearrange_ts(ts: torch.Tensor) -> torch.Tensor:
+    """Rearrange TS"""
+    return rearrange(ts, "t c h w ->  (t c) h w")
 
 
 class CatBoostTCD:
@@ -111,7 +117,11 @@ class CatBoostTCD:
             img = tile["img"]
             t, c, h, w = img.shape
 
-            if not ("alise" in path_image_tiles or "malice" in path_image_tiles):
+            if not (
+                "alise" in path_image_tiles
+                or "malice" in path_image_tiles
+                or "anysat" in path_image_tiles
+            ):
                 mu = img[:, : int(c / 2)]
                 if not self.use_logvar:
                     img = mu
@@ -144,11 +154,14 @@ class CatBoostTCD:
             (int((y_max_glob - y_min_glob) / 10), int((x_max_glob - x_min_glob) / 10)),
             dtype=int,
         )
-        # gt_img = np.zeros(
-        #     (24, int((y_max_glob - y_min_glob) / 10),
-        #     int((x_max_glob - x_min_glob) / 10)),
-        #     dtype=float,
-        # )
+        gt_img = np.zeros(
+            (
+                24,
+                int((y_max_glob - y_min_glob) / 10),
+                int((x_max_glob - x_min_glob) / 10),
+            ),
+            dtype=float,
+        )
 
         x_range = np.arange(x_min_glob, x_max_glob, 10)
         y_range = np.arange(y_max_glob, y_min_glob, -10)
@@ -166,8 +179,9 @@ class CatBoostTCD:
                 tt
             ]
 
-            # gt_img[:, idx_y_min : idx_y_max + 1, idx_x_min : idx_x_max + 1]
-            # = all_img[tt][:24, :, :]
+            gt_img[:, idx_y_min : idx_y_max + 1, idx_x_min : idx_x_max + 1] = all_img[
+                tt
+            ][:24, :, :]
 
         profile = {
             "driver": "GTiff",
@@ -191,22 +205,22 @@ class CatBoostTCD:
 
         del pred_img
 
-        # profile = {
-        #     "driver": "GTiff",
-        #     "width": len(x_range),
-        #     "height": len(y_range),
-        #     "count": 24,
-        #     "dtype": "float32",
-        #     "crs": "epsg:32632",
-        #     "transform": Affine(10.0, 0.0, x_min_glob, 0.0, -10.0, y_max_glob),
-        # }
-        #
-        # pred_image_name = f"tdc_gt_from_{self.sat}_{model_name}"
-        #
-        # with rasterio.open(
-        #     os.path.join(path_image_tiles, f"{pred_image_name}.tif"), "w", **profile
-        # ) as dst:
-        #     dst.write(gt_img)
+        profile = {
+            "driver": "GTiff",
+            "width": len(x_range),
+            "height": len(y_range),
+            "count": 24,
+            "dtype": "float32",
+            "crs": "epsg:32632",
+            "transform": Affine(10.0, 0.0, x_min_glob, 0.0, -10.0, y_max_glob),
+        }
+
+        pred_image_name = f"tdc_gt_from_{self.sat}_{model_name}"
+
+        with rasterio.open(
+            os.path.join(path_image_tiles, f"{pred_image_name}.tif"), "w", **profile
+        ) as dst:
+            dst.write(gt_img)
 
     def open_csv_files_and_combine(self) -> tuple[pd.DataFrame, np.array]:
         """
@@ -333,7 +347,7 @@ class CatBoostTCD:
         print(f"Shape of median input data {data.shape}")
         return data, data_cols, months_feat_ind
 
-    def catboost_algorothm(
+    def catboost_algorithm(
         self,
         X_train: np.ndarray,
         y_train: np.ndarray,
@@ -348,11 +362,14 @@ class CatBoostTCD:
             iterations=self.cb_params.n_iter,
             l2_leaf_reg=self.cb_params.leaf,
             depth=self.cb_params.depth,
+            task_type="GPU",
+            devices="0",
+            use_best_model=True
             # loss_function='MAE'
         )
-
+        test_set = Pool(X_test, y_test)
         log.info("Fitting model")
-        model_cat.fit(X_train, y_train, verbose=True)
+        model_cat.fit(X_train, y_train, eval_set=test_set, verbose=True)
 
         log.info("Predicting")
         pred = model_cat.predict(X_test).clip(0, 100)
@@ -418,14 +435,31 @@ class CatBoostTCD:
                 return data, data_cols_final, median_months_feat
         return data, self.data_cols, None
 
+    def mlp_algorithm(
+        self,
+        X_train: np.ndarray,
+        y_train: np.ndarray,
+        X_test: np.ndarray,
+        y_test: np.ndarray,
+    ) -> tuple[np.ndarray, MLPRegressor]:
+        pass
+
     def process_satellites(
         self, variable: str = "TCD"
     ) -> tuple[CatBoostRegressor, list[list] | None]:
         data, days = self.open_csv_files_and_combine()
 
         data, data_cols_final, months_median_feat = self.prepare_data(data, days)
-
-        gt_cols = [variable]
+        gt_cols = [v for v in data.columns if variable in v]
+        data = data.loc[~(data[data_cols_final] == 0).all(axis=1)]
+        data = data.loc[~(data[gt_cols] == 0).any(axis="columns")]
+        data = data.loc[~(data[gt_cols].isnull()).any(axis="columns")]
+        data = data.loc[pd.notna(data[gt_cols]).any(axis="columns")]
+        data = data.loc[pd.notna(data[data_cols_final]).any(axis="columns")]
+        if variable == "AGB":
+            data = data.loc[data[gt_cols[0]] < 500]
+        log.info(f"Shape of input data after filtering {data.shape}")
+        log.info(data_cols_final)
 
         log.info("splitting data")
         X_train, X_test, y_train, y_test = train_test_split(
@@ -436,19 +470,30 @@ class CatBoostTCD:
         )
 
         # Create model, fit and predict
-        pred, model_cat = self.catboost_algorothm(X_train, y_train, X_test, y_test)
+        pred, model_cat = self.catboost_algorithm(X_train, y_train, X_test, y_test)
 
         # Compute error
         rmse = round(
             mean_squared_error(
                 y_test.flatten()[~np.isnan(y_test.flatten())],
-                np.round(pred)[~np.isnan(y_test.flatten())],
+                np.round(pred, 1)[~np.isnan(y_test.flatten())],
                 squared=False,
             ),
             2,
         )
+        from sklearn.metrics import r2_score
+
+        r2 = r2_score(
+            y_test.flatten()[~np.isnan(y_test.flatten())],
+            np.round(pred, 1)[~np.isnan(y_test.flatten())],
+        )
+
         log.info(f"RMSE={rmse}")
         print(f"RMSE={rmse}")
+
+        log.info(f"R2={r2}")
+        print(f"R2={r2}")
+
         print(np.round(pred))
         print(y_test.flatten())
 
@@ -459,10 +504,10 @@ class CatBoostTCD:
         if self.encoded and self.use_logvar:
             self.folder += "_logvar"
 
-        img_name = f"{self.folder.split('/')[-1]}_{self.sat}.png"
+        img_name = f"{self.folder.split('/')[-1]}_{self.sat}_{variable}.png"
         Path(self.folder).mkdir(exist_ok=True, parents=True)
         self.results_scatterplot(
-            np.round(pred), y_test.flatten(), rmse, self.folder, img_name
+            np.round(pred, 1), y_test.flatten(), rmse, self.folder, img_name
         )
 
         return model_cat, months_median_feat
