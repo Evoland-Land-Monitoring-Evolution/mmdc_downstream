@@ -67,7 +67,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--sat",
         type=str,
         help="Chosen modalities",
-        default="S1_ASC"
+        default="S2"
         # required=True
     )
 
@@ -85,8 +85,8 @@ def get_parser() -> argparse.ArgumentParser:
         help="path to alise model",
         # default=f"{WORK_FOLDER}/results/alise_preentrained/
         # malice_for_katya/malice_flexible_s1_wrec1_winv1_wcr0_seed3.onnx",
-        default=f"{WORK_FOLDER}/results/alise_preentrained/my_checkpoints_malice_aux/"
-        f"malice-aux-wr1-winv1-wcr0_f64_seed0_same_mod.ckpt",
+        default=f"{WORK_FOLDER}/results/alise_preentrained/my_checkpoints_malice/"
+        f"malice-aux-wr1-winv1-wcr0_f64_seed0_same_mod_epoch=121.ckpt",
     )
 
     arg_parser.add_argument(

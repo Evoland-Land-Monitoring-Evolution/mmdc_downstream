@@ -139,65 +139,68 @@ def encode_series_alise_s1(
     repr_encoder = repr_encoder.to(DEVICE)
 
     for patch_path in np.sort(os.listdir(os.path.join(dataset_path_oe, sat))):
-        batch = torch.load(
-            os.path.join(dataset_path_oe, sat, patch_path), map_location=DEVICE
-        )
-
         id_patch = patch_path.split("_")[-1].split(".")[0]
-        log.info(id_patch)
-        img = batch.sits  # [:, :, 32:-32, 32:-32]
 
-        mask = batch.mask  # [:, :, 32:-32, 32:-32]
+        if not Path(
+            os.path.join(output_path, sat + "_" + postfix, f"{sat}_{id_patch}.pt")
+        ).exists():
+            batch = torch.load(
+                os.path.join(dataset_path_oe, sat, patch_path), map_location=DEVICE
+            )
+            log.info(id_patch)
+            img = batch.sits  # [:, :, 32:-32, 32:-32]
 
-        true_doy = batch.dates_dt.values[:, 0]
+            mask = batch.mask  # [:, :, 32:-32, 32:-32]
 
-        reference_date = "2014-03-03"
+            true_doy = batch.dates_dt.values[:, 0]
 
-        doy = torch.Tensor(
-            (pd.to_datetime(true_doy) - pd.to_datetime(reference_date)).days
-        )
-        print(len(doy))
-        print(doy)
+            reference_date = "2014-03-03"
 
-        if sat == "S1_ASC":
-            s1_asc_2b = img[:, [1, 0]]
+            doy = torch.Tensor(
+                (pd.to_datetime(true_doy) - pd.to_datetime(reference_date)).days
+            )
+            print(len(doy))
+            print(doy)
 
-            ratio = s1_asc_2b[:, 0] / s1_asc_2b[:, 1]
+            if sat == "S1_ASC":
+                s1_asc_2b = img[:, [1, 0]]
 
-            s1_asc = torch.cat([s1_asc_2b, ratio[:, None, :, :]], dim=1)
+                ratio = s1_asc_2b[:, 0] / s1_asc_2b[:, 1]
 
-            s1_asc = torch.log(s1_asc)
+                s1_asc = torch.cat([s1_asc_2b, ratio[:, None, :, :]], dim=1)
 
-            s1_asc[mask.expand_as(s1_asc).bool()] = 0
+                s1_asc = torch.log(s1_asc)
 
-            prepared_sits = s1_asc
-        else:  # S2
-            prepared_sits = img
+                s1_asc[mask.expand_as(s1_asc).bool()] = 0
 
-        prepared_sits, doy, padd_index = apply_padding(
-            allow_padd=True,
-            max_len=prepared_sits.shape[0],
-            t=prepared_sits.shape[0],
-            sits=prepared_sits,
-            doy=doy,
-        )
+                prepared_sits = s1_asc
+            else:  # S2
+                prepared_sits = img
 
-        # Prepare patch
-        ref_norm = rearrange(
-            transform(rearrange(prepared_sits, "t c h w -> c t h w")),
-            "c t h w -> 1 t c h w",
-        )
+            prepared_sits, doy, padd_index = apply_padding(
+                allow_padd=True,
+                max_len=prepared_sits.shape[0],
+                t=prepared_sits.shape[0],
+                sits=prepared_sits,
+                doy=doy,
+            )
 
-        input = BatchOneMod(
-            sits=ref_norm.to(DEVICE),
-            input_doy=doy[None, :].to(DEVICE),
-            padd_index=padd_index[None, :].to(DEVICE),
-        )
-        repr_encoder.eval()
-        with torch.no_grad():
-            ort_out = repr_encoder.forward_keep_input_dim(input).repr
+            # Prepare patch
+            ref_norm = rearrange(
+                transform(rearrange(prepared_sits, "t c h w -> c t h w")),
+                "c t h w -> 1 t c h w",
+            )
 
-        torch.save(
-            ort_out[0],
-            os.path.join(output_path, sat + "_" + postfix, f"{sat}_{id_patch}.pt"),
-        )
+            input = BatchOneMod(
+                sits=ref_norm.to(DEVICE),
+                input_doy=doy[None, :].to(DEVICE),
+                padd_index=padd_index[None, :].to(DEVICE),
+            )
+            repr_encoder.eval()
+            with torch.no_grad():
+                ort_out = repr_encoder.forward_keep_input_dim(input).repr
+
+            torch.save(
+                ort_out[0],
+                os.path.join(output_path, sat + "_" + postfix, f"{sat}_{id_patch}.pt"),
+            )

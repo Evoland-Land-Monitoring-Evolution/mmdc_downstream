@@ -9,6 +9,7 @@ from typing import Literal
 import numpy as np
 import torch
 import torch.utils.data as tdata
+from einops import rearrange
 from mmdc_singledate.models.datatypes import VAELatentSpace
 from torch import nn
 
@@ -46,7 +47,9 @@ class PASTISEncodedDatasetAlise(PASTISEncodedDataset):
         norm: bool = False,
         postfix: str = "",
     ):
-        """ """
+        """
+        Datamodule to use encoded Alise time series
+        """
         self.postfix = "_" + postfix if postfix else ""
 
         super().__init__(
@@ -67,7 +70,7 @@ class PASTISEncodedDatasetAlise(PASTISEncodedDataset):
         self,
         item: int,
         id_patch: int,
-    ) -> tuple[dict[str, VAELatentSpace], torch.Tensor,]:
+    ) -> tuple[dict[str, torch.Tensor], torch.Tensor,]:
         """Get id_patch from disk and cache it as item in the dataset"""
         data_pastis = {
             satellite: self.load_file(
@@ -118,7 +121,7 @@ class PASTISEncodedDatasetAlise(PASTISEncodedDataset):
 
     def __getitem__(
         self, item: int
-    ) -> (dict[str, VAELatentSpace], torch.Tensor, torch.Tensor, int,):
+    ) -> (dict[str, torch.Tensor], torch.Tensor, torch.Tensor, int,):
         id_patch = self.id_patches[item]
 
         # Retrieve and prepare satellite data
@@ -132,7 +135,12 @@ class PASTISEncodedDatasetAlise(PASTISEncodedDataset):
                     k: v.casting(torch.float32) for k, v in data.items()
                 }  # TODO casting
 
+        if data[self.sats[0]].dim() == 3:
+            for sat in self.sats:
+                data[sat] = rearrange(data[sat], "(t c) h w -> t c h w", c=64)
+
         t, c, h, w = data[self.sats[0]].shape
+        logger.info(data[self.sats[0]].shape)
         if self.crop_size is not None:
             y, x = self.get_crop_idx(
                 rows=h, cols=w
