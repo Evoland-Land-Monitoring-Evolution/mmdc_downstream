@@ -44,9 +44,8 @@ def get_parser() -> argparse.ArgumentParser:
         help="input folder",
         # default=f"{WORK_FOLDER}/results/TCD/t32tnt/pure_values/s2"
         # default=f"{WORK_FOLDER}/results/TCD/t32tnt/encoded/"
-        # default=f"{WORK_FOLDER}/results/BioMass/encoded/Sweden"
-        default=f"{WORK_FOLDER}/results/TCD/t32tnt/encoded/"
-        # default=f"{WORK_FOLDER}/results/TCD/t32tnt/pure_values/s1_desp"
+        default=f"{WORK_FOLDER}/results/BioMass/encoded/Sweden"
+        # default=f"{WORK_FOLDER}/results/TCD/t32tnt/encoded/"
         # required=True
     )
 
@@ -54,17 +53,19 @@ def get_parser() -> argparse.ArgumentParser:
         "--model",
         type=str,
         help="Name of encoded model, only if we work with encoded data",
-        default="malice_aux-wr1-winv1-wcr0_f64_seed0_same_mod_epoch=121",
+        # default="malice_aux-wr1-winv1-wcr0_f64_seed0_same_mod_epoch=121",
+        # default="malice_wr1-winv1-wcr0_f64_seed0_bn_transp_no_same_mod"
         # default="malice_wr1-winv1-wcr0_f64_seed0_bn"
         # "res_magical_checkpoint",  # "res_checkpoint_best"
-        # #"alise" #res_2024-04-05_14-58-22",
+        default="malice_wr1-winv1-wcr0_seed3"
+        # default="anysat"
     )
 
     arg_parser.add_argument(
         "--n_iter",
         type=int,
         help="number of iterations for bootstrap",
-        default=750
+        default=2
         # required=False,
     )
 
@@ -120,13 +121,12 @@ def get_parser() -> argparse.ArgumentParser:
         "--path_predict_new_image",
         type=str,
         help="Path to image tiles we are going to predict, if None no prediction",
-        default=None
+        # default=None
         # default=f"{WORK_FOLDER}/results/TCD/t32tnt/pure_values/S1/"
-        # default=f"{WORK_FOLDER}"
+        default=f"{WORK_FOLDER}"
         # f"/results/TCD/t32tnt/encoded/
         # malice_aux-wr1-winv1-wcr0_f64_seed0_same_mod_epoch=121"
-        # f"/results/BioMass/encoded/Sweden/malice_wr1-winv1-wcr0_seed3"
-        # required=False,
+        f"/results/TCD/t32tnt/encoded/anysat",
     )
 
     arg_parser.add_argument("--type", type=str, help="TCD or BioMass", default="TCD")
@@ -184,7 +184,7 @@ if __name__ == "__main__":
                 args.months_median,
                 args.use_logvar,
             )
-            model_cat, month_median_feat = cat.process_satellites(variable="MeanHeight")
+            model_cat, month_median_feat = cat.process_satellites(variable="Height")
             # if args.path_predict_new_image is not None:
             #     cat.predict_new_image(
             #         path_image_tiles=os.path.join(args.path_predict_new_image, sat),
@@ -193,7 +193,7 @@ if __name__ == "__main__":
             #         month_median_feat=month_median_feat,
             #         variable="MeanHeight"
             #     )
-            model_cat, month_median_feat = cat.process_satellites(variable="AGB_T_HA")
+            model_cat, month_median_feat = cat.process_satellites(variable="AGB")
             # if args.path_predict_new_image is not None:
             #     cat.predict_new_image(
             #         path_image_tiles=os.path.join(args.path_predict_new_image, sat),
