@@ -47,7 +47,7 @@ def encode_tile_biomass_malice(
     if path_alise_model.endswith("onnx"):
         import onnxruntime
     else:
-        from mmdc_downstream_pastis.encode_series.encode_alise_s1_original_pt import (
+        from mmdc_downstream_pastis.encode_series.encode_malice_pt import (
             load_checkpoint,
         )
 

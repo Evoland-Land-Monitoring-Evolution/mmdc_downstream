@@ -12,9 +12,7 @@ from einops import rearrange
 from mt_ssl.data.classif_class import ClassifBInput
 from openeo_mmdc.dataset.to_tensor import load_transform_one_mod
 
-from src.mmdc_downstream_pastis.encode_series.encode_alise_s1_original_pt import (
-    load_checkpoint,
-)
+from src.mmdc_downstream_pastis.encode_series.encode_malice_pt import load_checkpoint
 from src.mmdc_downstream_tcd.tile_processing.utils import (
     extract_gt_points,
     generate_coord_matrix,

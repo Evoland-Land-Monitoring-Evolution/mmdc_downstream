@@ -118,7 +118,7 @@ def encode_tile_biomass_alise_s1(
     else:
         from mt_ssl.data.classif_class import ClassifBInput
 
-        from mmdc_downstream_pastis.encode_series.encode_alise_s1_original_pt import (
+        from mmdc_downstream_pastis.encode_series.encode_malice_pt import (
             load_checkpoint,
         )
 

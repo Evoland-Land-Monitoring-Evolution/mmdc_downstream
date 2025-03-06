@@ -12,12 +12,10 @@ from mmmv_ssl.data.dataclass import BatchOneMod, SITSOneMod
 from openeo_mmdc.dataset.to_tensor import load_all_transforms
 
 from mmdc_downstream_pastis.datamodule.datatypes import MMDCDataStruct
-from mmdc_downstream_pastis.encode_series.encode_alise_s1_original_pt import (
-    load_checkpoint,
-)
-from mmdc_downstream_pastis.encode_series.encode_malise_aux_pt import (
+from mmdc_downstream_pastis.encode_series.encode_malice_aux_pt import (
     apply_transform_basic,
 )
+from mmdc_downstream_pastis.encode_series.encode_malice_pt import load_checkpoint
 
 from .utils import (
     extract_gt_points,
