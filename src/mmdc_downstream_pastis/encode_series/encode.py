@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # Copyright: (c) 2023 CESBIO / Centre National d'Etudes Spatiales
 
+"""Encode S1/S2 SITS with MMDC singledate"""
+
 import logging
 import os
 from pathlib import Path
@@ -11,50 +13,19 @@ import pandas as pd
 import torch
 from mmdc_singledate.models.datatypes import VAELatentSpace
 
-from mmdc_downstream_pastis.datamodule.pastis_oe import PastisOEDataModule
+from mmdc_downstream_pastis.encode_series.utils import back_to_date, build_dm
 from mmdc_downstream_pastis.mmdc_model.model import PretrainedMMDCPastis
 from mmdc_downstream_pastis.utils.utils import MMDCPartialBatch
 
 log = logging.getLogger(__name__)
 
 
-def back_to_date(
-    days_int: torch.Tensor, ref_date: str = "2018-09-01"
-) -> list[np.array]:
-    """
-    Go back from integral doy (number of days from ref date)
-    to calendar doy
-    """
-    return [
-        np.asarray(
-            pd.to_datetime(
-                [
-                    pd.Timedelta(dd, "d") + pd.to_datetime(ref_date)
-                    for dd in days_int.cpu().numpy()[d]
-                ]
-            )
-        )
-        for d in range(len(days_int))
-    ]
-
-
-def build_dm(
-    dataset_path_oe: str | Path, dataset_path_pastis: str | Path, sats: list[str]
-) -> PastisOEDataModule:
-    """Builds datamodule"""
-    return PastisOEDataModule(
-        dataset_path_oe=dataset_path_oe,
-        dataset_path_pastis=dataset_path_pastis,
-        folds=None,
-        sats=sats,
-        task="semantic",
-        batch_size=1,
-        crop_size=None,
-    )
-
-
 def fill_batch_s1(
-    batch_s1: MMDCPartialBatch, asc_ind, desc_ind, batch_asc, batch_desc
+    batch_s1: MMDCPartialBatch,
+    asc_ind: np.array,
+    desc_ind: np.array,
+    batch_asc: MMDCPartialBatch,
+    batch_desc: MMDCPartialBatch,
 ) -> MMDCPartialBatch:
     """
     Fill S1 batch with data from both orbits, according to each orbit available days
@@ -327,8 +298,8 @@ def encode_series(
     """Encode PASTIS SITS into S1 and S2 latent embeddings"""
     dm = build_dm(dataset_path_oe, dataset_path_pastis, sats)
 
-    dataset = dm.instanciate_dataset(fold=None)
-    loader = dm.instanciate_data_loader(dataset, shuffle=False, drop_last=False)
+    dataset = dm.instantiate_dataset(fold=None)
+    loader = dm.instantiate_data_loader(dataset, shuffle=False, drop_last=False)
     log.info("Loader is ready")
     for batch in loader:
         log.info(batch.id_patch)

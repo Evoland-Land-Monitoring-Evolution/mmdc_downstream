@@ -8,7 +8,6 @@ from copy import deepcopy
 from dataclasses import dataclass, fields
 
 import torch
-from typing_extensions import Self
 
 from mmdc_downstream_pastis.datamodule.datatypes import PastisBatch
 
@@ -25,7 +24,7 @@ class MMDCPartialBatch:
     type: str = "S2"
 
     @staticmethod
-    def fill_from(batch_sat: PastisBatch, satellite: str) -> Self:
+    def fill_from(batch_sat: PastisBatch, satellite: str):
         """Fill from PastisBatch"""
         assert batch_sat is not None
         return MMDCPartialBatch(
@@ -47,7 +46,7 @@ class MMDCPartialBatch:
         nb_angles: int = 2,
         nb_meteo: int = 48,
         nb_mask: int = 2,
-    ) -> Self:
+    ):
         """
         Create zero S1 instance with defined shape.
         Mask values are 1, because it is nodata
@@ -61,14 +60,14 @@ class MMDCPartialBatch:
             type="S1",
         )
 
-    def to_device(self, device: str | torch.device) -> Self:
+    def to_device(self, device: str | torch.device):
         """Send data to device"""
         for field in fields(self):
             if field.type is torch.Tensor:
                 setattr(self, field.name, getattr(self, field.name).to(device))
         return self
 
-    def __getitem__(self, item: int | list[int]) -> Self:
+    def __getitem__(self, item: int | list[int]):
         """Get the same slice (batch elements) for each field (tensor)
         of the data class"""
         new = deepcopy(self)

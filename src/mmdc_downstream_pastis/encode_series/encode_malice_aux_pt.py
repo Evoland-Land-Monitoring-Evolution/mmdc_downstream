@@ -1,3 +1,5 @@
+"""Encode PASTIS SITS with MALICE Aux with exported checkpoint"""
+
 # Copyright: (c) 2024 CESBIO / Centre National d'Etudes Spatiales
 
 import logging
@@ -16,14 +18,17 @@ from mt_ssl.utils.open import open_yaml
 from omegaconf import DictConfig
 from openeo_mmdc.dataset.to_tensor import load_all_transforms
 
-from mmdc_downstream_pastis.encode_series.encode import back_to_date, build_dm
+from mmdc_downstream_pastis.encode_series.utils import back_to_date, build_dm
 
 log = logging.getLogger(__name__)
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 
-def load_checkpoint(hydra_conf, pretrain_module_ckpt_path, mod):
+def load_checkpoint(
+    hydra_conf: str | Path, pretrain_module_ckpt_path: str | Path, mod: str
+) -> MonoSITSAuxEncoder:
+    """Load checkpoint"""
     pretrain_module_config = DictConfig(open_yaml(hydra_conf))
 
     pretrained_pl_module: AliseMM = instantiate(
@@ -46,6 +51,7 @@ def load_checkpoint(hydra_conf, pretrain_module_ckpt_path, mod):
 def apply_transform_basic(
     batch_sits: torch.Tensor, transform: torch.nn.Module
 ) -> torch.Tensor:
+    """Normalize"""
     b, *_ = batch_sits.shape
     batch_sits = rearrange(batch_sits, "b t c h w -> c (b t ) h w")
     batch_sits = transform(batch_sits)
@@ -53,7 +59,7 @@ def apply_transform_basic(
     return batch_sits
 
 
-def encode_series_malise_aux(
+def encode_series_malice_aux(
     path_alise_model: str | Path,
     path_csv: str | Path,
     dataset_path_oe: str | Path,
@@ -66,7 +72,7 @@ def encode_series_malise_aux(
         path_csv, modalities=["s1_asc", "s2", "agera5", "dem"]
     )
 
-    """Encode PASTIS SITS with MALICE"""
+    """Encode PASTIS SITS with MALICE Aux"""
 
     log.info("Loader is ready")
 
@@ -81,8 +87,8 @@ def encode_series_malise_aux(
 
     dm = build_dm(dataset_path_oe, dataset_path_pastis, [sat])
 
-    dataset = dm.instanciate_dataset(fold=None)
-    loader = dm.instanciate_data_loader(dataset, shuffle=False, drop_last=False)
+    dataset = dm.instantiate_dataset(fold=None)
+    loader = dm.instantiate_data_loader(dataset, shuffle=False, drop_last=False)
     log.info("Loader is ready")
     for batch in loader:
         log.info(batch.id_patch)

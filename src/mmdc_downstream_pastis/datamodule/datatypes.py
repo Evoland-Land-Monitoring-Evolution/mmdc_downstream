@@ -1,3 +1,5 @@
+"""Datatypes"""
+
 import random
 from dataclasses import dataclass, fields
 from typing import Literal
@@ -42,10 +44,8 @@ class PASTISOptions:
         They are cast back to float32 when returned by __getitem__.
     """
 
-    # task: PASTISTask
     dataset_path_oe: str
     dataset_path_pastis: str
-    # folder: str
     folds: list[int] | None = None
     norm: bool = True
     cache: bool = False
@@ -119,7 +119,7 @@ class MMDCDataStruct:
         )
 
     @staticmethod
-    def init_empty_zeros_s1(t_max, H, W):
+    def init_empty_zeros_s1(t_max: int, H: int, W: int):
         """
         Create an empty dataclass instance,
         with concatenated meteo data
@@ -204,19 +204,25 @@ def randomcropindex(
 
 @dataclass
 class OneSatellitePatch:
+    """One modality"""
+
     sits: MMDCDataStruct
     true_doy: np.ndarray | None
 
 
 @dataclass
 class PastisBatch:
+    """Pastis input batch"""
+
     sits: MMDCDataStruct
     true_doy: torch.Tensor | np.ndarray = None
 
     def w(self):
+        """width"""
         return self.sits.data.img.shape[-1]
 
     def h(self):
+        """height"""
         return self.sits.data.img.shape[-2]
 
     @staticmethod
@@ -231,6 +237,7 @@ class PastisBatch:
         return self
 
     def concat_aux_data(self, pad_value: int = 0) -> torch.Tensor:
+        """Legacy function. Concatenate all aux data to images"""
         b, t, _, h, w = self.sits.data.img.shape
         dem_repeat = (
             self.sits.dem.unsqueeze(1)
@@ -248,6 +255,8 @@ class PastisBatch:
 
 @dataclass
 class BatchInputUTAE:
+    """Input to UTAE algorithm"""
+
     sits: torch.Tensor | dict[str, torch.Tensor] | PastisBatch
     gt: torch.Tensor
     doy: torch.Tensor | dict[str, torch.Tensor] | None = None

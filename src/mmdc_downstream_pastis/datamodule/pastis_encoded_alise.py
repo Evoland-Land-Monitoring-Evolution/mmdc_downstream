@@ -41,14 +41,13 @@ class PASTISEncodedDatasetAlise(PASTISEncodedDataset):
         reference_date,
         sats=["S1_ASC"],
         crop_size=64,
-        # dict_classes=None,
         crop_type: Literal["Center", "Random"] = "Random",
         transform: nn.Module | None = None,
         norm: bool = False,
         postfix: str = "",
     ):
         """
-        Datamodule to use encoded Alise time series
+        Datamodule to use encoded Alise and Malice time series
         """
         self.postfix = "_" + postfix if postfix else ""
 
@@ -122,6 +121,7 @@ class PASTISEncodedDatasetAlise(PASTISEncodedDataset):
     def __getitem__(
         self, item: int
     ) -> (dict[str, torch.Tensor], torch.Tensor, torch.Tensor, int,):
+        """Get item"""
         id_patch = self.id_patches[item]
 
         # Retrieve and prepare satellite data
@@ -163,11 +163,11 @@ def pad_collate_alise(
         int,
     ],
 ) -> BatchInputUTAE:
+    """Collate alise embeddings"""
     batch_dict = {}
 
     sat_dict, target, mask, id_patch = zip(*batch)
     target = torch.stack(target, 0)
-    mask = torch.stack(mask, 0)
 
     sats = list(sat_dict[0].keys())
 
@@ -240,7 +240,8 @@ class PastisEncodedAliseDataModule(PastisEncodedDataModule):
 
         self.postfix = postfix
 
-    def instanciate_dataset(self, fold: list[int] | None) -> PASTISDataset:
+    def instantiate_dataset(self, fold: list[int] | None) -> PASTISDataset:
+        """Instantiate dataset"""
         return PASTISEncodedDatasetAlise(
             PASTISOptions(
                 task=self.task,
@@ -256,7 +257,7 @@ class PastisEncodedAliseDataModule(PastisEncodedDataModule):
             postfix=self.postfix,
         )
 
-    def instanciate_data_loader(
+    def instantiate_data_loader(
         self, dataset: tdata.Dataset, shuffle: bool = False, drop_last: bool = True
     ) -> tdata.DataLoader:
         """Return a data loader with the PASTIS data set"""

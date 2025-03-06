@@ -9,7 +9,7 @@ import torch
 from einops import rearrange
 from mmdc_singledate.models.datatypes import VAELatentSpace
 
-from mmdc_downstream_pastis.encode_series.encode import back_to_date, build_dm
+from mmdc_downstream_pastis.encode_series.utils import back_to_date, build_dm
 from mmdc_downstream_tcd.tile_processing.encode_tile_pvae import mmdc2pvae_batch
 
 log = logging.getLogger(__name__)
@@ -22,14 +22,15 @@ def encode_series_pvae(
     sats: list[str],
     output_path: str | Path,
 ):
+    """Encode PASTIS SITS S2 with prosailVAE"""
+
     ts_net = torch.jit.load(path_jit_model)
     ts_net.eval()
 
-    """Encode PASTIS SITS S2 with prosailVAE"""
     dm = build_dm(dataset_path_oe, dataset_path_pastis, sats)
 
-    dataset = dm.instanciate_dataset(fold=None)
-    loader = dm.instanciate_data_loader(dataset, shuffle=False, drop_last=False)
+    dataset = dm.instantiate_dataset(fold=None)
+    loader = dm.instantiate_data_loader(dataset, shuffle=False, drop_last=False)
     log.info("Loader is ready")
     for batch in loader:
         log.info(batch.id_patch)

@@ -25,7 +25,9 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 WORK = "/work/scratch/data/kalinie"
 
 
-def load_checkpoint(hydra_conf, pretrain_module_ckpt_path, mod):
+def load_checkpoint(
+    hydra_conf: str | Path, pretrain_module_ckpt_path: str | Path, mod: str
+) -> MonoSITSEncoder:
     pretrain_module_config = DictConfig(open_yaml(hydra_conf))
 
     pretrain_module_config.datamodule.datamodule.path_dir_csv = (
@@ -79,26 +81,6 @@ def load_checkpoint(hydra_conf, pretrain_module_ckpt_path, mod):
     return repr_encoder
 
 
-def back_to_date(
-    days_int: torch.Tensor, ref_date: str = "2018-09-01"
-) -> list[np.array]:
-    """
-    Go back from integral doy (number of days from ref date)
-    to calendar doy
-    """
-    return [
-        np.asarray(
-            pd.to_datetime(
-                [
-                    pd.Timedelta(dd, "d") + pd.to_datetime(ref_date)
-                    for dd in days_int.cpu().numpy()[d]
-                ]
-            )
-        )
-        for d in range(len(days_int))
-    ]
-
-
 def apply_padding(allow_padd, max_len, t, sits, doy):
     if allow_padd:
         padd_tensor = (0, 0, 0, 0, 0, 0, 0, max_len - t)
@@ -114,7 +96,7 @@ def apply_padding(allow_padd, max_len, t, sits, doy):
     return sits, doy, padd_index
 
 
-def encode_series_alise_s1(
+def encode_series_malice(
     path_alise_model: str | Path,
     path_csv: str | Path,
     dataset_path_oe: str | Path,

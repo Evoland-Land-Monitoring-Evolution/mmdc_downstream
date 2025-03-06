@@ -1,3 +1,5 @@
+"""Encode PASTIS SITS S2 with MALICE with exported onnx model"""
+
 # !/usr/bin/env python3
 # Copyright: (c) 2024 CESBIO / Centre National d'Etudes Spatiales
 
@@ -17,26 +19,6 @@ log = logging.getLogger(__name__)
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 
-def back_to_date(
-    days_int: torch.Tensor, ref_date: str = "2018-09-01"
-) -> list[np.array]:
-    """
-    Go back from integral doy (number of days from ref date)
-    to calendar doy
-    """
-    return [
-        np.asarray(
-            pd.to_datetime(
-                [
-                    pd.Timedelta(dd, "d") + pd.to_datetime(ref_date)
-                    for dd in days_int.cpu().numpy()[d]
-                ]
-            )
-        )
-        for d in range(len(days_int))
-    ]
-
-
 def encode_series_alise_onnx(
     path_alise_model: str | Path,
     path_csv: str | Path,
@@ -46,7 +28,7 @@ def encode_series_alise_onnx(
     output_path: str | Path,
     postfix: str,
 ):
-    """Encode PASTIS SITS S2 with MALICE"""
+    """Encode PASTIS SITS S2 with MALICE with exported onnx model"""
 
     log.info("Loader is ready")
 

@@ -1,3 +1,5 @@
+"""Compute stats for encoded pastis dataset"""
+
 import logging
 import os
 
@@ -7,39 +9,12 @@ from einops import rearrange
 
 model = "checkpoint_best"
 dataset_path_oe = f"{os.environ['WORK']}/results/Pastis_encoded"
-# dataset_path_oe = "/home/kalinichevae/jeanzay/results/Pastis_encoded"
 feat_nb = 6
 sats = ["S1", "S2"]
 
 log = logging.getLogger(__name__)
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-
-# def compute_stats(data, quant = (0.05, .5, 0.95)):
-#     MAX_SAMPLES_QUANTILE = 16_000_000
-#     nbpixels = data.shape[0]
-#     mean = data.mean()
-#     std = data.std()
-#     # Compute quantiles using a percentage of pixels
-#     # the quantile function not work with more that 16 millions of points
-#
-#     # computing quantiles
-#     if nbpixels > MAX_SAMPLES_QUANTILE:
-#         quantiles = data[torch.randperm(MAX_SAMPLES_QUANTILE)].quantile(
-#             torch.tensor(quant, dtype=torch.float), dim=0
-#         )
-#     else:
-#         quantiles = data.quantile(torch.tensor(quant, dtype=torch.float), dim=0)
-#     qmin, median, qmax = quantiles[0], quantiles[1], quantiles[2]
-#     log.info(
-#         "Stats:\n mean: %s\n std: %s\n qmin: %s\n median: %s\n qmax: %s",
-#         mean,
-#         std,
-#         qmin,
-#         median,
-#         qmax,
-#     )
-#     return torch.Tensor([mean, std, qmin, median, qmax])
 
 
 def compute_stats(sum, sum_x2):

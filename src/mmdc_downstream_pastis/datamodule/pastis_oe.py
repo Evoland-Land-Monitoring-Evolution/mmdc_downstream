@@ -47,7 +47,6 @@ class PASTISDataset(tdata.Dataset):
         sats: list[str] = ["S2"],
         crop_size: int | None = 64,
         strict_s1: bool = False,
-        # s2_band=None,
         crop_type: Literal["Center", "Random"] = "Random",
         transform: nn.Module | None = None,
     ):
@@ -389,17 +388,19 @@ class PASTISDataset(tdata.Dataset):
             )
         return true_doys
 
-    def return_one_satellite(self, data, true_doys, sat, crop_xy: list[int] = None):
+    def return_one_satellite(
+        self,
+        data: dict[str, MMDCDataStruct],
+        true_doys: dict[str, torch.Tensor],
+        sat: str,
+        crop_xy: list[int] = None,
+    ) -> OneSatellitePatch:
+        """Return one satellite"""
         if (sits := data[sat]) is not None:
             if crop_xy is not None:
                 x, y = crop_xy
                 sits = sits.crop(x, y, self.crop_size)
             true_doy = true_doys[sat]
-            # if self.transform is not None:
-            #     my_logger.debug("Apply transform per SITS")
-            #     sits = rearrange(sits, "t c h w -> c t h w")
-            #     sits = self.transform(sits)
-            #     sits = rearrange(sits, "c t h w -> t c h w")
 
             return OneSatellitePatch(
                 sits=sits,
@@ -412,7 +413,7 @@ class PASTISDataset(tdata.Dataset):
             true_doy=torch.zeros(1, 1),
         )
 
-    def get_crop_idx(self, rows, cols) -> tuple[int, int]:
+    def get_crop_idx(self, rows: int, cols: int) -> tuple[int, int]:
         """return the coordinate, width and height of the window loaded
         by the SITS depending od the value of the attribute
         self.crop_type
@@ -428,24 +429,11 @@ class PASTISDataset(tdata.Dataset):
             cols // 2 - self.crop_size // 2
         )
 
-    def extract_class_count(self, workers):
-        M = self.len
-        # df = pd.DataFrame(columns=[i for i in range(len(self.dict_classes))])
-        l_s = []
-        for i in range(M):
-            out = self.__getitem__(i)
-            labels = out["labels"].cpu().numpy()
-            values, counts = np.unique(labels, return_counts=True)
-            s_counts = pd.Series(dict(zip(values, counts)))
-            s_counts.name = self.id_patches[i]
-            l_s += [s_counts]
-        df = pd.concat(l_s)
-        return df
-
 
 def pad_and_stack(
     key: str, to_collate: list, pad_value: int = 0, max_size: int = -1
 ) -> torch.Tensor:
+    """Pad to max length of batch element and stack"""
     return torch.stack(
         [
             pad_tensor(getattr(c, key).to(torch.float32), max_size, pad_value)
@@ -455,6 +443,7 @@ def pad_and_stack(
 
 
 def collate(item: Any, pad_value: int = 0) -> dict[str, Any]:
+    """Collate"""
     dict_collate = {}
     sizes = [
         (getattr(e, key)).shape[0] for e in item for key in e.__dict__ if "doy" in key
@@ -501,6 +490,7 @@ def custom_collate_classif(
     batch: Iterable[dict[str, OneSatellitePatch], torch.Tensor, torch.Tensor, int],
     pad_value: int = 0,
 ) -> (dict[str, PastisBatch], torch.Tensor, torch.Tensor, list[int]):
+    """Collate input data + GT"""
     batch_dict = {}
     batch_doy = {}
 
@@ -586,40 +576,40 @@ class PastisOEDataModule(LightningDataModule):
         """
         if stage == "fit":
             self.data = PastisDataSets(
-                self.instanciate_dataset(self.folds.train),
-                self.instanciate_dataset(self.folds.val),
+                self.instantiate_dataset(self.folds.train),
+                self.instantiate_dataset(self.folds.val),
             )
         if stage == "test":
             if self.data:
                 self.data = PastisDataSets(
                     self.data.train,
                     self.data.val,
-                    self.instanciate_dataset(self.folds.test),
+                    self.instantiate_dataset(self.folds.test),
                 )
             else:
                 self.data = PastisDataSets(
-                    self.instanciate_dataset(self.folds.train),
-                    self.instanciate_dataset(self.folds.val),
-                    self.instanciate_dataset(self.folds.test),
+                    self.instantiate_dataset(self.folds.train),
+                    self.instantiate_dataset(self.folds.val),
+                    self.instantiate_dataset(self.folds.test),
                 )
 
     def train_dataloader(self) -> tdata.DataLoader:
         """Train dataloader"""
         assert self.data is not None
         assert self.data.train is not None
-        return self.instanciate_data_loader(self.data.train, shuffle=True)
+        return self.instantiate_data_loader(self.data.train, shuffle=True)
 
     def val_dataloader(self) -> tdata.DataLoader:
         """Validation dataloader"""
         assert self.data is not None
         assert self.data.val is not None
-        return self.instanciate_data_loader(self.data.val, shuffle=False)
+        return self.instantiate_data_loader(self.data.val, shuffle=False)
 
     def test_dataloader(self) -> tdata.DataLoader:
         """Test dataloader"""
         assert self.data is not None
         assert self.data.test is not None
-        return self.instanciate_data_loader(
+        return self.instantiate_data_loader(
             self.data.test, shuffle=False, drop_last=False
         )
 
@@ -627,7 +617,8 @@ class PastisOEDataModule(LightningDataModule):
         """Predict dataloader"""
         return self.test_dataloader()
 
-    def instanciate_dataset(self, fold: list[int] | None) -> PASTISDataset:
+    def instantiate_dataset(self, fold: list[int] | None) -> PASTISDataset:
+        """Instantiate dataset"""
         logger.info(f"Folds {fold}")
         return PASTISDataset(
             PASTISOptions(
@@ -643,7 +634,7 @@ class PastisOEDataModule(LightningDataModule):
             strict_s1=self.strict_s1,
         )
 
-    def instanciate_data_loader(
+    def instantiate_data_loader(
         self, dataset: tdata.Dataset, shuffle: bool = False, drop_last: bool = True
     ) -> tdata.DataLoader:
         """Return a data loader with the PASTIS data set"""
@@ -655,77 +646,3 @@ class PastisOEDataModule(LightningDataModule):
             drop_last=drop_last,
             collate_fn=lambda x: custom_collate_classif(x, pad_value=self.pad_value),
         )
-
-
-# def build_dm(sats) -> PastisDataModule:
-#     """Builds datamodule"""
-#     return PastisDataModule(
-#         dataset_path_oe=dataset_path_oe,
-#         dataset_path_pastis=dataset_path_pastis,
-#         folds=PastisFolds([1, 2, 3], [4], [5]),
-#         sats=sats,
-#         task="semantic",
-#         batch_size=1,
-#         max_len=0
-#     )
-#
-#
-# dataset_path_oe = "/home/kalinichevae/scratch_jeanzay/scratch_data/Pastis_OE"
-# dataset_path_pastis = "/home/kalinichevae/scratch_jeanzay/scratch_data/Pastis"
-#
-#
-# def pastisds_dataloader(sats) -> None:
-#     """Use a dataloader with PASTIS dataset"""
-#     dm = build_dm(sats)
-#     dm.setup(stage="fit")
-#     dm.setup(stage="test")
-#     assert (
-#         hasattr(dm, "train_dataloader")
-#         and hasattr(dm, "val_dataloader")
-#         and hasattr(dm, "test_dataloader")
-#     )  # type: ignore[truthy-function]
-#     for loader in (dm.train_dataloader(), dm.val_dataloader(), dm.test_dataloader()):
-#         assert loader
-#         for batch, _ in zip(loader, range(4)):
-#             assert list(batch_dict.keys()) == sats
-#             for sat in sats:
-#                 b_s_x, t_s_x, nb_b, p_s_x, _ = batch_dict[sat].sits.data.img.shape
-#                 b_s_ang, t_s_ang, nb_b_ang, p_s_ang, _ = batch_dict[
-#                     sat
-#                 ].sits.data.angles.shape
-#                 b_s_imsk, t_s_imsk, nb_b_imsk, p_s_imsk, _ = batch_dict[
-#                     sat
-#                 ].sits.data.mask.shape
-#                 b_s_dem, nb_b_dem, p_s_dem, _ = batch_dict[sat].sits.dem.shape
-#                 b_s_meteo, t_s_meteo, nb_b_meteo, p_s_meteo, _ = batch_dict[
-#                     sat
-#                 ].sits.meteo.shape
-#                 b_s_y, p_s_y, _ = target.shape
-#                 b_s_m, p_s_m, _ = mask.shape
-#                 b_s_id = len(id_patch)
-#                 assert nb_b_dem == 4
-#                 assert nb_b_meteo == 48
-#                 assert (
-#                     b_s_x
-#                     == b_s_ang
-#                     == b_s_imsk
-#                     == b_s_dem
-#                     == b_s_meteo
-#                     == b_s_y
-#                     == b_s_m
-#                     == b_s_id
-#                 )
-#                 assert t_s_x == t_s_ang == t_s_imsk == t_s_meteo
-#                 # assert nb_b == PASTIS_BANDS[sat]
-#                 assert (
-#                     p_s_x
-#                     == p_s_ang
-#                     == p_s_imsk
-#                     == p_s_dem
-#                     == p_s_meteo
-#                     == p_s_y
-#                     == p_s_m
-#                 )
-#
-#
-# pastisds_dataloader(["S1_ASC", "S1_DESC"])

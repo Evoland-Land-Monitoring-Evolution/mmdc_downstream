@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 # Copyright: (c) 2024 CESBIO / Centre National d'Etudes Spatiales
 
+"""
+Compute stats for pastis-r dataset
+with only images and no aux data
+"""
+
+
 import logging
 import os
 from pathlib import Path
@@ -61,14 +67,6 @@ def compute_stats(
         torch.save(sat_stats, os.path.join(dataset_path_oe, f"stats_{sat}_img.pt"))
 
 
-# dataset_path_oe = "/home/kalinichevae/scratch_jeanzay/scratch_data/Pastis_OE_corr"
-# dataset_path_pastis = "/home/kalinichevae/scratch_jeanzay/scratch_data/Pastis"
-
-dataset_path_oe = f"{os.environ['SCRATCH']}/scratch_data/Pastis_OE_corr"
-
-# dataset_path_oe = "/home/kalinichevae/scratch_data/Pastis_OE"
-# dataset_path_pastis = "/home/kalinichevae/scratch_data/Pastis"
-
+dataset_path_oe = "/home/kalinichevae/scratch_data/Pastis_OE"
 sats = ["S2"]
-
 compute_stats(dataset_path_oe, sats)

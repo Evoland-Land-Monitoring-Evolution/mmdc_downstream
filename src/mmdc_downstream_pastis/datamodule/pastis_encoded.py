@@ -140,18 +140,6 @@ class PASTISEncodedDataset(PASTISDataset):
         logger.info("Done.")
         print("Dataset ready.")
 
-    # def get_stats(self):
-    #     stats = {}
-    #     for sat in self.sats:
-    #         for m in ("mu", "logvar"):
-    #             stats = torch.load(self.options.dataset_path_oe,
-    #             f"stats_{m}_{sat}.pt")
-    #             scale_regul = nn.Threshold(1e-10, 1.0)
-    #             shift = stats.median
-    #             scale = scale_regul((stats.qmax - stats.qmin) / 2.0)
-    #             stats[sat][m] = [shift, scale]
-    #     return stats
-
     def get_stats(self) -> dict[str, dict[str, tuple[torch.Tensor, torch.Tensor]]]:
         stats_dict = {s: {} for s in self.sats}
         for sat in self.sats:
@@ -282,6 +270,7 @@ class PASTISEncodedDataset(PASTISDataset):
         torch.Tensor,
         int,
     ):
+        """Get item"""
         id_patch = self.id_patches[item]
 
         # Retrieve and prepare satellite data
@@ -317,7 +306,7 @@ class PASTISEncodedDataset(PASTISDataset):
 
     def clip_vae(self, vae: VAELatentSpace, crop_xy: tuple[int, int]) -> VAELatentSpace:
         """
-        Crop embeddings
+        Crop embeddings (mu and sigma)
         """
         x, y = crop_xy
         return VAELatentSpace(
@@ -344,6 +333,7 @@ def pad_collate_vae(
     ],
     use_logvar: bool | dict[str, bool] = True,
 ) -> BatchInputUTAE:
+    """Collate embeddings"""
     batch_dict = {}
     data_masks_dict = {}
     doys_dict = {}
@@ -448,7 +438,8 @@ class PastisEncodedDataModule(PastisOEDataModule):
         self.use_logvar = use_logvar
         self.norm = norm
 
-    def instanciate_dataset(self, fold: list[int] | None) -> PASTISDataset:
+    def instantiate_dataset(self, fold: list[int] | None) -> PASTISDataset:
+        """Instantiate dataset"""
         return PASTISEncodedDataset(
             PASTISOptions(
                 task=self.task,
@@ -463,7 +454,7 @@ class PastisEncodedDataModule(PastisOEDataModule):
             norm=self.norm,
         )
 
-    def instanciate_data_loader(
+    def instantiate_data_loader(
         self, dataset: tdata.Dataset, shuffle: bool = False, drop_last: bool = True
     ) -> tdata.DataLoader:
         """Return a data loader with the PASTIS data set"""
@@ -475,73 +466,3 @@ class PastisEncodedDataModule(PastisOEDataModule):
             drop_last=drop_last,
             collate_fn=lambda x: pad_collate_vae(x, self.use_logvar),
         )
-
-
-#
-# def build_dm(sats) -> PastisEncodedDataModule:
-#     """Builds datamodule"""
-#     return PastisEncodedDataModule(
-#         dataset_path_oe=dataset_path_oe,
-#         dataset_path_pastis=dataset_path_pastis,
-#         folds=PastisFolds([1, 2, 3], [4], [5]),
-#         sats=sats,
-#         task="semantic",
-#         batch_size=4,
-#     )
-#
-#
-# model = "2024-04-05_14-58-22"
-# # dataset_path_oe = f"{os.environ['WORK']}/results/Pastis_encoded"
-# # dataset_path_pastis = f"{os.environ['SCRATCH']}/scratch_data/Pastis"
-# dataset_path_oe = "/home/kalinichevae/jeanzay/results/Pastis_encoded"
-# dataset_path_pastis = "/home/kalinichevae/scratch_jeanzay/scratch_data/Pastis"
-# dataset_path_oe = os.path.join(dataset_path_oe, model)
-#
-#
-# def pastisds_dataloader(sats) -> None:
-#     """Use a dataloader with PASTIS dataset"""
-#     dm = build_dm(sats)
-#     dm.setup(stage="fit")
-#     # dm.setup(stage="test")
-#     assert (
-#         hasattr(dm, "train_dataloader")
-#         and hasattr(dm, "val_dataloader")
-#         # and hasattr(dm, "test_dataloader")
-#     )  # type: ignore[truthy-function]
-#     for loader in (
-#         dm.train_dataloader(),
-#         dm.val_dataloader(),
-#     ):  # , dm.test_dataloader()):
-#         assert loader
-#         for (batch_dict, mask_dict, doys_dict, target, mask, id_patch), _ in zip(
-#             loader, range(4)
-#         ):
-#             if len(sats) > 1:
-#                 assert list(batch_dict.keys()) == sats
-#                 for sat in sats:
-#                     b_s_x, t_s_x, nb_b, p_s_x, _ = batch_dict[sat].shape
-#
-#                     b_s_imsk, t_s_imsk, nb_b_imsk, p_s_imsk, _ = mask_dict[sat].shape
-#
-#                     b_s_y, p_s_y, _ = target.shape
-#                     b_s_m, p_s_m, _ = mask.shape
-#                     b_s_id = len(id_patch)
-#
-#                     assert b_s_x == b_s_imsk == b_s_y == b_s_m == b_s_id
-#                     assert t_s_x == t_s_imsk
-#                     assert p_s_x == p_s_imsk == p_s_y == p_s_m
-#             else:
-#                 b_s_x, t_s_x, nb_b, p_s_x, _ = batch_dict.shape
-#
-#                 b_s_imsk, t_s_imsk, nb_b_imsk, p_s_imsk, _ = mask_dict.shape
-#
-#                 b_s_y, p_s_y, _ = target.shape
-#                 b_s_m, p_s_m, _ = mask.shape
-#                 b_s_id = len(id_patch)
-#
-#                 assert b_s_x == b_s_imsk == b_s_y == b_s_m == b_s_id
-#                 assert t_s_x == t_s_imsk
-#                 assert p_s_x == p_s_imsk == p_s_y == p_s_m
-#
-#
-# pastisds_dataloader(["S1", "S2"])

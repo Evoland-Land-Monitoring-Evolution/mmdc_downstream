@@ -28,7 +28,10 @@ def reshape_back_sits(sits: torch.Tensor, batch_size: int) -> torch.Tensor:
 
 
 class PretrainedMMDCPastis(PretrainedMMDC):
-    """Pretrained MMDC model class"""
+    """
+    Pretrained MMDC model class.
+    Model is instantiated from checkpoint
+    """
 
     def __init__(
         self,

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # Copyright: (c) 2024 CESBIO / Centre National d'Etudes Spatiales
 
+"""Compute stats for pastis dataset with dataloader (not encoded)"""
+
 import logging
 import os
 from pathlib import Path
@@ -52,7 +54,7 @@ def compute_stats(
     sats: list[str],
     pad_value: int = -9999,
 ):
-    """Encode PASTIS SITS into S1 and S2 latent embeddings"""
+    """Compute stats for pastis dataset"""
 
     dem_min_med_max = None
 
@@ -68,8 +70,8 @@ def compute_stats(
             pad_value=pad_value,
         )
 
-        dataset = dm.instanciate_dataset(fold=None)
-        loader = dm.instanciate_data_loader(dataset, shuffle=False, drop_last=False)
+        dataset = dm.instantiate_dataset(fold=None)
+        loader = dm.instantiate_data_loader(dataset, shuffle=False, drop_last=False)
 
         meteo_stats = torch.empty(0, 8)
         dem_stats = torch.empty(0, 4)
