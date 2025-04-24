@@ -13,3 +13,10 @@ thirdparties
 .coverage
 src/MMDC_Downstream.egg-info/
 .projectile
+/jobs_trex/
+/jobs/
+/train.py
+*anysat*
+/configs/model/pastis_encoded_utae_mean.yaml
+/configs/model/pastis_oe_*
+/configs/experiment/pastis_oe_*
