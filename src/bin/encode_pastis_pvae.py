@@ -71,7 +71,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--path_jit_model",
         type=str,
         help="path to pvae model",
-        default=f"{WORK_FOLDER}/results/MMDC/pvae.torchscript",
+        default="./../../pretrained_models/pvae/pvae.torchscript",
     )
 
     return arg_parser

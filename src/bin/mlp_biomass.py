@@ -4,7 +4,7 @@ import os
 from collections import namedtuple
 from pathlib import Path
 
-from mmdc_downstrteam_biomass.tile_processing.mlp_processing import MLPBiomass
+from mmdc_downstream_biomass.tile_processing.mlp_processing import MLPBiomass
 
 MLP_params = namedtuple("MLP_params", "n_iter bs lr")
 

@@ -75,24 +75,23 @@ def get_parser() -> argparse.ArgumentParser:
         help="path to pre-entrained model",
         # default=f"{WORK_FOLDER}/results/alise_preentrained/
         # malice_for_katya/malice_flexible_s1_wrec1_winv1_wcr0_seed3.onnx",
-        default=f"{WORK_FOLDER}/results/alise_preentrained/my_checkpoints_malice_aux/"
-        f"malice-aux-wr1-winv1-wcr0_f64_seed0_same_mod_epoch=121.ckpt",
+        default="./../../pretrained_models/malice/"
+        "malice-wr1-winv1-wcr0_f64_seed0_same_mod_epoch=142.ckpt",
     )
 
     arg_parser.add_argument(
         "--path_csv_norm",
         type=str,
         help="path to pre-entrained model",
-        # default=f"{WORK_FOLDER}/results/alise_preentrained",
-        default=f"{SCRATCH_FOLDER}/MMDC_MALICE",
+        default="./../../pretrained_models/malice/",
+        # default=f"{SCRATCH_FOLDER}/MMDC_MALICE",
     )
 
     arg_parser.add_argument(
         "--prepared_data_path",
         type=str,
         help="Path to prepared data",
-        # default=f"{SCRATCH_FOLDER}/TCD/t32tnt/prepared_tiles_malice_w_768_m_40"
-        default=f"{SCRATCH_FOLDER}/TCD/t32tnt/prepared_tiles_w_768_m_40"
+        default=f"{SCRATCH_FOLDER}/TCD/t32tnt/prepared_tiles_malice_w_768_m_40"
         # required=False,
     )
 
@@ -109,7 +108,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--satellites",
         type=int,
         help="modalities to encode",
-        default=["s2"]
+        default=["s1_asc"]
         # required=False,
     )
 
@@ -117,7 +116,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--aux",
         type=bool,
         help="auxiliary data used",
-        default=True,
+        default=False,
         # required=False,
     )
 

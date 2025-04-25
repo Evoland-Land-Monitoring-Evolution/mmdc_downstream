@@ -9,7 +9,7 @@ import logging
 import os
 from pathlib import Path
 
-from mmdc_downstrteam_biomass.tile_processing.encode_tile_biomass_malice import (
+from mmdc_downstream_biomass.tile_processing.encode_tile_biomass_malice import (
     encode_tile_biomass_malice,
 )
 
@@ -70,25 +70,22 @@ def get_parser() -> argparse.ArgumentParser:
         "--path_alise_model",
         type=str,
         help="path to pre-entrained model",
-        # default=f"{WORK_FOLDER}/results/alise_preentrained/
-        # malice_for_katya/malice_flexible_s1_wrec1_winv1_wcr0_seed3.onnx",
-        default=f"{WORK_FOLDER}/results/alise_preentrained/my_checkpoints_malice/"
-        f"malice-wr1-winv1-wcr0_f64_seed0_bn_transp_no_same_mod.ckpt",
+        default="./../../pretrained_models/malice/"
+        "malice-wr1-winv1-wcr0_f64_seed0_same_mod_epoch=142.ckpt",
     )
 
     arg_parser.add_argument(
         "--path_csv_norm",
         type=str,
         help="path to pre-entrained model",
-        default=f"{WORK_FOLDER}/results/alise_preentrained",
+        default="./../../pretrained_models/malice",
     )
 
     arg_parser.add_argument(
         "--folder_data",
         type=str,
         help="input folder",
-        # default=f"{SCRATCH_FOLDER}/BioMass/images/Sweden_all"
-        default=f"{SCRATCH_FOLDER}/BioMass/images/Sweden"
+        default=f"{SCRATCH_FOLDER}/BioMass/images/Sweden_all_Sentinel1_ASCENDING"
         # required=True
     )
 
@@ -96,8 +93,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--satellites",
         type=int,
         help="modalities to encode",
-        # default=["s1_asc"]
-        default=["s2"]
+        default=["s1_asc"]
         # required=False,
     )
 

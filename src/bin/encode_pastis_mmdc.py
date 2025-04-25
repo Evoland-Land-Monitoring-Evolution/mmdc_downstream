@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright: (c) 2023 CESBIO / Centre National d'Etudes Spatiales
+# Copyright: (c) 2025 CESBIO / Centre National d'Etudes Spatiales
 import argparse
 import logging
 import os
@@ -88,7 +88,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--pretrained_path",
         type=str,
         help="list of available tiles",
-        default=f"{WORK_FOLDER}/results/MMDC/magical_checkpoint"
+        default="./../../pretrained_models/mmdc/"
         # required=False,
     )
 

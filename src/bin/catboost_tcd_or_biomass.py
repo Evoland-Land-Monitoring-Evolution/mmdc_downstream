@@ -5,9 +5,7 @@ from collections import namedtuple
 from pathlib import Path
 
 from mmdc_downstream_tcd.catboost.processing import CatBoostTCD
-from src.mmdc_downstrteam_biomass.tile_processing.catboost_biomass import (
-    CatBoostBioMass,
-)
+from src.mmdc_downstream_biomass.tile_processing.catboost_biomass import CatBoostBioMass
 
 CB_params = namedtuple("CB_params", "n_iter leaf depth")
 
@@ -43,9 +41,8 @@ def get_parser() -> argparse.ArgumentParser:
         type=str,
         help="input folder",
         # default=f"{WORK_FOLDER}/results/TCD/t32tnt/pure_values/s2"
-        # default=f"{WORK_FOLDER}/results/TCD/t32tnt/encoded/"
-        default=f"{WORK_FOLDER}/results/BioMass/encoded/Sweden"
-        # default=f"{WORK_FOLDER}/results/TCD/t32tnt/encoded/"
+        # default=f"{WORK_FOLDER}/results/BioMass/encoded/Sweden"
+        default=f"{WORK_FOLDER}/results/TCD/t32tnt/encoded/"
         # required=True
     )
 
@@ -54,10 +51,7 @@ def get_parser() -> argparse.ArgumentParser:
         type=str,
         help="Name of encoded model, only if we work with encoded data",
         # default="malice_aux-wr1-winv1-wcr0_f64_seed0_same_mod_epoch=121",
-        # default="malice_wr1-winv1-wcr0_f64_seed0_bn_transp_no_same_mod"
-        # default="malice_wr1-winv1-wcr0_f64_seed0_bn"
-        # "res_magical_checkpoint",  # "res_checkpoint_best"
-        default="malice_wr1-winv1-wcr0_seed3"
+        default="malice_wr1-winv1-wcr0_f64_seed0_same_mod_epoch=142"
         # default="anysat"
     )
 
@@ -65,7 +59,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--n_iter",
         type=int,
         help="number of iterations for bootstrap",
-        default=2
+        default=1000
         # required=False,
     )
 
@@ -81,7 +75,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--depth",
         type=int,
         help="number of features per timestamp",
-        default=10
+        default=7
         # required=False,
     )
 
@@ -105,7 +99,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--satellites",
         type=list[str],
         help="satellites we deal with",
-        default=["s2"]
+        default=["s1_asc"]
         # required=False,
     )
 
@@ -123,10 +117,9 @@ def get_parser() -> argparse.ArgumentParser:
         help="Path to image tiles we are going to predict, if None no prediction",
         # default=None
         # default=f"{WORK_FOLDER}/results/TCD/t32tnt/pure_values/S1/"
-        default=f"{WORK_FOLDER}"
-        # f"/results/TCD/t32tnt/encoded/
+        default=f"{WORK_FOLDER}/" f"/results/TCD/t32tnt/encoded/"
         # malice_aux-wr1-winv1-wcr0_f64_seed0_same_mod_epoch=121"
-        f"/results/TCD/t32tnt/encoded/anysat",
+        f"malice_wr1-winv1-wcr0_f64_seed0_same_mod_epoch=142",
     )
 
     arg_parser.add_argument("--type", type=str, help="TCD or BioMass", default="TCD")

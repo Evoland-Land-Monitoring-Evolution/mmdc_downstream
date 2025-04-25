@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # Copyright: (c) 2024 CESBIO / Centre National d'Etudes Spatiales
-""" Write data for lai regression prediction """
+"""
+This file generate a csv file with pixel values,
+and their corresponding LAI GT. The csv is generated from
+
+"""
 
 import csv
 import os
@@ -36,14 +40,6 @@ TILES_CONFIG_DIR = (
 DATASET_DIR = f"{os.environ['SCRATCH']}/scratch_data/MMDC_OE/"
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# results_path = f"{os.environ['WORK']}/results/MMDC"
-# model_folder = "checkpoint_best"
-#
-# model_name = "epoch_141"
-# model_type = "baseline"
-
-
-# model_folder = "latent/checkpoints/mmdc_full/2024-02-27_14-47-18"
 results_path = f"{os.environ['WORK']}/results/MMDC/"
 model_folder = "magical_checkpoint"
 
