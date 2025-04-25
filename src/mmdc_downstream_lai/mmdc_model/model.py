@@ -36,7 +36,8 @@ class PretrainedMMDC:
             self.pretrained_path = os.path.abspath(pretrained_path)
             self.model_name = model_name
             self.model_type = model_type
-            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            self.device = "cpu"
+            # self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
             self.model_mmdc: MMDCFullModule | MMDCFullExpertsModule = (
                 self.init_mmdc_model()
@@ -70,7 +71,9 @@ class PretrainedMMDC:
 
     def set_mmdc_stats(self):
         """Set stats from file associated with checkpoint"""
-        stats = torch.load(os.path.join(self.pretrained_path, "stats.pt"))
+        stats = torch.load(
+            os.path.join(self.pretrained_path, "stats.pt"), weights_only=False
+        )
         self.lightning_module.set_stats(stats)
 
     # def get_latent_mmdc_pred(self, data: Any) -> torch.tensor:
