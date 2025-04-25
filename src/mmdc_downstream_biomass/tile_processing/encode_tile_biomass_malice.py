@@ -14,7 +14,7 @@ from mmdc_singledate.datamodules.components.datamodule_components import (
 from mmmv_ssl.data.dataclass import BatchOneMod
 from openeo_mmdc.dataset.to_tensor import load_transform_one_mod
 
-from mmdc_downstrteam_biomass.tile_processing.utils import (
+from mmdc_downstream_biomass.tile_processing.utils import (
     build_s1_images_and_masks_biomass,
     extract_gt_points,
     generate_coord_matrix,

@@ -20,3 +20,4 @@ src/MMDC_Downstream.egg-info/
 /configs/model/pastis_encoded_utae_mean.yaml
 /configs/model/pastis_oe_*
 /configs/experiment/pastis_oe_*
+src/bin/*sweden*
