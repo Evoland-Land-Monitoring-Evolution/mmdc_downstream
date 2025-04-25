@@ -49,7 +49,7 @@ def encode_tile_alise_s1(
     if path_alise_model.endswith("onnx"):
         import onnxruntime
     else:
-        from mt_ssl.data.classif_class import ClassifBInput
+        from mmmv_ssl.data.dataclass import BatchOneMod
 
         from mmdc_downstream_pastis.encode_series.encode_malice_pt import (
             load_checkpoint,
@@ -225,14 +225,12 @@ def encode_tile_alise_s1(
                                 0
                             ]  # (1, 10, 64, 64, 64)
                         else:
-                            input = ClassifBInput(
+                            input = BatchOneMod(
                                 sits=sits.to(DEVICE),
                                 input_doy=doy[None, :].to(DEVICE),
                                 padd_index=torch.zeros(1, sits.shape[1])
                                 .bool()
                                 .to(DEVICE),
-                                mask=None,
-                                labels=None,
                             )
 
                             with torch.no_grad():

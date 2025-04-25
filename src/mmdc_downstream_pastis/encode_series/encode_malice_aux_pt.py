@@ -28,7 +28,7 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 def load_checkpoint(
     hydra_conf: str | Path, pretrain_module_ckpt_path: str | Path, mod: str
 ) -> MonoSITSAuxEncoder:
-    """Load checkpoint"""
+    """Load MALICE Aux checkpoint and instantiate Mono-modal SITS Aux encoder"""
     pretrain_module_config = DictConfig(open_yaml(hydra_conf))
 
     pretrained_pl_module: AliseMM = instantiate(

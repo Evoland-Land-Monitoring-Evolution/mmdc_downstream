@@ -28,6 +28,8 @@ WORK = "/work/scratch/data/kalinie"
 def load_checkpoint(
     hydra_conf: str | Path, pretrain_module_ckpt_path: str | Path, mod: str
 ) -> MonoSITSEncoder:
+    """Load MALICE checkpoint and instantiate Mono-modal SITS encoder"""
+
     pretrain_module_config = DictConfig(open_yaml(hydra_conf))
 
     pretrain_module_config.datamodule.datamodule.path_dir_csv = (

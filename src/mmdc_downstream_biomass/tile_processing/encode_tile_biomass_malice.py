@@ -66,6 +66,7 @@ def encode_tile_biomass_malice(
         ]
 
         tile_path = os.path.join(folder_data, str(year))
+        print(os.path.abspath(path_csv))
         transform = load_transform_one_mod(path_csv, mod=sat.lower()).transform
         if Path(tile_path).exists() and os.listdir(tile_path):
             tiles = [f for f in os.listdir(tile_path) if f.startswith("3")]
@@ -79,7 +80,9 @@ def encode_tile_biomass_malice(
                     providers=["CUDAExecutionProvider"],
                 )
             else:
-                hydra_conf = path_alise_model.split(".")[0] + "_config.yaml"
+                hydra_conf = (
+                    os.path.abspath(path_alise_model).split(".")[0] + "_config.yaml"
+                )
 
                 repr_encoder = load_checkpoint(hydra_conf, path_alise_model, sat).to(
                     DEVICE
